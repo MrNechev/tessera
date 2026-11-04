@@ -64,7 +64,7 @@ jobs:
           cache-key: flatpak-builder-${{ github.sha }}
           upload-artifact: true
       - name: Attach to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           files: Tessera_${{ github.ref_name }}_x86_64.flatpak
