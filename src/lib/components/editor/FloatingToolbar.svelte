@@ -29,9 +29,11 @@
 
   const el = $derived(editor.single);
   const multi = $derived(editor.selection.length > 1);
-  const above = $derived(rect.y > 60);
+  // Free elements show a rotation handle above them: keep the toolbar clear of it.
+  const gap = $derived(el && !(el.kind === 'photo' && el.slot) && !el.locked ? 86 : 50);
+  const above = $derived(rect.y > gap + 10);
   const left = $derived(Math.max(150, Math.min(cw - 150, rect.x + rect.w / 2)));
-  const top = $derived(above ? rect.y - 50 : rect.y + rect.h + 12);
+  const top = $derived(above ? rect.y - gap : rect.y + rect.h + 14);
 </script>
 
 <div class="bar card" style:left="{left}px" style:top="{top}px" role="toolbar" aria-label="Selection actions">

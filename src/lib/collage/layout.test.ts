@@ -94,3 +94,50 @@ describe('layout engines', () => {
     expect(columnCount(Array(10).fill(4 / 3), 2480 / 3508)).toBe(Math.round(Math.sqrt((0.75 / (2480 / 3508)) * 20)));
   });
 });
+
+import { resizeBox } from '../editor/geometry';
+
+describe('resizeBox', () => {
+  it('scales proportionally along the diagonal for wide boxes', () => {
+    const start = { x: 0, y: 0, w: 300, h: 50, rotation: 0 };
+    // Drag the SE corner 30 px right and 50 px down.
+    const r = resizeBox(start, 1, 1, { x: 330, y: 100 }, true);
+    expect(r.w / r.h).toBeCloseTo(6, 5);
+    expect(r.w).toBeGreaterThan(300);
+    expect(r.w).toBeLessThan(400);
+    expect(r.x).toBeCloseTo(0, 5);
+    expect(r.y).toBeCloseTo(0, 5);
+  });
+
+  it('keeps the opposite corner fixed for rotated boxes', () => {
+    const start = { x: 100, y: 100, w: 200, h: 100, rotation: 30 };
+    const r = resizeBox(start, 1, 1, { x: 450, y: 400 }, false);
+    const rot = (p: { x: number; y: number }, c: { x: number; y: number }, deg: number) => {
+      const a = (deg * Math.PI) / 180;
+      return { x: c.x + (p.x - c.x) * Math.cos(a) - (p.y - c.y) * Math.sin(a), y: c.y + (p.x - c.x) * Math.sin(a) + (p.y - c.y) * Math.cos(a) };
+    };
+    const before = rot({ x: 100, y: 100 }, { x: 200, y: 150 }, 30);
+    const after = rot({ x: r.x, y: r.y }, { x: r.x + r.w / 2, y: r.y + r.h / 2 }, 30);
+    expect(after.x).toBeCloseTo(before.x, 4);
+    expect(after.y).toBeCloseTo(before.y, 4);
+  });
+});
+
+import { shapeCells } from './engines/artistic';
+
+describe('shape layouts', () => {
+  it('draws a heart with a visible notch between the lobes', () => {
+    const area = { x: 0, y: 0, w: 1000, h: 1000 };
+    const cells = shapeCells('heart', area, 4, 40);
+    expect(cells.length).toBeGreaterThanOrEqual(40);
+    const top = Math.min(...cells.map((c) => c.y));
+    const row = cells.filter((c) => Math.abs(c.y - top) < 1).map((c) => c.x + c.w / 2).sort((a, b) => a - b);
+    const centre = (Math.min(...cells.map((c) => c.x)) + Math.max(...cells.map((c) => c.x + c.w))) / 2;
+    // No cell of the top row sits on the vertical centre line.
+    for (const cx of row) expect(Math.abs(cx - centre)).toBeGreaterThan(cells[0].w / 2);
+    // …and the figure is left/right symmetric.
+    const xs = cells.map((c) => c.x + c.w / 2 - centre).sort((a, b) => a - b);
+    const mirrored = xs.map((x) => -x).sort((a, b) => a - b);
+    xs.forEach((x, i) => expect(Math.abs(x - mirrored[i])).toBeLessThan(1));
+  });
+});

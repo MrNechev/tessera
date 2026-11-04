@@ -17,6 +17,19 @@ const STAR_POINTS = (() => {
   return pts;
 })();
 
+// Classic parametric heart (x = 16 sin³t, y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t):
+// its notch between the lobes is deep enough to survive a coarse photo grid.
+const HEART_POINTS = (() => {
+  const pts: [number, number][] = [];
+  for (let i = 0; i < 240; i++) {
+    const t = (i / 240) * Math.PI * 2;
+    const x = 16 * Math.pow(Math.sin(t), 3);
+    const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    pts.push([x / 16, y / 16]);
+  }
+  return pts;
+})();
+
 const HEX_POINTS = (() => {
   const pts: [number, number][] = [];
   for (let i = 0; i < 6; i++) {
@@ -37,11 +50,7 @@ function insidePolygon(pts: [number, number][], x: number, y: number): boolean {
 }
 
 export const SHAPE_FNS: Record<LayoutShape, ShapeFn> = {
-  // Classic implicit heart curve: (x² + y² − 1)³ − x²y³ = 0
-  heart: (x, y) => {
-    const a = x * x + y * y - 1;
-    return a * a * a - x * x * y * y * y;
-  },
+  heart: (x, y) => (insidePolygon(HEART_POINTS, x, y) ? -1 : 1),
   circle: (x, y) => x * x + y * y - 1,
   diamond: (x, y) => Math.abs(x) + Math.abs(y) - 1,
   star: (x, y) => (insidePolygon(STAR_POINTS, x, y) ? -1 : 1),
@@ -125,17 +134,23 @@ export function shapeCells(shape: LayoutShape, area: Rect, gap: number, target: 
       hi = mid;
     }
   }
-  // Recentre the resulting figure vertically/horizontally inside the area.
+  // Cells whose centres sit near the outline overhang it by half a cell:
+  // shrink the figure if needed, then centre it inside the area.
   if (best.length) {
     const minX = Math.min(...best.map((c) => c.x));
     const maxX = Math.max(...best.map((c) => c.x + c.w));
     const minY = Math.min(...best.map((c) => c.y));
     const maxY = Math.max(...best.map((c) => c.y + c.h));
-    const dx = area.x + (area.w - (maxX - minX)) / 2 - minX;
-    const dy = area.y + (area.h - (maxY - minY)) / 2 - minY;
+    const k = Math.min(1, area.w / (maxX - minX), area.h / (maxY - minY));
+    const fw = (maxX - minX) * k;
+    const fh = (maxY - minY) * k;
+    const ox = area.x + (area.w - fw) / 2;
+    const oy = area.y + (area.h - fh) / 2;
     for (const c of best) {
-      c.x += dx;
-      c.y += dy;
+      c.x = ox + (c.x - minX) * k;
+      c.y = oy + (c.y - minY) * k;
+      c.w *= k;
+      c.h *= k;
     }
   }
   return best;
@@ -146,7 +161,8 @@ export const shapeEngine: Engine = ({ items, area, gap, rng, settings, pageShort
   if (n === 0) return { placements: [] };
   const shape = settings.shape ?? 'heart';
   const repeat = settings.repeat ?? true;
-  const minCells = shape === 'circle' || shape === 'diamond' ? 13 : 18;
+  // Enough cells for the outline to be recognisable; photos repeat to fill them.
+  const minCells = { heart: 40, star: 44, hexagon: 30, circle: 28, diamond: 28 }[shape];
   const target = repeat ? Math.max(n, minCells) : n;
   let cells = shapeCells(shape, area, gap, target);
   if (!repeat && cells.length > n) {

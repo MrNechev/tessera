@@ -108,9 +108,10 @@ export function resizeBox(
   let w = sx === 0 ? start.w : Math.max(minSize, dx * sx);
   let h = sy === 0 ? start.h : Math.max(minSize, dy * sy);
   if (keepAspect && sx !== 0 && sy !== 0) {
-    const ratio = start.w / start.h;
-    if (w / h > ratio) h = w / ratio;
-    else w = h * ratio;
+    // Project the drag onto the box diagonal so wide or tall boxes scale smoothly.
+    const k = Math.max(minSize / Math.min(start.w, start.h), (w * start.w + h * start.h) / (start.w * start.w + start.h * start.h));
+    w = start.w * k;
+    h = start.h * k;
   }
   // Rebuild the box from the anchor.
   dx = sx === 0 ? 0 : sx * w;

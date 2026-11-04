@@ -766,14 +766,17 @@
 
   const editingEl = $derived(editor.editingText ? (editor.element(editor.editingText) as TextElement | undefined) : undefined);
 
+  // Focus & select once per editing session (not on every keystroke's doc update).
+  const editingId = $derived(editor.editingText);
   $effect(() => {
-    if (editingEl && textarea) {
-      const ta = textarea;
+    const ta = textarea;
+    if (!editingId || !ta) return;
+    untrack(() => {
       queueMicrotask(() => {
         ta.focus();
         ta.select();
       });
-    }
+    });
   });
 
   const editStyle = $derived.by(() => {
