@@ -17,7 +17,7 @@ jobs:
       APPIMAGE_EXTRACT_AND_RUN: 1
       NO_STRIP: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: System dependencies
         run: |
           sudo apt-get update
@@ -56,7 +56,7 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
         with:
           bundle: Tessera_${{ github.ref_name }}_x86_64.flatpak
