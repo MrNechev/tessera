@@ -1,0 +1,25 @@
+# Dependencies & build output
+node_modules/
+dist/
+target/
+src-tauri/target/
+src-tauri/gen/schemas/
+*.tsbuildinfo
+
+# Packaging artifacts
+*.AppImage
+*.flatpak
+.flatpak-builder/
+flatpak-build/
+flatpak-repo/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp
+
+# Local test output
+/scratch/
+/test-output/

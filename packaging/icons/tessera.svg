@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2340"/>
+      <stop offset="1" stop-color="#15121f"/>
+    </linearGradient>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7a6b"/>
+      <stop offset="1" stop-color="#ff4f81"/>
+    </linearGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd76a"/>
+      <stop offset="1" stop-color="#ffa53d"/>
+    </linearGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6ee7c8"/>
+      <stop offset="1" stop-color="#1fb5a6"/>
+    </linearGradient>
+    <linearGradient id="d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#7c4dff"/>
+    </linearGradient>
+    <linearGradient id="e" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7cc4ff"/>
+      <stop offset="1" stop-color="#3d7bff"/>
+    </linearGradient>
+    <clipPath id="ca"><rect x="172" y="172" width="372" height="424" rx="44"/></clipPath>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="212" fill="url(#bg)"/>
+  <rect x="64.5" y="64.5" width="895" height="895" rx="211.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+  <!-- large photo tile with a tiny landscape -->
+  <rect x="172" y="172" width="372" height="424" rx="44" fill="url(#a)"/>
+  <g clip-path="url(#ca)">
+    <circle cx="452" cy="282" r="46" fill="#fff4d6" opacity="0.95"/>
+    <path d="M150 600 L300 404 L384 500 L436 444 L566 600 Z" fill="#ffffff" opacity="0.9"/>
+  </g>
+  <rect x="576" y="172" width="276" height="208" rx="44" fill="url(#b)"/>
+  <rect x="576" y="412" width="276" height="184" rx="44" fill="url(#c)"/>
+  <rect x="172" y="628" width="236" height="224" rx="44" fill="url(#e)"/>
+  <rect x="440" y="628" width="412" height="224" rx="44" fill="url(#d)"/>
+  <circle cx="770" cy="740" r="34" fill="#ffffff" opacity="0.85"/>
+</svg>
