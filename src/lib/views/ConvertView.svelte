@@ -4,6 +4,7 @@
   import { api, onProgress } from '../api/backend';
   import { defaultMetadataPolicy, type ConvertOptions, type ImageFormat, type MetadataPolicy, type OutputSpec } from '../api/types';
   import FileQueue from '../components/tools/FileQueue.svelte';
+  import MetadataCard from '../components/tools/MetadataCard.svelte';
   import MetadataOptions from '../components/tools/MetadataOptions.svelte';
   import OutputOptions from '../components/tools/OutputOptions.svelte';
   import Results from '../components/tools/Results.svelte';
@@ -27,6 +28,8 @@
   let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
   let output = $state<OutputSpec>({ directory: null, suffix: '', conflict: 'rename' });
   let bg = $state('#ffffff');
+
+  let inspected = $state<string | null>(null);
 
   const cap = $derived(target === 'keep' ? null : encodable.find((f) => f.format === target));
 
@@ -75,9 +78,12 @@
   <div class="main">
     <header class="title">
       <h2>Convert images</h2>
-      <p class="hint">Change formats in bulk. Keep every bit of quality and metadata — or slim things down.</p>
+      <p class="hint">Change formats in bulk. Keep every bit of quality and metadata — or slim things down. Click a file to see its metadata.</p>
     </header>
-    <FileQueue {queue} />
+    <FileQueue {queue} selected={inspected} onselect={(p) => (inspected = p)} />
+    {#if inspected && queue.files.some((f) => f.path === inspected)}
+      <MetadataCard path={inspected} onclose={() => (inspected = null)} />
+    {/if}
     <Results results={queue.results} />
   </div>
 

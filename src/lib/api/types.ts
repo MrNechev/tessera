@@ -203,20 +203,32 @@ export interface CompressPreviewInfo {
   height: number;
 }
 
+export interface MetadataField {
+  group: string;
+  ifd: string;
+  tag: string;
+  value: string;
+}
+
 export interface MetadataSummary {
   cameraMake: string | null;
   cameraModel: string | null;
   lens: string | null;
   software: string | null;
   dateTaken: string | null;
+  dateDigitized: string | null;
+  dateModified: string | null;
   exposureTime: string | null;
-  fNumber: string | null;
-  iso: string | null;
-  focalLength: string | null;
+  fNumber: number | null;
+  iso: number | null;
+  focalLength: number | null;
+  focalLength35mm: number | null;
   gpsLatitude: number | null;
   gpsLongitude: number | null;
+  gpsAltitude: number | null;
   artist: string | null;
   copyright: string | null;
+  description: string | null;
   orientation: number;
   hasExif: boolean;
   hasIcc: boolean;
@@ -226,6 +238,7 @@ export interface MetadataSummary {
   height: number;
   format: ImageFormat | null;
   fileSize: number;
+  fields: MetadataField[];
 }
 
 export function defaultMetadataPolicy(): MetadataPolicy {
