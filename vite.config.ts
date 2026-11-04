@@ -23,7 +23,7 @@ export default defineConfig({
   build: {
     // WebKitGTK 2.40+ / Safari 16+ level features are fine.
     target: 'safari16',
-    minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
+    minify: !process.env.TAURI_ENV_DEBUG,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     chunkSizeWarningLimit: 2000,
   },
