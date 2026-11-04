@@ -1,0 +1,117 @@
+# Flatpak manifest for Tessera.
+#
+# Build locally (from the repository root):
+#   flatpak run org.flatpak.Builder --user --install-deps-from=flathub --force-clean \
+#     --repo=flatpak-repo flatpak-build packaging/flatpak/io.github.mrnechev.Tessera.yml
+#   flatpak build-bundle flatpak-repo tessera.flatpak io.github.mrnechev.Tessera
+#
+# This manifest downloads npm and cargo dependencies during the build
+# (`--share=network`), which is fine for GitHub release bundles. A Flathub
+# submission will vendor them with flatpak-builder-tools instead.
+id: io.github.mrnechev.Tessera
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: tessera
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - '*.a'
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Photos live everywhere: home, removable drives and mounted disks.
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/run/media
+  - --filesystem=/mnt
+  # "Show in folder".
+  - --talk-name=org.freedesktop.FileManager1
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+  env:
+    CARGO_HOME: /run/build/tessera/cargo-home
+    CARGO_TARGET_DIR: /run/build/tessera/target
+    npm_config_cache: /run/build/tessera/npm-cache
+    npm_config_update_notifier: 'false'
+modules:
+  # The GNOME runtime's libheif has no HEVC decoder, so HEIC photos from
+  # phones would not open. Build libheif with libde265 into the app instead.
+  - name: libde265
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DENABLE_SDL=OFF
+      - -DENABLE_DECODER=OFF
+      - -DENABLE_ENCODER=OFF
+    cleanup:
+      - /bin
+    sources:
+      - type: archive
+        url: https://github.com/strukturag/libde265/releases/download/v1.0.16/libde265-1.0.16.tar.gz
+        sha256: b92beb6b53c346db9a8fae968d686ab706240099cdd5aff87777362d668b0de7
+
+  - name: libheif
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DWITH_LIBDE265=ON
+      - -DWITH_DAV1D=ON
+      - -DWITH_X265=OFF
+      - -DWITH_AOM_DECODER=OFF
+      - -DWITH_AOM_ENCODER=OFF
+      - -DWITH_RAV1E=OFF
+      - -DWITH_SvtEnc=OFF
+      - -DWITH_KVAZAAR=OFF
+      - -DWITH_OpenJPEG_DECODER=OFF
+      - -DWITH_OpenJPEG_ENCODER=OFF
+      - -DWITH_FFMPEG_DECODER=OFF
+      - -DWITH_LIBSHARPYUV=OFF
+      - -DWITH_GDK_PIXBUF=OFF
+      - -DWITH_EXAMPLES=OFF
+      - -DBUILD_TESTING=OFF
+      - -DENABLE_PLUGIN_LOADING=OFF
+    cleanup:
+      - /bin
+      - /share/thumbnailers
+    sources:
+      - type: archive
+        url: https://github.com/strukturag/libheif/releases/download/v1.20.2/libheif-1.20.2.tar.gz
+        sha256: 68ac9084243004e0ef3633f184eeae85d615fe7e4444373a0a21cebccae9d12a
+
+  - name: tessera
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - target
+          - dist
+          - .flatpak-builder
+          - flatpak-build
+          - flatpak-repo
+          - src-tauri/gen
+    build-commands:
+      - npm ci --no-audit --no-fund
+      - npm run build
+      - cargo build --release --locked -p tessera --features tauri/custom-protocol
+      - install -Dm755 target/release/tessera /app/bin/tessera
+      - install -Dm644 packaging/linux/io.github.mrnechev.Tessera.desktop /app/share/applications/io.github.mrnechev.Tessera.desktop
+      - install -Dm644 packaging/linux/io.github.mrnechev.Tessera.metainfo.xml /app/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml
+      - install -Dm644 packaging/linux/io.github.mrnechev.Tessera.mime.xml /app/share/mime/packages/io.github.mrnechev.Tessera.xml
+      - install -Dm644 packaging/icons/tessera.svg /app/share/icons/hicolor/scalable/apps/io.github.mrnechev.Tessera.svg
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.mrnechev.Tessera.png
+      - install -Dm644 src-tauri/icons/64x64.png /app/share/icons/hicolor/64x64/apps/io.github.mrnechev.Tessera.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.mrnechev.Tessera.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.mrnechev.Tessera.png
+      - install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/io.github.mrnechev.Tessera.png

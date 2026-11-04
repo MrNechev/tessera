@@ -1,0 +1,44 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a quick collage with 12 photos
+        2. Switch to the Rings layout
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: Tessera version
+      description: Settings → Updates shows it.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: How did you install Tessera?
+      options: [AppImage, Flatpak, .deb, .rpm, Built from source]
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and desktop
+      placeholder: Fedora 44, KDE Plasma (Wayland)
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, sample files, logs
+      description: If an image fails to import or convert, attaching it (or a similar one) helps a lot.

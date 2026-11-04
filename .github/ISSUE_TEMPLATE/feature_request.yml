@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest an idea — a template, a layout, a tool…
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Tessera to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? What would you use it for?

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Tessera
+GenericName=Photo Collage Maker
+Comment=Create photo collages, and convert or compress images
+Exec=tessera %F
+Icon=io.github.mrnechev.Tessera
+Terminal=false
+Categories=Graphics;Photography;2DGraphics;
+Keywords=collage;photo;mosaic;picture;poster;template;convert;compress;image;heic;webp;
+MimeType=image/jpeg;image/png;image/webp;image/avif;image/heic;image/heif;image/tiff;image/bmp;image/gif;image/jxl;application/x-tessera;
+StartupNotify=true
+StartupWMClass=tessera

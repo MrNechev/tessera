@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 Tessera contributors -->
+<component type="desktop-application">
+  <id>io.github.mrnechev.Tessera</id>
+  <name>Tessera</name>
+  <summary>Make photo collages, convert and compress images</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.mrnechev">
+    <name>Tessera contributors</name>
+  </developer>
+  <description>
+    <p>
+      Tessera is a creative photo collage studio and an image Swiss Army knife.
+      A tessera is a single tile of a mosaic — and every photo is one.
+    </p>
+    <p>Collages:</p>
+    <ul>
+      <li>Quick automatic collages from any number of photos, with eight layout engines including the classic PhotoCollage column layout, mosaics, hearts and other shapes, rings and scattered polaroids</li>
+      <li>Regenerate until you love the arrangement, drag photos to re-centre them or to swap them</li>
+      <li>Hand-crafted designs with text, curved text, stickers, shapes, photo frames, borders, shadows and filters</li>
+      <li>Templates for Valentine’s Day, Christmas, New Year, birthdays, weddings, babies, travel and more</li>
+      <li>Paper sizes such as A4 and US Letter at print resolution, or social media sizes</li>
+      <li>Save to JPEG, PNG, WebP, AVIF, TIFF or PDF with one click</li>
+    </ul>
+    <p>Image tools:</p>
+    <ul>
+      <li>Convert between formats while keeping all metadata, or only the date, camera and other fields you choose</li>
+      <li>Keep 100% of the quality, or lower it by the percentage you pick</li>
+      <li>Smart compression that makes files much smaller while staying visually identical</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.mrnechev.Tessera.desktop</launchable>
+  <url type="homepage">https://github.com/MrNechev/tessera</url>
+  <url type="bugtracker">https://github.com/MrNechev/tessera/issues</url>
+  <url type="vcs-browser">https://github.com/MrNechev/tessera</url>
+  <url type="contribute">https://github.com/MrNechev/tessera/blob/main/CONTRIBUTING.md</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Automatic collage with the layout engines</caption>
+      <image>https://raw.githubusercontent.com/MrNechev/tessera/main/docs/screenshots/editor-layout.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Templates for every occasion</caption>
+      <image>https://raw.githubusercontent.com/MrNechev/tessera/main/docs/screenshots/editor-template.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Home screen</caption>
+      <image>https://raw.githubusercontent.com/MrNechev/tessera/main/docs/screenshots/home.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Smart image compression with before/after preview</caption>
+      <image>https://raw.githubusercontent.com/MrNechev/tessera/main/docs/screenshots/compress.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Graphics</category>
+    <category>Photography</category>
+  </categories>
+  <keywords>
+    <keyword>collage</keyword>
+    <keyword>photo</keyword>
+    <keyword>mosaic</keyword>
+    <keyword>template</keyword>
+    <keyword>convert</keyword>
+    <keyword>compress</keyword>
+  </keywords>
+  <provides>
+    <binary>tessera</binary>
+  </provides>
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+  <requires>
+    <display_length compare="ge">1000</display_length>
+  </requires>
+  <branding>
+    <color type="primary" scheme_preference="light">#ffd6e5</color>
+    <color type="primary" scheme_preference="dark">#2b2340</color>
+  </branding>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-11-04" type="development">
+      <description>
+        <p>First alpha release: collage editor with layouts, templates, text, stickers and shapes; image converter and compressor.</p>
+      </description>
+    </release>
+  </releases>
+</component>
