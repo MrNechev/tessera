@@ -1,0 +1,354 @@
+[
+  {
+    "id": "inter",
+    "family": "Inter",
+    "category": "sans",
+    "weights": [
+      400,
+      500,
+      600,
+      700,
+      800
+    ],
+    "files": {
+      "400": "inter-400.ttf",
+      "500": "inter-500.ttf",
+      "600": "inter-600.ttf",
+      "700": "inter-700.ttf",
+      "800": "inter-800.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "montserrat",
+    "family": "Montserrat",
+    "category": "sans",
+    "weights": [
+      400,
+      600,
+      800
+    ],
+    "files": {
+      "400": "montserrat-400.ttf",
+      "600": "montserrat-600.ttf",
+      "800": "montserrat-800.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "poppins",
+    "family": "Poppins",
+    "category": "sans",
+    "weights": [
+      400,
+      600,
+      800
+    ],
+    "files": {
+      "400": "poppins-400.ttf",
+      "600": "poppins-600.ttf",
+      "800": "poppins-800.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "josefin-sans",
+    "family": "Josefin Sans",
+    "category": "sans",
+    "weights": [
+      300,
+      400,
+      700
+    ],
+    "files": {
+      "300": "josefin-sans-300.ttf",
+      "400": "josefin-sans-400.ttf",
+      "700": "josefin-sans-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "fredoka",
+    "family": "Fredoka",
+    "category": "rounded",
+    "weights": [
+      400,
+      600
+    ],
+    "files": {
+      "400": "fredoka-400.ttf",
+      "600": "fredoka-600.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "comfortaa",
+    "family": "Comfortaa",
+    "category": "rounded",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "comfortaa-400.ttf",
+      "700": "comfortaa-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "oswald",
+    "family": "Oswald",
+    "category": "display",
+    "weights": [
+      400,
+      600
+    ],
+    "files": {
+      "400": "oswald-400.ttf",
+      "600": "oswald-600.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "bebas-neue",
+    "family": "Bebas Neue",
+    "category": "display",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "bebas-neue-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "righteous",
+    "family": "Righteous",
+    "category": "display",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "righteous-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "abril-fatface",
+    "family": "Abril Fatface",
+    "category": "display",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "abril-fatface-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "shrikhand",
+    "family": "Shrikhand",
+    "category": "display",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "shrikhand-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "playfair-display",
+    "family": "Playfair Display",
+    "category": "serif",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "playfair-display-400.ttf",
+      "700": "playfair-display-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "lora",
+    "family": "Lora",
+    "category": "serif",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "lora-400.ttf",
+      "700": "lora-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "cinzel",
+    "family": "Cinzel",
+    "category": "serif",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "cinzel-400.ttf",
+      "700": "cinzel-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "pacifico",
+    "family": "Pacifico",
+    "category": "script",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "pacifico-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "dancing-script",
+    "family": "Dancing Script",
+    "category": "script",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "dancing-script-400.ttf",
+      "700": "dancing-script-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "great-vibes",
+    "family": "Great Vibes",
+    "category": "script",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "great-vibes-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "sacramento",
+    "family": "Sacramento",
+    "category": "script",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "sacramento-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "satisfy",
+    "family": "Satisfy",
+    "category": "script",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "satisfy-400.ttf"
+    },
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "lobster",
+    "family": "Lobster",
+    "category": "script",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "lobster-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "caveat",
+    "family": "Caveat",
+    "category": "handwriting",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "caveat-400.ttf",
+      "700": "caveat-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "indie-flower",
+    "family": "Indie Flower",
+    "category": "handwriting",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "indie-flower-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "amatic-sc",
+    "family": "Amatic SC",
+    "category": "handwriting",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "amatic-sc-400.ttf",
+      "700": "amatic-sc-700.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "permanent-marker",
+    "family": "Permanent Marker",
+    "category": "handwriting",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "permanent-marker-400.ttf"
+    },
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "mountains-of-christmas",
+    "family": "Mountains of Christmas",
+    "category": "themed",
+    "weights": [
+      400,
+      700
+    ],
+    "files": {
+      "400": "mountains-of-christmas-400.ttf",
+      "700": "mountains-of-christmas-700.ttf"
+    },
+    "license": "Apache-2.0"
+  },
+  {
+    "id": "creepster",
+    "family": "Creepster",
+    "category": "themed",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "creepster-400.ttf"
+    },
+    "license": "OFL-1.1"
+  }
+]
