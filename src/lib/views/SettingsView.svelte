@@ -16,6 +16,14 @@
   let cache = $state<number | null>(null);
   let checking = $state(false);
 
+  // Save slider changes once the user pauses, not on every tick.
+  let qualityTimer: ReturnType<typeof setTimeout> | null = null;
+  function setQuality(v: number) {
+    app.settings.exportQuality = Math.round(v);
+    if (qualityTimer) clearTimeout(qualityTimer);
+    qualityTimer = setTimeout(() => void app.saveSettings({ exportQuality: app.settings.exportQuality }), 400);
+  }
+
   async function chooseDir() {
     const dir = await pickFolder('Choose where Save puts your collages', s.saveDirectory);
     if (dir) await app.saveSettings({ saveDirectory: dir });
@@ -77,9 +85,8 @@
     </div>
     <div class="field">
       <div class="lbl"><span>Quality</span><span class="hint">For JPEG, WebP, AVIF and PDF.</span></div>
-      <div class="slider"><Slider value={s.exportQuality} min={40} max={100} label="Quality" unit="%" onchange={(v) => (app.settings.exportQuality = Math.round(v))} /></div>
+      <div class="slider"><Slider value={s.exportQuality} min={40} max={100} label="Quality" unit="%" onchange={setQuality} /></div>
     </div>
-    <div class="row end"><button class="btn small" onclick={() => void app.saveSettings({ exportQuality: app.settings.exportQuality })}>Apply quality</button></div>
   </section>
 
   <section class="card">
@@ -219,9 +226,6 @@
   }
   .slider {
     width: 300px;
-  }
-  .end {
-    justify-content: flex-end;
   }
   .about p {
     margin: 0;
