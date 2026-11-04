@@ -10,6 +10,34 @@ rust-version.workspace = true
 
 [features]
 default = []
-heif = []
+# HEIC/HEIF (and, when libheif has an AV1 decoder, AVIF) decoding through the
+# system libheif (>= 1.17).
+heif = ["dep:libheif-rs"]
 
 [dependencies]
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "ico", "tiff", "qoi", "tga", "avif", "avif-native", "rayon"] }
+mozjpeg = "0.10.13"
+# Raw libjpeg FFI for lossless (coefficient-level) JPEG optimisation.
+mozjpeg-sys = { version = "2.2.3", default-features = false, features = ["unwinding"] }
+webp = { version = "0.3.1", default-features = false }
+oxipng = { version = "10.2.1", default-features = false, features = ["parallel"] }
+imagequant = "4.4.1"
+kamadak-exif = "0.6.1"
+jxl-oxide = { version = "0.12.6", features = ["image"] }
+fast_image_resize = { version = "6.1.0", features = ["image"] }
+pdf-writer = "0.15.0"
+filetime = "0.2.29"
+gif = "0.14"
+png = "0.18"
+flate2 = "1"
+crc32fast = "1"
+rayon = "1.12"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+libheif-rs = { version = "3.0.0", optional = true, default-features = false, features = ["v1_17"] }
+
+[dev-dependencies]
+serde_json = "1"
+kamadak-exif = "0.6.1"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+filetime = "0.2.29"
