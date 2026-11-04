@@ -21,6 +21,7 @@
   import { photoWindow } from '../../render/frameGeometry';
   import { coverRect, enterElement, renderDocument, type RenderResources } from '../../render/renderer';
   import { layoutText } from '../../render/text';
+  import { app } from '../../stores/app.svelte';
   import { drag } from '../../stores/drag.svelte';
   import { library } from '../../stores/library.svelte';
   import { stickers } from '../../stores/stickers.svelte';
@@ -830,7 +831,9 @@
       fontTick++;
     });
     const kd = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      const t = e.target as HTMLElement | null;
+      const typing = t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement;
+      if (e.code === 'Space' && app.view === 'editor' && !typing) {
         if (!spaceDown) {
           spaceDown = true;
           cursor = 'grab';

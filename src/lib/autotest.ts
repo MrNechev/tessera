@@ -66,6 +66,9 @@ async function run(step: Step): Promise<void> {
       editor.setEngine(s.engine as LayoutEngine);
       if (s.shape) editor.setLayout({ shape: s.shape as LayoutShape });
       break;
+    case 'settings':
+      await app.saveSettings(s.settings as never);
+      break;
     case 'page':
       editor.setPage(Number(s.width), Number(s.height), Number(s.dpi ?? 300), s.preset as string | undefined);
       break;

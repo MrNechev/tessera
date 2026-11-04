@@ -81,6 +81,13 @@
   });
 </script>
 
+<svelte:window
+  onkeydown={(e) => {
+    // A web-style reload would throw away the UI state of a desktop app.
+    if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r' && app.view !== 'editor')) e.preventDefault();
+  }}
+/>
+
 <div class="app">
   <nav class="nav" aria-label="Main">
     <div class="logo" title="Tessera">
