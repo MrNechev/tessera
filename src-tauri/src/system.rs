@@ -58,7 +58,10 @@ pub fn app_info(app: AppHandle) -> AppInfo {
         install_kind: install_kind().into(),
         heif: cfg!(feature = "heif"),
         formats: tessera_imaging::capabilities(),
-        input_extensions: tessera_imaging::input_extensions().into_iter().map(String::from).collect(),
+        input_extensions: tessera_imaging::input_extensions()
+            .into_iter()
+            .map(String::from)
+            .collect(),
         data_dir: paths::data_dir(&app).to_string_lossy().into_owned(),
         cache_dir: paths::cache_dir(&app).to_string_lossy().into_owned(),
     }
@@ -66,7 +69,9 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 
 #[tauri::command]
 pub fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
-    app.opener().reveal_item_in_dir(paths::expand(&path)).map_err(err)
+    app.opener()
+        .reveal_item_in_dir(paths::expand(&path))
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -99,7 +104,11 @@ pub fn cache_size(app: AppHandle) -> u64 {
 #[tauri::command]
 pub fn clear_cache(app: AppHandle) -> u64 {
     let mut freed = 0;
-    for dir in [paths::proxies(&app), paths::thumbs(&app), paths::previews(&app)] {
+    for dir in [
+        paths::proxies(&app),
+        paths::thumbs(&app),
+        paths::previews(&app),
+    ] {
         freed += paths::dir_size(&dir);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -112,6 +121,26 @@ pub fn clear_cache(app: AppHandle) -> u64 {
 pub fn autotest_script() -> Option<String> {
     let path = std::env::var_os("TESSERA_AUTOTEST")?;
     fs::read_to_string(path).ok()
+}
+
+/// Files given on the command line ("Open with Tessera").
+#[tauri::command]
+pub fn startup_files() -> Vec<String> {
+    std::env::args_os()
+        .skip(1)
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists())
+        .filter_map(|p| p.canonicalize().ok())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Development hook: print a line from the smoke-test driver to stdout.
+#[tauri::command]
+pub fn autotest_log(msg: String) {
+    if std::env::var_os("TESSERA_AUTOTEST").is_some() {
+        println!("[autotest] {msg}");
+    }
 }
 
 #[derive(Serialize)]
@@ -163,12 +192,20 @@ pub async fn check_updates() -> CmdResult<UpdateInfo> {
             Some((v, r)) => (
                 Some(v.to_string()),
                 r.get("html_url").and_then(|u| u.as_str()).map(String::from),
-                r.get("body").and_then(|u| u.as_str()).map(|s| s.chars().take(2000).collect()),
-                r.get("published_at").and_then(|u| u.as_str()).map(String::from),
+                r.get("body")
+                    .and_then(|u| u.as_str())
+                    .map(|s| s.chars().take(2000).collect()),
+                r.get("published_at")
+                    .and_then(|u| u.as_str())
+                    .map(String::from),
             ),
             None => (None, None, None, None),
         };
-        let has_update = latest.as_deref().and_then(parse_version).map(|v| v > cur).unwrap_or(false);
+        let has_update = latest
+            .as_deref()
+            .and_then(parse_version)
+            .map(|v| v > cur)
+            .unwrap_or(false);
         Ok(UpdateInfo {
             current: current.into(),
             latest,

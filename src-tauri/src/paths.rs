@@ -11,15 +11,27 @@ fn ensure(p: PathBuf) -> PathBuf {
 }
 
 pub fn cache_dir(app: &AppHandle) -> PathBuf {
-    ensure(app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("tessera")))
+    ensure(
+        app.path()
+            .app_cache_dir()
+            .unwrap_or_else(|_| std::env::temp_dir().join("tessera")),
+    )
 }
 
 pub fn data_dir(app: &AppHandle) -> PathBuf {
-    ensure(app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("tessera-data")))
+    ensure(
+        app.path()
+            .app_data_dir()
+            .unwrap_or_else(|_| std::env::temp_dir().join("tessera-data")),
+    )
 }
 
 pub fn config_dir(app: &AppHandle) -> PathBuf {
-    ensure(app.path().app_config_dir().unwrap_or_else(|_| data_dir(app)))
+    ensure(
+        app.path()
+            .app_config_dir()
+            .unwrap_or_else(|_| data_dir(app)),
+    )
 }
 
 pub fn proxies(app: &AppHandle) -> PathBuf {
@@ -86,8 +98,16 @@ pub fn unique_path(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
     }
-    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file").to_string();
-    let ext = path.extension().and_then(|s| s.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file")
+        .to_string();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|e| format!(".{e}"))
+        .unwrap_or_default();
     let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
     for i in 1..10_000 {
         let candidate = dir.join(format!("{stem} ({i}){ext}"));

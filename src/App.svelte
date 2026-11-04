@@ -1,7 +1,9 @@
 <script lang="ts">
   import { ArrowLeftRight, House, LayoutDashboard, Minimize2, Settings } from '@lucide/svelte';
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import { isTauri } from './lib/api/backend';
+  import { maybeRunAutotest } from './lib/autotest';
   import Toasts from './lib/components/ui/Toasts.svelte';
   import { editor } from './lib/editor/editor.svelte';
   import { newQuickCollage, openProjectPath } from './lib/editor/session.svelte';
@@ -52,7 +54,12 @@
   }
 
   onMount(() => {
-    void app.init();
+    void app.init().then(async () => {
+      if (!isTauri) return;
+      const files = await invoke<string[]>('startup_files').catch(() => [] as string[]);
+      if (files.length) await handleDrop(files, -1, -1);
+      await maybeRunAutotest();
+    });
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
     void import('@tauri-apps/api/webview').then(async ({ getCurrentWebview }) => {

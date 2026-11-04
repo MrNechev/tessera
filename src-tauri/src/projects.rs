@@ -26,7 +26,11 @@ pub struct ProjectSummary {
 }
 
 fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 fn summarize(path: &Path) -> Option<ProjectSummary> {
@@ -35,10 +39,24 @@ fn summarize(path: &Path) -> Option<ProjectSummary> {
     let id = v.get("id")?.as_str()?.to_string();
     let thumb = path.with_extension("jpg");
     Some(ProjectSummary {
-        name: v.get("name").and_then(|n| n.as_str()).unwrap_or("Untitled").to_string(),
-        modified: v.get("modified").and_then(|n| n.as_str()).unwrap_or("").to_string(),
-        width: v.pointer("/page/width").and_then(|n| n.as_f64()).unwrap_or(0.0) as u32,
-        height: v.pointer("/page/height").and_then(|n| n.as_f64()).unwrap_or(0.0) as u32,
+        name: v
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("Untitled")
+            .to_string(),
+        modified: v
+            .get("modified")
+            .and_then(|n| n.as_str())
+            .unwrap_or("")
+            .to_string(),
+        width: v
+            .pointer("/page/width")
+            .and_then(|n| n.as_f64())
+            .unwrap_or(0.0) as u32,
+        height: v
+            .pointer("/page/height")
+            .and_then(|n| n.as_f64())
+            .unwrap_or(0.0) as u32,
         path: path.to_string_lossy().into_owned(),
         thumb: thumb.exists().then(|| thumb.to_string_lossy().into_owned()),
         id,
@@ -70,12 +88,18 @@ pub fn load_project(path: String) -> CmdResult<String> {
 }
 
 #[tauri::command]
-pub fn save_project(app: AppHandle, id: String, json: String, thumbnail: Option<String>) -> CmdResult<ProjectSummary> {
+pub fn save_project(
+    app: AppHandle,
+    id: String,
+    json: String,
+    thumbnail: Option<String>,
+) -> CmdResult<ProjectSummary> {
     if !valid_id(&id) {
         return Err("invalid project id".into());
     }
     // Make sure it's a JSON document before writing anything.
-    serde_json::from_str::<serde_json::Value>(&json).map_err(|e| format!("invalid project data: {e}"))?;
+    serde_json::from_str::<serde_json::Value>(&json)
+        .map_err(|e| format!("invalid project data: {e}"))?;
     let path = paths::projects(&app).join(format!("{id}.tessera"));
     paths::write_atomic(&path, json.as_bytes()).map_err(err)?;
     if let Some(data_url) = thumbnail {
@@ -90,9 +114,11 @@ pub fn save_project(app: AppHandle, id: String, json: String, thumbnail: Option<
 
 #[tauri::command]
 pub fn save_project_file(path: String, json: String) -> CmdResult<()> {
-    serde_json::from_str::<serde_json::Value>(&json).map_err(|e| format!("invalid project data: {e}"))?;
+    serde_json::from_str::<serde_json::Value>(&json)
+        .map_err(|e| format!("invalid project data: {e}"))?;
     let p = paths::expand(&path);
-    paths::write_atomic(&p, json.as_bytes()).map_err(|e| format!("Could not save {}: {e}", p.display()))
+    paths::write_atomic(&p, json.as_bytes())
+        .map_err(|e| format!("Could not save {}: {e}", p.display()))
 }
 
 #[tauri::command]

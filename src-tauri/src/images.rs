@@ -86,7 +86,10 @@ fn walk(dir: &Path, depth: usize, exts: &HashSet<String>, out: &mut Vec<PathBuf>
 
 /// Expand folders into the image files they contain (files are kept as given).
 pub fn expand_paths(paths: &[String]) -> Vec<PathBuf> {
-    let exts: HashSet<String> = tessera_imaging::input_extensions().into_iter().map(str::to_string).collect();
+    let exts: HashSet<String> = tessera_imaging::input_extensions()
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     let mut out = Vec::new();
     for p in paths {
         let p = paths::expand(p);
@@ -118,7 +121,10 @@ fn asset_id(path: &Path) -> String {
 }
 
 fn cached(dir: &Path, id: &str) -> Option<PathBuf> {
-    ["jpg", "png"].iter().map(|e| dir.join(format!("{id}.{e}"))).find(|p| p.exists())
+    ["jpg", "png"]
+        .iter()
+        .map(|e| dir.join(format!("{id}.{e}")))
+        .find(|p| p.exists())
 }
 
 fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
@@ -127,7 +133,13 @@ fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
     let proxy = match cached(&paths::proxies(app), &id) {
         Some(p) => p,
         None => {
-            let res = tessera_imaging::make_preview(path, &paths::proxies(app).join(format!("{id}.jpg")), PROXY_SIDE, 88).map_err(err)?;
+            let res = tessera_imaging::make_preview(
+                path,
+                &paths::proxies(app).join(format!("{id}.jpg")),
+                PROXY_SIDE,
+                88,
+            )
+            .map_err(err)?;
             PathBuf::from(res.path)
         }
     };
@@ -135,14 +147,23 @@ fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
         Some(p) => p,
         // Thumbnails come from the proxy: much faster than decoding the original twice.
         None => {
-            let res = tessera_imaging::make_preview(&proxy, &paths::thumbs(app).join(format!("{id}.jpg")), THUMB_SIDE, 82).map_err(err)?;
+            let res = tessera_imaging::make_preview(
+                &proxy,
+                &paths::thumbs(app).join(format!("{id}.jpg")),
+                THUMB_SIDE,
+                82,
+            )
+            .map_err(err)?;
             PathBuf::from(res.path)
         }
     };
     Ok(ImportedImage {
         id,
         path: path.to_string_lossy().into_owned(),
-        name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
         width: info.width,
         height: info.height,
         format: info.format,
@@ -165,15 +186,27 @@ pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Impo
             .map(|p| {
                 let r = import_one(&app, p);
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                emit_progress(&app, "import", n, total, Some(p.to_string_lossy().into_owned()));
+                emit_progress(
+                    &app,
+                    "import",
+                    n,
+                    total,
+                    Some(p.to_string_lossy().into_owned()),
+                );
                 (p.clone(), r)
             })
             .collect();
-        let mut out = ImportResult { images: Vec::new(), failed: Vec::new() };
+        let mut out = ImportResult {
+            images: Vec::new(),
+            failed: Vec::new(),
+        };
         for (p, r) in results {
             match r {
                 Ok(i) => out.images.push(i),
-                Err(e) => out.failed.push(Failure { path: p.to_string_lossy().into_owned(), error: e }),
+                Err(e) => out.failed.push(Failure {
+                    path: p.to_string_lossy().into_owned(),
+                    error: e,
+                }),
             }
         }
         out
@@ -186,12 +219,21 @@ pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Impo
 pub async fn probe_files(paths: Vec<String>) -> CmdResult<ProbeResult> {
     tauri::async_runtime::spawn_blocking(move || {
         let files = expand_paths(&paths);
-        let results: Vec<_> = files.par_iter().map(|p| (p.clone(), tessera_imaging::probe(p))).collect();
-        let mut out = ProbeResult { files: Vec::new(), failed: Vec::new() };
+        let results: Vec<_> = files
+            .par_iter()
+            .map(|p| (p.clone(), tessera_imaging::probe(p)))
+            .collect();
+        let mut out = ProbeResult {
+            files: Vec::new(),
+            failed: Vec::new(),
+        };
         for (p, r) in results {
             match r {
                 Ok(i) => out.files.push(i),
-                Err(e) => out.failed.push(Failure { path: p.to_string_lossy().into_owned(), error: e.to_string() }),
+                Err(e) => out.failed.push(Failure {
+                    path: p.to_string_lossy().into_owned(),
+                    error: e.to_string(),
+                }),
             }
         }
         out
@@ -205,7 +247,12 @@ pub async fn probe_files(paths: Vec<String>) -> CmdResult<ProbeResult> {
 #[tauri::command]
 pub async fn load_image_rgba(path: String, max_width: u32, max_height: u32) -> CmdResult<Response> {
     tauri::async_runtime::spawn_blocking(move || {
-        let img = tessera_imaging::load_scaled_rgba(Path::new(&path), max_width.max(1), max_height.max(1)).map_err(err)?;
+        let img = tessera_imaging::load_scaled_rgba(
+            Path::new(&path),
+            max_width.max(1),
+            max_height.max(1),
+        )
+        .map_err(err)?;
         let (w, h) = img.dimensions();
         let mut buf = Vec::with_capacity(8 + (w as usize) * (h as usize) * 4);
         buf.extend_from_slice(&w.to_le_bytes());
@@ -219,7 +266,9 @@ pub async fn load_image_rgba(path: String, max_width: u32, max_height: u32) -> C
 
 #[tauri::command]
 pub async fn read_metadata(path: String) -> CmdResult<MetadataSummary> {
-    tauri::async_runtime::spawn_blocking(move || tessera_imaging::read_summary(Path::new(&path)).map_err(err))
-        .await
-        .map_err(err)?
+    tauri::async_runtime::spawn_blocking(move || {
+        tessera_imaging::read_summary(Path::new(&path)).map_err(err)
+    })
+    .await
+    .map_err(err)?
 }

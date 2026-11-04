@@ -42,10 +42,17 @@ pub fn export_begin(state: State<'_, AppState>, width: u32, height: u32) -> CmdR
     }
     let mut jobs = state.exports.lock().map_err(err)?;
     // Drop abandoned jobs (e.g. the UI was reloaded mid-export).
-    jobs.jobs.retain(|_, j| j.started.elapsed().as_secs() < 3600);
+    jobs.jobs
+        .retain(|_, j| j.started.elapsed().as_secs() < 3600);
     jobs.next = jobs.next.wrapping_add(1);
     let id = jobs.next;
-    jobs.jobs.insert(id, Job { image: RgbaImage::new(width, height), started: Instant::now() });
+    jobs.jobs.insert(
+        id,
+        Job {
+            image: RgbaImage::new(width, height),
+            started: Instant::now(),
+        },
+    );
     Ok(id)
 }
 
@@ -71,7 +78,11 @@ pub fn export_tile(state: State<'_, AppState>, request: Request<'_>) -> CmdResul
         return Err("tile must be sent as raw bytes".into());
     };
     if data.len() != (w as usize) * (h as usize) * 4 {
-        return Err(format!("tile has {} bytes, expected {}", data.len(), w * h * 4));
+        return Err(format!(
+            "tile has {} bytes, expected {}",
+            data.len(),
+            w * h * 4
+        ));
     }
     let mut jobs = state.exports.lock().map_err(err)?;
     let job = jobs.jobs.get_mut(&job).ok_or("unknown export job")?;
@@ -105,14 +116,21 @@ pub async fn export_finish(
     dpi: u32,
     unique: bool,
 ) -> CmdResult<ExportResult> {
-    let job = state.exports.lock().map_err(err)?.jobs.remove(&job).ok_or("unknown export job")?;
+    let job = state
+        .exports
+        .lock()
+        .map_err(err)?
+        .jobs
+        .remove(&job)
+        .ok_or("unknown export job")?;
     tauri::async_runtime::spawn_blocking(move || {
         let img = job.image;
         let (width, height) = img.dimensions();
         let bytes = if format == "pdf" {
             tessera_imaging::rgba_to_pdf(&img, dpi.max(1), quality.clamp(1, 100)).map_err(err)?
         } else {
-            let fmt = ImageFormat::from_extension(&format).ok_or_else(|| format!("Unsupported format {format}"))?;
+            let fmt = ImageFormat::from_extension(&format)
+                .ok_or_else(|| format!("Unsupported format {format}"))?;
             let opts = EncodeOptions {
                 format: fmt,
                 quality: quality.clamp(1, 100),
@@ -120,7 +138,11 @@ pub async fn export_finish(
                 progressive: true,
                 chroma: Chroma::Auto,
                 // Exports can be large; favour reasonable speed.
-                effort: if matches!(fmt, ImageFormat::Avif) { 35 } else { 50 },
+                effort: if matches!(fmt, ImageFormat::Avif) {
+                    35
+                } else {
+                    50
+                },
                 dpi: Some(dpi.max(1)),
                 background: [255, 255, 255],
             };
@@ -130,10 +152,15 @@ pub async fn export_finish(
         if unique {
             target = paths::unique_path(&target);
         }
-        paths::write_atomic(&target, &bytes).map_err(|e| format!("Could not write {}: {e}", target.display()))?;
-        Ok(ExportResult { path: target.to_string_lossy().into_owned(), bytes: bytes.len() as u64, width, height })
+        paths::write_atomic(&target, &bytes)
+            .map_err(|e| format!("Could not write {}: {e}", target.display()))?;
+        Ok(ExportResult {
+            path: target.to_string_lossy().into_owned(),
+            bytes: bytes.len() as u64,
+            width,
+            height,
+        })
     })
     .await
     .map_err(err)?
 }
-

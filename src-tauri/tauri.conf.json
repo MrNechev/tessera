@@ -8,7 +8,8 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "../dist",
+    "beforeBundleCommand": "node scripts/prepare-bundle.mjs"
   },
   "app": {
     "withGlobalTauri": false,
@@ -38,7 +39,10 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$APPCACHE/**"],
+          "allow": [
+            "$APPCACHE/**",
+            "$APPDATA/projects/**"
+          ],
           "deny": []
         }
       }
@@ -46,12 +50,16 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm", "appimage"],
-    "category": "Graphics",
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage"
+    ],
+    "category": "GraphicsAndDesign",
     "shortDescription": "Photo collage studio and image toolkit",
     "longDescription": "Tessera is a creative photo collage studio and image Swiss Army knife. Build quick automatic collages or hand-crafted designs with templates, text, stickers, shapes and borders, then convert and compress images while keeping the metadata you care about.",
     "publisher": "Tessera contributors",
-    "copyright": "Copyright © 2026 Tessera contributors",
+    "copyright": "Copyright \u00a9 2026 Tessera contributors",
     "license": "GPL-3.0-or-later",
     "homepage": "https://github.com/MrNechev/tessera",
     "icon": [
@@ -66,13 +74,28 @@
     "linux": {
       "deb": {
         "section": "graphics",
+        "depends": [
+          "libheif1 (>= 1.17)",
+          "libdav1d7"
+        ],
+        "recommends": [
+          "libheif-plugin-libde265"
+        ],
+        "desktopTemplate": "../packaging/linux/tessera.desktop.hbs",
         "files": {
-          "/usr/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml": "../packaging/linux/io.github.mrnechev.Tessera.metainfo.xml"
+          "/usr/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml": "gen/linux/io.github.mrnechev.Tessera.metainfo.xml",
+          "/usr/share/mime/packages/io.github.mrnechev.Tessera.xml": "../packaging/linux/io.github.mrnechev.Tessera.mime.xml"
         }
       },
       "rpm": {
+        "depends": [
+          "libheif.so.1()(64bit)",
+          "libdav1d.so.7()(64bit)"
+        ],
+        "desktopTemplate": "../packaging/linux/tessera.desktop.hbs",
         "files": {
-          "/usr/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml": "../packaging/linux/io.github.mrnechev.Tessera.metainfo.xml"
+          "/usr/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml": "gen/linux/io.github.mrnechev.Tessera.metainfo.xml",
+          "/usr/share/mime/packages/io.github.mrnechev.Tessera.xml": "../packaging/linux/io.github.mrnechev.Tessera.mime.xml"
         }
       },
       "appimage": {

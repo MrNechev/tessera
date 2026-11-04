@@ -27,8 +27,22 @@ pub struct Progress {
     pub current: Option<String>,
 }
 
-pub fn emit_progress(app: &AppHandle, task: &'static str, done: usize, total: usize, current: Option<String>) {
-    let _ = app.emit("tessera://progress", Progress { task, done, total, current });
+pub fn emit_progress(
+    app: &AppHandle,
+    task: &'static str,
+    done: usize,
+    total: usize,
+    current: Option<String>,
+) {
+    let _ = app.emit(
+        "tessera://progress",
+        Progress {
+            task,
+            done,
+            total,
+            current,
+        },
+    );
 }
 
 /// Shared, mutable application state.
@@ -64,6 +78,8 @@ pub fn run() {
             system::cache_size,
             system::clear_cache,
             system::autotest_script,
+            system::autotest_log,
+            system::startup_files,
             settings::load_settings,
             settings::save_settings,
             images::import_images,

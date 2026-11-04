@@ -13,8 +13,13 @@ use crate::{emit_progress, err, images::expand_paths, paths, AppState, CmdResult
 /// Heavy codecs (AVIF, smart search) use a lot of memory per image; keep the
 /// pool modest so big batches don't exhaust RAM on small machines.
 fn pool() -> rayon::ThreadPool {
-    let n = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-    rayon::ThreadPoolBuilder::new().num_threads((n / 2).clamp(2, 6)).build().expect("thread pool")
+    let n = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads((n / 2).clamp(2, 6))
+        .build()
+        .expect("thread pool")
 }
 
 fn cancelled(input: &Path) -> JobResult {
@@ -47,7 +52,11 @@ where
         files
             .par_iter()
             .map(|p| {
-                let r = if state.cancel_batch.load(Ordering::SeqCst) { cancelled(p) } else { job(p) };
+                let r = if state.cancel_batch.load(Ordering::SeqCst) {
+                    cancelled(p)
+                } else {
+                    job(p)
+                };
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                 emit_progress(app, task, n, total, Some(p.to_string_lossy().into_owned()));
                 r
@@ -57,20 +66,32 @@ where
 }
 
 #[tauri::command]
-pub async fn convert_images(app: AppHandle, files: Vec<String>, options: ConvertOptions) -> CmdResult<Vec<JobResult>> {
+pub async fn convert_images(
+    app: AppHandle,
+    files: Vec<String>,
+    options: ConvertOptions,
+) -> CmdResult<Vec<JobResult>> {
     tauri::async_runtime::spawn_blocking(move || {
         let files = expand_paths(&files);
-        run_batch(&app, "convert", files, |p| tessera_imaging::convert_file(p, &options))
+        run_batch(&app, "convert", files, |p| {
+            tessera_imaging::convert_file(p, &options)
+        })
     })
     .await
     .map_err(err)
 }
 
 #[tauri::command]
-pub async fn compress_images(app: AppHandle, files: Vec<String>, options: CompressOptions) -> CmdResult<Vec<JobResult>> {
+pub async fn compress_images(
+    app: AppHandle,
+    files: Vec<String>,
+    options: CompressOptions,
+) -> CmdResult<Vec<JobResult>> {
     tauri::async_runtime::spawn_blocking(move || {
         let files = expand_paths(&files);
-        run_batch(&app, "compress", files, |p| tessera_imaging::compress_file(p, &options))
+        run_batch(&app, "compress", files, |p| {
+            tessera_imaging::compress_file(p, &options)
+        })
     })
     .await
     .map_err(err)
@@ -97,11 +118,23 @@ pub struct CompressPreviewInfo {
 
 /// Formats the webview can show directly.
 fn displayable(f: ImageFormat) -> bool {
-    matches!(f, ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::Webp | ImageFormat::Gif | ImageFormat::Bmp | ImageFormat::Avif)
+    matches!(
+        f,
+        ImageFormat::Jpeg
+            | ImageFormat::Png
+            | ImageFormat::Webp
+            | ImageFormat::Gif
+            | ImageFormat::Bmp
+            | ImageFormat::Avif
+    )
 }
 
 #[tauri::command]
-pub async fn compress_preview(app: AppHandle, path: String, options: CompressOptions) -> CmdResult<CompressPreviewInfo> {
+pub async fn compress_preview(
+    app: AppHandle,
+    path: String,
+    options: CompressOptions,
+) -> CmdResult<CompressPreviewInfo> {
     tauri::async_runtime::spawn_blocking(move || {
         let src = Path::new(&path);
         let res = tessera_imaging::compress_preview(src, &options).map_err(err)?;
@@ -112,7 +145,9 @@ pub async fn compress_preview(app: AppHandle, path: String, options: CompressOpt
                 let _ = std::fs::remove_file(e.path());
             }
         }
-        let tag = blake3::hash(format!("{path}{:?}", std::time::SystemTime::now()).as_bytes()).to_hex()[..12].to_string();
+        let tag = blake3::hash(format!("{path}{:?}", std::time::SystemTime::now()).as_bytes())
+            .to_hex()[..12]
+            .to_string();
         let out = dir.join(format!("result-{tag}.{}", res.format.extension()));
         std::fs::write(&out, &res.bytes).map_err(err)?;
         let probe = tessera_imaging::probe(src).map_err(err)?;
@@ -121,7 +156,13 @@ pub async fn compress_preview(app: AppHandle, path: String, options: CompressOpt
             app.asset_protocol_scope().allow_file(src).map_err(err)?;
             src.to_path_buf()
         } else {
-            let o = tessera_imaging::make_preview(src, &dir.join(format!("original-{tag}.png")), probe.width.max(probe.height), 95).map_err(err)?;
+            let o = tessera_imaging::make_preview(
+                src,
+                &dir.join(format!("original-{tag}.png")),
+                probe.width.max(probe.height),
+                95,
+            )
+            .map_err(err)?;
             o.path.into()
         };
         Ok(CompressPreviewInfo {
