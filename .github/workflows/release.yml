@@ -50,22 +50,8 @@ jobs:
           uploadUpdaterJson: false
 
   flatpak:
-    name: Flatpak bundle
+    name: Flatpak
     needs: linux
-    runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
-      options: --privileged
-    steps:
-      - uses: actions/checkout@v7
-      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
-        with:
-          bundle: Tessera_${{ github.ref_name }}_x86_64.flatpak
-          manifest-path: packaging/flatpak/io.github.mrnechev.Tessera.yml
-          cache-key: flatpak-builder-${{ github.sha }}
-          upload-artifact: true
-      - name: Attach to the release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: Tessera_${{ github.ref_name }}_x86_64.flatpak
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      release-tag: ${{ github.ref_name }}

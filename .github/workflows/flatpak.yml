@@ -1,0 +1,91 @@
+name: Flatpak
+
+# Builds the Flatpak bundle:
+# - for releases (called from release.yml with the release tag), attaching it;
+# - as a check when packaging files change on main or in pull requests.
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        description: Release to attach the bundle to
+        type: string
+        required: true
+  push:
+    branches: [main]
+    paths:
+      - packaging/**
+      - .github/workflows/flatpak.yml
+      - Cargo.lock
+      - package-lock.json
+  pull_request:
+    paths:
+      - packaging/**
+      - .github/workflows/flatpak.yml
+
+permissions:
+  contents: write
+
+jobs:
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Flatpak and flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak
+          # Ubuntu 24.04 blocks unprivileged user namespaces, which bubblewrap needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+
+      - name: Build
+        run: |
+          FB="$HOME/flatpak"
+          flatpak run org.flatpak.Builder --user --install-deps-from=flathub --disable-rofiles-fuse \
+            --force-clean --state-dir="$FB/state" --repo="$FB/repo" \
+            "$FB/build" packaging/flatpak/io.github.mrnechev.Tessera.yml
+          VERSION=$(node -p "require('./package.json').version")
+          BUNDLE="Tessera_v${VERSION}_x86_64.flatpak"
+          # --runtime-repo lets `flatpak install` fetch the GNOME runtime from Flathub.
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            "$FB/repo" "$BUNDLE" io.github.mrnechev.Tessera
+          echo "BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          ls -l "$BUNDLE"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak
+          path: ${{ env.BUNDLE }}
+
+      - name: Attach to the release
+        if: inputs.release-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release-tag }}" "$BUNDLE" --clobber
+
+      # If a release went out without its Flatpak (e.g. the build failed) and the
+      # app sources on main are still identical to that release's tag, attach
+      # the bundle built from main.
+      - name: Attach to the current release if it is missing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then echo "No release $TAG"; exit 0; fi
+          if gh release view "$TAG" --json assets -q '.assets[].name' | grep -q '\.flatpak$'; then
+            echo "$TAG already has a Flatpak"; exit 0
+          fi
+          if git diff --quiet "$TAG" HEAD -- src src-tauri crates public packaging scripts \
+               index.html package.json package-lock.json Cargo.toml Cargo.lock \
+               vite.config.ts svelte.config.js tsconfig.json; then
+            gh release upload "$TAG" "$BUNDLE"
+          else
+            echo "Sources changed since $TAG; not attaching a bundle built from main."
+          fi
