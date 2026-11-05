@@ -4,7 +4,7 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [0.1.0] — 2026-11-04 — first alpha
+## [0.1.0] — 2026-11-05 — first alpha
 
 ### Collages
 - Quick automatic collages from any number of photos with eight layout engines:

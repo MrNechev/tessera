@@ -81,7 +81,7 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="0.1.0" date="2026-11-04" type="development">
+    <release version="0.1.0" date="2026-11-05" type="development">
       <description>
         <p>First alpha release: collage editor with layouts, templates, text, stickers and shapes; image converter and compressor.</p>
       </description>
