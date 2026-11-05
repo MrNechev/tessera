@@ -112,10 +112,14 @@ Download the latest file for your system from the
 The deb, rpm and AppImage need a reasonably recent system (Ubuntu 24.04,
 Debian 13, Fedora 40 or newer). The Flatpak runs everywhere Flatpak does.
 
-**HEIC/HEIF photos** (from iPhones) are decoded by your system’s libheif. Some
-distributions ship libheif without the HEVC decoder for patent reasons — on
-Fedora install `libheif-freeworld` from RPM Fusion, on Debian/Ubuntu
-`libheif-plugin-libde265`. The Flatpak includes it already.
+**HEIC/HEIF photos** (from iPhones) need an HEVC decoder:
+
+- **Flatpak** — included, works out of the box.
+- **.deb** — installs `libheif-plugin-libde265` automatically (it's a recommended package).
+- **.rpm** — Fedora's libheif has no HEVC decoder for patent reasons; install
+  `libheif-freeworld` from RPM Fusion (Bazzite and many Fedora spins already have it).
+- **AppImage** — can't open HEIC yet in 0.1.0 (the decoder plugin isn't bundled);
+  use the Flatpak, or convert HEIC photos first. This is fixed in the next release.
 
 ### Updates
 
