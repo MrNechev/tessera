@@ -59,8 +59,23 @@ pub fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+/// AppImages bundle libheif's HEVC decoder plugin (for HEIC photos) inside
+/// the image; tell libheif where to find it. Must run before any thread starts.
+fn configure_bundled_libheif() {
+    if std::env::var_os("LIBHEIF_PLUGIN_PATH").is_some() {
+        return;
+    }
+    if let Some(dir) = std::env::var_os("APPDIR") {
+        let plugins = std::path::Path::new(&dir).join("usr/lib/libheif/plugins");
+        if plugins.is_dir() {
+            std::env::set_var("LIBHEIF_PLUGIN_PATH", plugins);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    configure_bundled_libheif();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
     tauri::Builder::default()
