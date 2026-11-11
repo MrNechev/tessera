@@ -12,7 +12,8 @@ export type ImageFormat =
   | 'qoi'
   | 'tga'
   | 'heic'
-  | 'jxl';
+  | 'jxl'
+  | 'raw';
 
 export interface FormatCapabilities {
   format: ImageFormat;
@@ -148,6 +149,9 @@ export interface OutputSpec {
 
 export type QualityMode = { kind: 'original' } | { kind: 'reduce'; percent: number } | { kind: 'fixed'; quality: number };
 
+/** `srgb` converts wide-gamut photos (Display P3, Adobe RGB…) to sRGB; `keep` leaves pixels and profile untouched. */
+export type ColorMode = 'srgb' | 'keep';
+
 export interface ConvertOptions {
   format: TargetFormat;
   quality: QualityMode;
@@ -155,6 +159,7 @@ export interface ConvertOptions {
   metadata: MetadataPolicy;
   output: OutputSpec;
   background: [number, number, number];
+  color: ColorMode;
 }
 
 export type CompressLevel =
@@ -172,6 +177,7 @@ export interface CompressOptions {
   metadata: MetadataPolicy;
   output: OutputSpec;
   keepIfLarger: boolean;
+  color: ColorMode;
 }
 
 export type JobStatus = 'done' | 'skipped' | 'failed';
@@ -234,6 +240,7 @@ export interface MetadataSummary {
   hasIcc: boolean;
   hasXmp: boolean;
   iccDescription: string | null;
+  iccIsSrgb: boolean;
   width: number;
   height: number;
   format: ImageFormat | null;

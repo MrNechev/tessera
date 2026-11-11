@@ -1,5 +1,5 @@
 /** Global application state: active view, settings, app info, updates. */
-import { api, isTauri } from '../api/backend';
+import { api, isTauri, setImportExtensions } from '../api/backend';
 import type { AppInfo, Settings, UpdateInfo } from '../api/types';
 import { stickers } from './stickers.svelte';
 import { toasts } from './toasts.svelte';
@@ -38,6 +38,7 @@ class AppState {
       try {
         const [info, settings] = await Promise.all([api.appInfo(), api.loadSettings()]);
         this.info = info;
+        setImportExtensions(info.inputExtensions);
         this.settings = { ...defaultSettings(), ...settings };
       } catch (e) {
         toasts.push({ kind: 'error', title: 'Could not load settings', message: String(e) });

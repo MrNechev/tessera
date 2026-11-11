@@ -168,6 +168,7 @@ async function run(step: Step): Promise<void> {
           metadata: { ...defaultMetadataPolicy(), ...(s.metadata as object) },
           output: { directory: s.out as string, suffix: '', conflict: 'rename' },
           background: [255, 255, 255],
+          color: (s.color as never) ?? 'srgb',
         },
       );
       convertQueue.results = res;
@@ -185,6 +186,7 @@ async function run(step: Step): Promise<void> {
           metadata: defaultMetadataPolicy(),
           output: { directory: s.out as string, suffix: '-compressed', conflict: 'rename' },
           keepIfLarger: true,
+          color: 'keep',
         },
       );
       compressQueue.results = res;

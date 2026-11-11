@@ -78,17 +78,25 @@ export function onProgress(fn: (e: ProgressEvent) => void): Promise<UnlistenFn> 
   return listen<ProgressEvent>('tessera://progress', (e) => fn(e.payload));
 }
 
+const FALLBACK_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'heif', 'tif', 'tiff', 'bmp', 'gif', 'jxl', 'qoi', 'tga', 'ico', 'dng', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2', 'pef'];
+const RAW_EXTENSIONS = new Set(['dng', 'cr2', 'cr3', 'crw', 'nef', 'nrw', 'arw', 'srf', 'sr2', 'raf', 'orf', 'rw2', 'pef', 'srw', 'erf', 'mef', 'mos', 'mrw', 'kdc', 'dcr', '3fr', 'iiq', 'x3f', 'rwl', 'raw']);
+
+/** Extensions the backend can import (set once app info is known). */
+let importExtensions: string[] = FALLBACK_EXTENSIONS;
+export function setImportExtensions(exts: string[]): void {
+  if (exts.length) importExtensions = exts;
+}
+
 export async function pickImages(defaultPath?: string | null): Promise<string[]> {
+  const raw = importExtensions.filter((e) => RAW_EXTENSIONS.has(e));
   const res = await openDialog({
     multiple: true,
     directory: false,
     defaultPath: defaultPath ?? undefined,
     title: 'Add photos',
     filters: [
-      {
-        name: 'Images',
-        extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'heif', 'tif', 'tiff', 'bmp', 'gif', 'jxl', 'qoi', 'tga', 'ico'],
-      },
+      { name: 'Images', extensions: importExtensions },
+      ...(raw.length ? [{ name: 'Camera RAW', extensions: raw }] : []),
       { name: 'All files', extensions: ['*'] },
     ],
   });

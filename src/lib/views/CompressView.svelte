@@ -4,7 +4,8 @@
   import { api, fileUrl, onProgress } from '../api/backend';
   import {
     defaultMetadataPolicy,
-    type CompressLevel,
+    type ColorMode,
+  type CompressLevel,
     type CompressOptions,
     type CompressPreviewInfo,
     type ImageFormat,
@@ -39,6 +40,7 @@
   let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
   let output = $state<OutputSpec>({ directory: null, suffix: '-compressed', conflict: 'rename' });
   let keepIfLarger = $state(true);
+  let color = $state<ColorMode>('keep');
 
   let selected = $state<string | null>(null);
   let preview = $state<CompressPreviewInfo | null>(null);
@@ -56,6 +58,7 @@
       metadata: $state.snapshot(metadata) as MetadataPolicy,
       output: $state.snapshot(output) as OutputSpec,
       keepIfLarger,
+      color,
     };
   }
 
@@ -190,6 +193,7 @@
         </select>
       </div>
       <Toggle checked={keepIfLarger} label="Keep the original if it can’t be made smaller" onchange={(v) => (keepIfLarger = v)} />
+      <Toggle checked={color === 'srgb'} label="Convert wide-gamut colours to sRGB" hint="Display P3 / Adobe RGB → sRGB. Off keeps the profile." onchange={(v) => (color = v ? 'srgb' : 'keep')} />
     </Section>
 
     <Section title="Metadata" open={false}>

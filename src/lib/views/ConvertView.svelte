@@ -2,7 +2,7 @@
   import { ArrowLeftRight, LoaderCircle } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, onProgress } from '../api/backend';
-  import { defaultMetadataPolicy, type ConvertOptions, type ImageFormat, type MetadataPolicy, type OutputSpec } from '../api/types';
+  import { defaultMetadataPolicy, type ColorMode, type ConvertOptions, type ImageFormat, type MetadataPolicy, type OutputSpec } from '../api/types';
   import FileQueue from '../components/tools/FileQueue.svelte';
   import MetadataCard from '../components/tools/MetadataCard.svelte';
   import MetadataOptions from '../components/tools/MetadataOptions.svelte';
@@ -28,6 +28,7 @@
   let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
   let output = $state<OutputSpec>({ directory: null, suffix: '', conflict: 'rename' });
   let bg = $state('#ffffff');
+  let color = $state<ColorMode>('srgb');
 
   let inspected = $state<string | null>(null);
 
@@ -43,6 +44,7 @@
       metadata: $state.snapshot(metadata) as MetadataPolicy,
       output: $state.snapshot(output) as OutputSpec,
       background: rgb,
+      color,
     };
     queue.running = true;
     queue.results = [];
@@ -140,6 +142,22 @@
           <input class="input" type="number" min="16" max="20000" bind:value={longEdge} style="width:100px" /> px
         </div>
       {/if}
+    </Section>
+
+    <Section title="Colour">
+      <Segmented
+        options={[
+          { value: 'srgb', label: 'Convert to sRGB' },
+          { value: 'keep', label: 'Keep profile' },
+        ]}
+        value={color}
+        onchange={(v) => (color = v)}
+      />
+      <p class="hint">
+        {color === 'srgb'
+          ? 'Wide-gamut photos (Display P3 from phones, Adobe RGB from cameras) are converted so they look right everywhere. RAW files are always developed to sRGB.'
+          : 'Pixels and the embedded colour profile are left exactly as they are.'}
+      </p>
     </Section>
 
     <Section title="Metadata">

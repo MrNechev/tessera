@@ -88,7 +88,7 @@
             {:else}No location{/if}
           </span>
         </div>
-        <div><Palette size={14} /><span>{info.hasIcc ? (info.iccDescription ?? 'Colour profile') : 'No colour profile'}{info.hasXmp ? ' · XMP' : ''}</span></div>
+        <div><Palette size={14} /><span>{info.hasIcc ? (info.iccDescription ?? 'Colour profile') : 'No colour profile'}{info.hasIcc && !info.iccIsSrgb ? ' (wide gamut)' : ''}{info.hasXmp ? ' · XMP' : ''}</span></div>
       </div>
     {/if}
   {/if}
