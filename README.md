@@ -219,7 +219,8 @@ Priorities for the next releases, in order:
 2. ✅ **RAW camera formats and colour management** (ICC conversion) (0.3.0).
 3. ✅ **Batch watermark, resize and rename tools** (0.4.0).
 4. ✅ **Printing and multi-page projects** (photo books, calendars) (0.5.0).
-5. Bug fixing, polish and performance across all of the above.
+5. Bug fixing, polish and performance across all of the above — ongoing;
+   the first round shipped in 0.5.1.
 
 Planned for later: in-app updates for the AppImage, a Flathub listing,
 translations, and Windows and macOS builds.

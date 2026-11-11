@@ -4,6 +4,59 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-11-12
+
+A bug-fix and performance release.
+
+### Fixed — your work
+- Autosave could write the project you were editing into a project you had
+  just opened (losing the opened one). Saves now go to the right place, one
+  at a time.
+- Edits made in the last moment before closing the window, or before opening
+  another project, are saved. New collages, photo books and calendars appear
+  in Recent straight away, and a failing autosave is reported.
+- Deleting a project from Recent asks first, and deleting the open project no
+  longer brings it back.
+- Photos edited after a project was saved show up again instead of empty
+  frames; Clear cache rebuilds the previews of photos in use.
+- Batch tools: two photos that would get the same output name (IMG_0001.CR2
+  and IMG_0001.JPG, or same-named files from two folders) no longer overwrite
+  each other, and renaming with "move" can no longer replace another photo of
+  the batch.
+- Lossless JPEG compression keeps IPTC captions/keywords and comments.
+
+### Fixed — editor
+- Moving the spacing or margin slider reshuffled the whole collage on every
+  step; layouts now stay put (and Previous/Next layout no longer brings back
+  deleted photos).
+- Font changes apply to the element that was selected when you picked them.
+- Photos pasted from another project export correctly (they were grey boxes).
+- Adding a text style is one undo step; calendars honour their opacity; the
+  crop view follows flipped photos; export no longer cuts small elements'
+  shadows at tile edges.
+- Keyboard shortcuts no longer act behind open dialogs or while typing a name.
+- Save As adds the right extension to names with dots ("Mum & Dad 25.12").
+
+### Fixed — Convert, Compress and Batch
+- Empty or fractional sizes no longer fail a job or shrink photos to 16 px.
+- The finishing message says when files failed; only one tool job runs at a
+  time (they shared one Cancel); options are kept when you switch views; the
+  Compress preview always shows the selected file.
+- Colour profiles for CMYK/Lab are no longer embedded into RGB output; XMP
+  orientation is reset after rotating; stale EXIF thumbnails are dropped;
+  a malformed EXIF block can no longer abort a whole batch.
+
+### Faster
+- Layout sliders on a 120-photo collage react in about a millisecond (was a
+  third of a second).
+- Exports load photos in parallel; the editor no longer decodes full-size
+  previews for small photos and limits how many it keeps in memory.
+- Import shows its progress everywhere, uses all cores when memory allows, and
+  half-written previews from a crash are never reused.
+- Heavy file and project operations no longer briefly freeze the window.
+
+[0.5.1]: https://github.com/MrNechev/tessera/releases/tag/v0.5.1
+
 ## [0.5.0] — 2026-11-11
 
 ### Multi-page projects

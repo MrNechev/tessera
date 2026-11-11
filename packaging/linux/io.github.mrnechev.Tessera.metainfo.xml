@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.5.1" date="2026-11-12" type="development">
+      <description>
+        <p>Bug fixes and speed: autosave can no longer overwrite a project you just opened and saves your last edits when the window closes; layout sliders no longer reshuffle the collage and react instantly; faster imports and exports; batch outputs with the same name no longer overwrite each other; IPTC captions survive lossless compression.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-11" type="development">
       <description>
         <p>Multi-page projects with a page strip; one-click photo books and photo calendars; multi-page PDF export; printing with the paper set to the project's page size.</p>

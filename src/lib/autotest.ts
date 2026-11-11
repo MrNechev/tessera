@@ -206,6 +206,31 @@ async function run(step: Step): Promise<void> {
       await log(`compress ${JSON.stringify(res.map((r) => [r.status, r.quality, r.ssim, r.inputBytes, r.outputBytes]))}`);
       break;
     }
+    case 'queue': {
+      const q = { convert: convertQueue, compress: compressQueue, batch: toolsQueue }[s.tool as 'convert' | 'compress' | 'batch'];
+      await q.add(s.photos as string[]);
+      break;
+    }
+    case 'click': {
+      // Click the first visible button whose text contains `text`.
+      const want = String(s.text).toLowerCase();
+      const btn = [...document.querySelectorAll('button')].find(
+        (b) => b.offsetParent !== null && (b.textContent ?? '').trim().toLowerCase().includes(want),
+      );
+      if (!btn) throw new Error(`no button "${s.text}"`);
+      if (btn.disabled) await log(`click: "${s.text}" is disabled`);
+      else btn.click();
+      break;
+    }
+    case 'fill': {
+      // Set an input's value as if typed (index-th match of `selector`).
+      const el = document.querySelectorAll<HTMLInputElement>(String(s.selector))[Number(s.index ?? 0)];
+      if (!el) throw new Error(`no input ${s.selector}`);
+      el.value = String(s.value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      break;
+    }
     case 'batchQueue':
       await toolsQueue.add(s.photos as string[]);
       break;
