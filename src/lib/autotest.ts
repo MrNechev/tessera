@@ -14,7 +14,7 @@ import { instantiateTemplate } from './templates/instantiate';
 import { createCalendar, createSticker } from './model/factory';
 import type { LayoutEngine, LayoutShape, PhotoElement, TextElement } from './model/types';
 import { app, type View } from './stores/app.svelte';
-import { compressQueue, convertQueue } from './stores/batch.svelte';
+import { compressQueue, convertQueue, toolsQueue } from './stores/batch.svelte';
 import { library } from './stores/library.svelte';
 import { stickers } from './stores/stickers.svelte';
 import { templateById } from './templates/catalog';
@@ -191,6 +191,15 @@ async function run(step: Step): Promise<void> {
       );
       compressQueue.results = res;
       await log(`compress ${JSON.stringify(res.map((r) => [r.status, r.quality, r.ssim, r.inputBytes, r.outputBytes]))}`);
+      break;
+    }
+    case 'batchQueue':
+      await toolsQueue.add(s.photos as string[]);
+      break;
+    case 'batch': {
+      const res = await api.batchProcess(s.jobs as never, s.options as never);
+      toolsQueue.results = res;
+      await log(`batch ${JSON.stringify(res.map((r) => [r.status, r.output, r.width, r.height, r.message]))}`);
       break;
     }
     case 'log':

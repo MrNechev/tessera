@@ -275,3 +275,31 @@ export interface ProbeResult {
   files: ProbeInfo[];
   failed: ImportFailure[];
 }
+
+/* ------------------------------------------------------- batch tools */
+
+export interface BatchJob {
+  input: string;
+  /** New file name without extension. */
+  name: string;
+}
+
+export interface WatermarkOptions {
+  image: string;
+  size: number;
+  opacity: number;
+  position: 'tl' | 't' | 'tr' | 'l' | 'c' | 'r' | 'bl' | 'b' | 'br' | 'tile';
+  margin: number;
+}
+
+export interface BatchOptions {
+  resize: ResizeMode;
+  watermark: WatermarkOptions | null;
+  format: TargetFormat;
+  quality: number;
+  metadata: MetadataPolicy;
+  directory: string | null;
+  conflict: ConflictPolicy;
+  transfer: 'copy' | 'move';
+  background: [number, number, number];
+}

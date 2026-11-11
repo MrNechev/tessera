@@ -12,7 +12,7 @@ use crate::{emit_progress, err, images::expand_paths, paths, AppState, CmdResult
 
 /// Heavy codecs (AVIF, smart search) use a lot of memory per image; keep the
 /// pool modest so big batches don't exhaust RAM on small machines.
-fn pool() -> rayon::ThreadPool {
+pub(crate) fn pool() -> rayon::ThreadPool {
     let n = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
@@ -22,7 +22,7 @@ fn pool() -> rayon::ThreadPool {
         .expect("thread pool")
 }
 
-fn cancelled(input: &Path) -> JobResult {
+pub(crate) fn cancelled(input: &Path) -> JobResult {
     JobResult {
         input: input.to_string_lossy().into_owned(),
         output: None,

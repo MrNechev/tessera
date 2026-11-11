@@ -44,6 +44,7 @@ export class BatchQueue {
 
 export const convertQueue = new BatchQueue();
 export const compressQueue = new BatchQueue();
+export const toolsQueue = new BatchQueue();
 
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n)) return '—';

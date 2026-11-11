@@ -12,6 +12,8 @@ import type {
   JobResult,
   MetadataSummary,
   ProbeResult,
+  BatchJob,
+  BatchOptions,
   ProgressEvent,
   ProjectSummary,
   Settings,
@@ -56,6 +58,8 @@ export const api = {
   compressPreview: (path: string, options: CompressOptions) =>
     invoke<CompressPreviewInfo>('compress_preview', { path, options }),
   cancelBatch: () => invoke<void>('cancel_batch'),
+  batchProcess: (jobs: BatchJob[], options: BatchOptions) => invoke<JobResult[]>('batch_process', { jobs, options }),
+  saveTempImage: (png: Uint8Array) => invoke<string>('save_temp_image', png),
   readMetadata: (path: string) => invoke<MetadataSummary>('read_metadata', { path }),
 
   listProjects: () => invoke<ProjectSummary[]>('list_projects'),

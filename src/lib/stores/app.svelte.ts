@@ -4,7 +4,7 @@ import type { AppInfo, Settings, UpdateInfo } from '../api/types';
 import { stickers } from './stickers.svelte';
 import { toasts } from './toasts.svelte';
 
-export type View = 'home' | 'editor' | 'convert' | 'compress' | 'settings';
+export type View = 'home' | 'editor' | 'convert' | 'compress' | 'batch' | 'settings';
 
 export function defaultSettings(): Settings {
   return {

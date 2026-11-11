@@ -4,6 +4,7 @@
 //! the UI (commands, progress events, file locations, settings, projects).
 
 mod batch;
+mod batch_tools;
 mod export;
 mod images;
 mod paths;
@@ -109,6 +110,8 @@ pub fn run() {
             batch::compress_images,
             batch::compress_preview,
             batch::cancel_batch,
+            batch_tools::batch_process,
+            batch_tools::save_temp_image,
             projects::list_projects,
             projects::load_project,
             projects::save_project,

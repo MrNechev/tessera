@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeftRight, House, LayoutDashboard, Minimize2, Settings } from '@lucide/svelte';
+  import { ArrowLeftRight, House, LayoutDashboard, Minimize2, Settings, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { isTauri } from './lib/api/backend';
@@ -8,9 +8,10 @@
   import { editor } from './lib/editor/editor.svelte';
   import { newQuickCollage, openProjectPath } from './lib/editor/session.svelte';
   import { app, type View } from './lib/stores/app.svelte';
-  import { compressQueue, convertQueue } from './lib/stores/batch.svelte';
+  import { compressQueue, convertQueue, toolsQueue } from './lib/stores/batch.svelte';
   import { library } from './lib/stores/library.svelte';
   import CompressView from './lib/views/CompressView.svelte';
+  import BatchView from './lib/views/BatchView.svelte';
   import ConvertView from './lib/views/ConvertView.svelte';
   import EditorView from './lib/views/EditorView.svelte';
   import HomeView from './lib/views/HomeView.svelte';
@@ -24,6 +25,7 @@
     { id: 'editor', label: 'Collage', icon: LayoutDashboard },
     { id: 'convert', label: 'Convert', icon: ArrowLeftRight },
     { id: 'compress', label: 'Compress', icon: Minimize2 },
+    { id: 'batch', label: 'Batch', icon: Wand },
   ];
 
   async function handleDrop(paths: string[], x: number, y: number) {
@@ -38,6 +40,9 @@
         break;
       case 'compress':
         await compressQueue.add(paths);
+        break;
+      case 'batch':
+        await toolsQueue.add(paths);
         break;
       case 'editor': {
         const imgs = await library.import(paths);
@@ -126,6 +131,7 @@
       {#if app.view === 'home'}<HomeView />
       {:else if app.view === 'convert'}<ConvertView />
       {:else if app.view === 'compress'}<CompressView />
+      {:else if app.view === 'batch'}<BatchView />
       {:else if app.view === 'settings'}<SettingsView />
       {/if}
     {/if}
@@ -134,7 +140,7 @@
   {#if dropping}
     <div class="dropzone">
       <div class="dz-inner">
-        Drop to {app.view === 'convert' ? 'convert' : app.view === 'compress' ? 'compress' : app.view === 'editor' ? 'add to your collage' : 'start a quick collage'}
+        Drop to {app.view === 'convert' ? 'convert' : app.view === 'compress' ? 'compress' : app.view === 'batch' ? 'process' : app.view === 'editor' ? 'add to your collage' : 'start a quick collage'}
       </div>
     </div>
   {/if}
