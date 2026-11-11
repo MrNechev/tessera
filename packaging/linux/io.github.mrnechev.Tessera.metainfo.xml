@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.4.0" date="2026-11-11" type="development">
+      <description>
+        <p>Batch tools: resize, watermark (text or logo) and rename many photos at once, with a live preview; copies or moves, and originals are never overwritten unless you ask.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-11" type="development">
       <description>
         <p>Camera RAW files from most cameras open in collages, the converter and the compressor; wide-gamut photos are converted to sRGB through their ICC profile, or keep their profile if you prefer.</p>

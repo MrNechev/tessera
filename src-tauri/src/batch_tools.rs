@@ -210,13 +210,10 @@ fn result(input: &Path, status: JobStatus, message: Option<String>) -> JobResult
     }
 }
 
+/// Content-sniffed format; TIFF-based camera RAW files (NEF, DNG, ARW…)
+/// are reported as RAW rather than TIFF.
 fn source_format(path: &Path) -> Option<ImageFormat> {
-    let head = fs::read(path)
-        .ok()
-        .map(|b| b.into_iter().take(64).collect::<Vec<u8>>());
-    head.as_deref()
-        .and_then(ImageFormat::detect)
-        .or_else(|| ImageFormat::from_path(path))
+    ImageFormat::detect_path(path)
 }
 
 fn target_path(

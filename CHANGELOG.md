@@ -4,6 +4,27 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-11-11
+
+### Batch tools
+- A new **Batch** view: drop in any number of photos (RAW included) and
+  resize, watermark and rename them in one go, with a live preview.
+- **Resize** by long edge, width, height or percentage; photos are never
+  enlarged.
+- **Watermark** with text or a logo image: nine positions or tiled across the
+  photo, size, opacity and margin; text in any of the app's fonts, with
+  colour, bold, outline and shadow.
+- **Rename** with patterns (`{name}`, `{n}`, `{date}`, `{time}`, `{year}`,
+  `{month}`, `{day}`, `{size}`, `{folder}`), counters with padding, sorting by
+  name or date taken, letter case and space handling.
+- Save copies to a folder or next to the originals, or move the originals.
+  Renames without other changes copy files byte for byte. Edited copies never
+  overwrite an original unless "Replace" is chosen.
+- Output format: keep, or convert to JPEG, PNG, WebP, AVIF or TIFF, with
+  metadata kept, chosen or removed.
+
+[0.4.0]: https://github.com/MrNechev/tessera/releases/tag/v0.4.0
+
 ## [0.3.0] — 2026-11-11
 
 ### Camera RAW

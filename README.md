@@ -102,6 +102,17 @@ Free and open source. No accounts, no watermarks, no paywall.
     to around 40 % of their size.
   - Balanced, Small, Lossless-only, custom quality, or **fit under a target file
     size**; optional resize and format change (WebP/AVIF are much smaller).
+- **Batch** — resize, watermark and rename many photos in one go, with a live
+  preview of the first photo:
+  - **Resize** by long edge, width, height or percentage (never enlarged).
+  - **Watermark** with text (any font, colour, outline, shadow) or a logo
+    image; nine positions or repeated across the photo; size, opacity and
+    distance from the edge.
+  - **Rename** with a pattern: `{name}`, a counter `{n}`, date and time taken,
+    size and folder; sort by name or date, change letter case and spaces.
+  - Save copies into a folder or next to the originals, or move the originals.
+    A pure rename copies the file byte for byte; originals are never
+    overwritten unless you ask for it.
 
 ### Screenshots
 
@@ -190,7 +201,7 @@ Priorities for the next releases, in order:
 1. ✅ **More templates, stickers and layouts** — photos arranged into letters,
    numbers and words; photo calendars; new occasions and sticker sets (0.2.0).
 2. ✅ **RAW camera formats and colour management** (ICC conversion) (0.3.0).
-3. **Batch watermark, resize and rename tools.**
+3. ✅ **Batch watermark, resize and rename tools** (0.4.0).
 4. **Printing and multi-page projects** (photo books, calendars).
 5. Bug fixing, polish and performance across all of the above.
 
