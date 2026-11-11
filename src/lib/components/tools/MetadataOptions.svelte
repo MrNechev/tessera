@@ -32,9 +32,11 @@
     <Toggle checked={value.keepExposure} label="Camera settings" hint="Exposure, ISO, aperture, focal length" onchange={(v) => set({ keepExposure: v })} />
     <Toggle checked={value.keepLocation} label="Location (GPS)" onchange={(v) => set({ keepLocation: v })} />
     <Toggle checked={value.keepAuthor} label="Author, copyright & description" onchange={(v) => set({ keepAuthor: v })} />
-  {/if}
-  {#if value.mode !== 'stripAll'}
+    <!-- Only honoured here: "Keep all" always keeps the profile, "Remove all" always drops it. -->
     <Toggle checked={value.keepIcc} label="Colour profile (ICC)" hint="Recommended — keeps colours accurate" onchange={(v) => set({ keepIcc: v })} />
   {/if}
-  <Toggle checked={value.keepFileTimes} label="Keep file modified date" onchange={(v) => set({ keepFileTimes: v })} />
+  {#if value.mode !== 'stripAll'}
+    <!-- "Remove all" never copies the file dates. -->
+    <Toggle checked={value.keepFileTimes} label="Keep file modified date" onchange={(v) => set({ keepFileTimes: v })} />
+  {/if}
 </div>
