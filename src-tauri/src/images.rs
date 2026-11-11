@@ -12,7 +12,6 @@ use tauri::ipc::Response;
 use tauri::AppHandle;
 use tessera_imaging::{ImageFormat, MetadataSummary, ProbeInfo};
 
-use crate::batch::pool;
 use crate::{emit_progress, err, paths, CmdResult};
 
 /// Long edge of the editor proxy and the library thumbnail.
@@ -177,6 +176,28 @@ fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
     })
 }
 
+/// Threads for importing. JPEGs decode at reduced size and need little
+/// memory, but full decodes of large PNG/TIFF/RAW files take hundreds of MB
+/// each: one thread per core, capped at one per ~1 GiB of available memory.
+fn import_pool() -> rayon::ThreadPool {
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    let by_memory = available_memory_gib().map_or(6, |g| g as usize);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(cores.min(by_memory).max(2))
+        .build()
+        .expect("thread pool")
+}
+
+/// MemAvailable from /proc/meminfo, in GiB (Linux only).
+fn available_memory_gib() -> Option<u64> {
+    let info = fs::read_to_string("/proc/meminfo").ok()?;
+    let line = info.lines().find(|l| l.starts_with("MemAvailable:"))?;
+    let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kib / (1024 * 1024))
+}
+
 #[tauri::command]
 pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<ImportResult> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -184,9 +205,7 @@ pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Impo
         let total = files.len();
         let done = AtomicUsize::new(0);
         emit_progress(&app, "import", 0, total, None);
-        // Full decodes of large PNG/TIFF/RAW files need hundreds of MB each:
-        // use the bounded batch pool rather than one thread per core.
-        let results: Vec<(PathBuf, Result<ImportedImage, String>)> = pool().install(|| {
+        let results: Vec<(PathBuf, Result<ImportedImage, String>)> = import_pool().install(|| {
             files
                 .par_iter()
                 .map(|p| {
