@@ -1,16 +1,17 @@
 <script lang="ts" module>
   import { AdjustCache } from '../../render/adjust';
   import type { RenderResources } from '../../render/renderer';
-  const cache = new Map<string, string>();
+  /** One rendering per template and width, redrawn when stickers or fonts arrive. */
+  const cache = new Map<string, { url: string; gen: string }>();
   const thumbResources: RenderResources = {
     image: () => null,
     sticker: (id) => stickers.image(id),
-    adjustCache: new AdjustCache(1),
+    adjustCache: new AdjustCache(16),
   };
 </script>
 
 <script lang="ts">
-  import { onFontsLoaded } from '../../assets/fonts';
+  import { fontGeneration, onFontsLoaded } from '../../assets/fonts';
   import { renderDocument } from '../../render/renderer';
   import { stickers } from '../../stores/stickers.svelte';
   import { previewDoc } from '../../templates/instantiate';
@@ -26,10 +27,11 @@
   let fontTick = $state(0);
 
   function render() {
-    const key = `${template.id}|${width}|${stickers.version}|${fontTick}`;
+    const key = `${template.id}|${width}`;
+    const gen = `${stickers.version}|${fontGeneration()}`;
     const hit = cache.get(key);
-    if (hit) {
-      url = hit;
+    if (hit && hit.gen === gen) {
+      url = hit.url;
       return;
     }
     const doc = previewDoc(template, (id) => stickers.aspect(id));
@@ -40,7 +42,7 @@
     const c = canvas.getContext('2d')!;
     renderDocument(c, doc, { scale: s, resources: thumbResources, placeholders: true });
     url = canvas.toDataURL('image/jpeg', 0.85);
-    cache.set(key, url);
+    cache.set(key, { url, gen });
   }
 
   $effect(() => {

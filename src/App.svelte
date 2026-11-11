@@ -6,7 +6,7 @@
   import { maybeRunAutotest } from './lib/autotest';
   import Toasts from './lib/components/ui/Toasts.svelte';
   import { editor } from './lib/editor/editor.svelte';
-  import { newQuickCollage, openProjectPath } from './lib/editor/session.svelte';
+  import { flushAutosave, newQuickCollage, openProjectPath } from './lib/editor/session.svelte';
   import { app, type View } from './lib/stores/app.svelte';
   import { compressQueue, convertQueue, toolsQueue } from './lib/stores/batch.svelte';
   import { library } from './lib/stores/library.svelte';
@@ -67,6 +67,14 @@
     });
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
+    let unlistenClose: (() => void) | undefined;
+    // Edits from the last moment before closing are still waiting for the
+    // debounced autosave: write them before the window goes away.
+    void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+      unlistenClose = await getCurrentWindow().onCloseRequested(async () => {
+        await Promise.race([flushAutosave(), new Promise((r) => setTimeout(r, 5000))]);
+      });
+    });
     void import('@tauri-apps/api/webview').then(async ({ getCurrentWebview }) => {
       unlisten = await getCurrentWebview().onDragDropEvent((event) => {
         const p = event.payload;
@@ -82,7 +90,10 @@
         }
       });
     });
-    return () => unlisten?.();
+    return () => {
+      unlisten?.();
+      unlistenClose?.();
+    };
   });
 </script>
 

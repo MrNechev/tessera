@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { perfStats } from '../../perf';
   import { onMount, untrack } from 'svelte';
   import { onFontsLoaded, cssFont } from '../../assets/fonts';
   import { editor } from '../../editor/editor.svelte';
@@ -48,7 +49,7 @@
   const resources: RenderResources = {
     image: (id, need) => library.entry(id, need),
     sticker: (id) => stickers.image(id),
-    adjustCache: new AdjustCache(16),
+    adjustCache: new AdjustCache(384),
   };
 
   /* ------------------------------------------------------------------ view */
@@ -587,6 +588,15 @@
   }
 
   function draw(): void {
+    const t0 = performance.now();
+    drawFrame();
+    const ms = performance.now() - t0;
+    perfStats.draws++;
+    perfStats.drawMs += ms;
+    perfStats.maxDrawMs = Math.max(perfStats.maxDrawMs, ms);
+  }
+
+  function drawFrame(): void {
     frame = 0;
     if (!canvas) return;
     const c = canvas.getContext('2d');
@@ -625,6 +635,12 @@
         c.translate(editor.panX, editor.panY);
         c.scale(z, z);
         enterElement(c, crop);
+        if (crop.flipX || crop.flipY) {
+          // Mirror like the renderer does, so the ghost lines up with the photo.
+          c.translate(win.x + win.w / 2, win.y + win.h / 2);
+          c.scale(crop.flipX ? -1 : 1, crop.flipY ? -1 : 1);
+          c.translate(-(win.x + win.w / 2), -(win.y + win.h / 2));
+        }
         const clip = new Path2D();
         clip.rect(r.x, r.y, r.w, r.h);
         clip.rect(win.x, win.y, win.w, win.h);

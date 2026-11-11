@@ -40,11 +40,20 @@
   function setText(v: string) {
     textDraft = v;
     if (textTimer) clearTimeout(textTimer);
-    textTimer = setTimeout(() => editor.setLayout({ text: v }, 'layout-text'), 350);
+    // Applies to the page being edited now, not whichever is active when the timer fires.
+    const page = editor.activePage;
+    const doc = editor.doc.id;
+    textTimer = setTimeout(() => {
+      if (editor.activePage === page && editor.doc.id === doc) editor.setLayout({ text: v }, 'layout-text');
+    }, 350);
   }
   function setFont(id: string) {
     const weight = fontInfo(id).weights.includes(800) ? 800 : Math.max(...fontInfo(id).weights);
-    void ensureFont(id, weight).then(() => editor.setLayout({ font: id, fontWeight: weight }));
+    const page = editor.activePage;
+    const doc = editor.doc.id;
+    void ensureFont(id, weight).then(() => {
+      if (editor.activePage === page && editor.doc.id === doc) editor.setLayout({ font: id, fontWeight: weight });
+    });
   }
 
   const shapes: { value: LayoutShape; label: string }[] = [

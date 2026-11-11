@@ -81,7 +81,7 @@ export function drawBackground(c: AnyCtx, doc: CollageDoc, opts: RenderOptions):
   c.fillRect(0, 0, W, H);
 
   if (bg.image) {
-    const img = opts.resources.image(bg.image.asset);
+    const img = opts.resources.image(bg.image.asset, Math.max(W, H) * opts.scale);
     if (img) {
       c.save();
       c.globalAlpha = bg.image.opacity;
@@ -385,11 +385,13 @@ export function enterElement(c: AnyCtx, el: CollageElement): void {
   c.translate(-el.w / 2, -el.h / 2);
 }
 
-function intersects(a: Rect, el: CollageElement): boolean {
-  // Conservative: rotated elements fit inside their circumscribed circle.
+function intersects(a: Rect, el: CollageElement, pageShort: number): boolean {
+  // Conservative: rotated elements fit inside their circumscribed circle,
+  // plus room for frames/glows and however far the shadow reaches.
   const cx = el.x + el.w / 2;
   const cy = el.y + el.h / 2;
-  const r = Math.hypot(el.w, el.h) / 2 + Math.max(el.w, el.h) * 0.3; // + shadow slack
+  const sh = el.shadow ? (el.shadow.blur * 1.5 + Math.abs(el.shadow.x) + Math.abs(el.shadow.y)) * pageShort : 0;
+  const r = Math.hypot(el.w, el.h) / 2 + Math.max(el.w, el.h) * 0.3 + sh;
   return cx + r >= a.x && cx - r <= a.x + a.w && cy + r >= a.y && cy - r <= a.y + a.h;
 }
 
@@ -431,9 +433,10 @@ export function renderDocument(c: AnyCtx, doc: CollageDoc, opts: RenderOptions):
   c.rect(0, 0, W, H);
   c.clip();
   drawBackground(c, doc, opts);
+  const S = shortSide(doc);
   for (const el of doc.elements) {
     if (el.hidden || opts.hidden?.has(el.id)) continue;
-    if (opts.clip && !intersects(opts.clip, el)) continue;
+    if (opts.clip && !intersects(opts.clip, el, S)) continue;
     drawElement(c, el, doc, opts);
   }
   if (doc.frame) drawPageFrame(c, doc.frame, W, H);

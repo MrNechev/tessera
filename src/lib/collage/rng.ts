@@ -6,6 +6,10 @@ export interface Rng {
   pick<T>(items: readonly T[]): T;
   shuffle<T>(items: T[]): T[];
   gaussian(): number;
+  /** Internal state, for memoising work that depends only on it. */
+  state(): number;
+  /** Restore a state returned by `state()`. */
+  setState(state: number): void;
 }
 
 export function mulberry32(seed: number): Rng {
@@ -33,6 +37,10 @@ export function mulberry32(seed: number): Rng {
       const u = Math.max(next(), 1e-9);
       const v = next();
       return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    },
+    state: () => a,
+    setState: (s) => {
+      a = s >>> 0;
     },
   };
   return rng;

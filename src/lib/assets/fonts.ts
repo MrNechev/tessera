@@ -25,6 +25,12 @@ const loaded = new Set<string>();
 const pending = new Map<string, Promise<void>>();
 const listeners = new Set<Listener>();
 
+let generation = 0;
+/** Bumped every time a font face finishes loading. */
+export function fontGeneration(): number {
+  return generation;
+}
+
 export function onFontsLoaded(fn: Listener): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
@@ -44,6 +50,7 @@ export function ensureFont(id: string, weight = 400): Promise<void> {
       .then(() => {
         loaded.add(key);
         pending.delete(key);
+        generation++;
         listeners.forEach((l) => l());
       })
       .catch(() => {

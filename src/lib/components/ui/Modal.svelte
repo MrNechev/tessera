@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { X } from '@lucide/svelte';
+  import { onMount } from 'svelte';
+  import { app } from '../../stores/app.svelte';
   interface Props {
     title: string;
     width?: number;
@@ -9,6 +11,11 @@
     footer?: Snippet;
   }
   let { title, width = 520, onclose, children, footer }: Props = $props();
+
+  onMount(() => {
+    app.modals++;
+    return () => app.modals--;
+  });
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />

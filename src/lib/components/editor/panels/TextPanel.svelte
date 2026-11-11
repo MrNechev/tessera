@@ -33,10 +33,12 @@
     const S = editor.pageShort;
     const size = p.size * S;
     const draft = { ...p.el, size, fill: p.el.fill ?? '#1d1b26' } as Partial<TextElement>;
+    // One undo step for adding, sizing and centring.
+    editor.begin();
     const el = editor.addText(draft);
-    const w = Math.min(editor.doc.page.width * 0.9, naturalTextWidth({ ...el }) * 1.04);
-    if (!el.curve) editor.patch(el.id, { w } as Partial<TextElement>);
-    editor.patch(el.id, { x: editor.doc.page.width / 2 - w / 2 } as Partial<TextElement>);
+    const w = el.curve ? el.w : Math.min(editor.doc.page.width * 0.9, naturalTextWidth({ ...el }) * 1.04);
+    editor.patch(el.id, { w, x: editor.doc.page.width / 2 - w / 2 } as Partial<TextElement>);
+    editor.end();
   }
 </script>
 

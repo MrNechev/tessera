@@ -170,9 +170,7 @@ class Editor {
     const prev = this.past.pop();
     if (!prev) return;
     this.future.push(this.doc);
-    this.doc = prev;
-    this.lastKey = null;
-    this.pruneSelection();
+    this.restore(prev);
     this.dirty = true;
     this.syncFlags();
   }
@@ -181,11 +179,22 @@ class Editor {
     const next = this.future.pop();
     if (!next) return;
     this.past.push(this.doc);
-    this.doc = next;
-    this.lastKey = null;
-    this.pruneSelection();
+    this.restore(next);
     this.dirty = true;
     this.syncFlags();
+  }
+
+  /** Show a document from the undo/redo stacks. */
+  private restore(doc: CollageDoc): void {
+    const pageBefore = this.doc.activePageId ?? null;
+    this.doc = doc;
+    this.lastKey = null;
+    this.pruneSelection();
+    // Layout history belongs to one page; undoing onto another page starts afresh.
+    if ((doc.activePageId ?? null) !== pageBefore) {
+      this.layoutHistory = [];
+      this.recordLayout();
+    }
   }
 
   private pruneSelection(): void {
@@ -244,7 +253,10 @@ class Editor {
 
   addElements(els: CollageElement[], select = true): void {
     this.update((d) => {
-      for (const el of els) d.elements.push(el as Draft<CollageElement>);
+      for (const el of els) {
+        if (el.kind === 'photo' && el.asset) this.ensureAsset(d, el.asset);
+        d.elements.push(el as Draft<CollageElement>);
+      }
     });
     if (select) this.selection = els.map((e) => e.id);
   }
@@ -285,7 +297,11 @@ class Editor {
   paste(): void {
     if (!this.clipboard.length) return;
     const offset = this.pageShort * 0.03;
-    const copies = this.clipboard.map((e) => cloneElement(e, offset));
+    // Photos copied in another project aren't in this one's asset table yet.
+    const copies = this.clipboard
+      .map((e) => cloneElement(e, offset))
+      .filter((e) => !(e.kind === 'photo' && e.asset && !this.doc.assets[e.asset] && !library.has(e.asset)));
+    if (!copies.length) return;
     this.clipboard = copies.map((e) => structuredClone(e));
     this.addElements(copies);
   }
@@ -491,14 +507,33 @@ class Editor {
     if (this.layoutHistoryPos <= 0) return;
     this.layoutHistoryPos--;
     const h = this.layoutHistory[this.layoutHistoryPos];
-    this.commit(relayout(this.doc, { seed: h.seed, order: h.order }));
+    this.commit(relayout(this.doc, { seed: h.seed, order: this.reconcileOrder(h.order) }));
   }
 
   layoutForward(): void {
     if (this.layoutHistoryPos >= this.layoutHistory.length - 1) return;
     this.layoutHistoryPos++;
     const h = this.layoutHistory[this.layoutHistoryPos];
-    this.commit(relayout(this.doc, { seed: h.seed, order: h.order }));
+    this.commit(relayout(this.doc, { seed: h.seed, order: this.reconcileOrder(h.order) }));
+  }
+
+  /**
+   * A remembered photo order, limited to the photos the layout holds now:
+   * photos deleted since stay deleted, photos added since go at the end.
+   */
+  private reconcileOrder(order: string[]): string[] {
+    const left = new Map<string, number>();
+    for (const a of layoutAssetOrder(this.doc)) left.set(a, (left.get(a) ?? 0) + 1);
+    const out: string[] = [];
+    for (const a of order) {
+      const n = left.get(a) ?? 0;
+      if (n > 0) {
+        out.push(a);
+        left.set(a, n - 1);
+      }
+    }
+    for (const [a, n] of left) for (let i = 0; i < n; i++) out.push(a);
+    return out;
   }
 
   setLayout(patch: Partial<LayoutSettings>, key?: string): void {

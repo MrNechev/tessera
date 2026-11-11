@@ -9,7 +9,17 @@ interface Loaded {
   img: HTMLImageElement;
   ready: boolean;
   failed: boolean;
+  /** performance.now() of the last time a render asked for it. */
+  used: number;
 }
+
+/**
+ * Decoded 2048 px proxies cost ~11 MB each. Keep at most this many, dropping
+ * the least recently drawn ones (never anything drawn in the last few seconds,
+ * so a page with more large photos than this doesn't thrash).
+ */
+const MAX_PROXIES = 64;
+const PROXY_GRACE_MS = 5000;
 
 class Library {
   items = $state<ImportedImage[]>([]);
@@ -64,13 +74,47 @@ class Library {
     }
   }
 
-  /** Make sure every asset referenced by a document is available (e.g. after opening a project). */
+  /**
+   * Make sure every asset referenced by a document is available (e.g. after
+   * opening a project). A photo that was edited since gets a new id when it
+   * is imported again; it is registered under the document's old id too, and
+   * the document's asset entry is updated in place to the new size. Returns
+   * the ids whose files could not be imported.
+   */
   async ensureAssets(assets: Record<string, AssetRef>): Promise<string[]> {
     const missing = Object.entries(assets).filter(([id]) => !this.byId.has(id));
     if (!missing.length) return [];
     const imported = await this.import(missing.map(([, a]) => a.path));
-    const ok = new Set(imported.map((i) => i.path));
-    return missing.filter(([, a]) => !ok.has(a.path)).map(([id]) => id);
+    const byPath = new Map(imported.map((i) => [i.path, i]));
+    const lost: string[] = [];
+    for (const [id, a] of missing) {
+      const img = byPath.get(a.path);
+      if (!img) {
+        lost.push(id);
+        continue;
+      }
+      if (img.id !== id) {
+        this.byId.set(id, { ...img, id });
+        assets[id] = { ...a, name: img.name, width: img.width, height: img.height };
+      }
+    }
+    return lost;
+  }
+
+  /** Recreate proxies and thumbnails after the cache folder was emptied. */
+  async rebuild(): Promise<void> {
+    const known = [...this.byId];
+    this.thumbs.clear();
+    this.bitmaps.clear();
+    if (!known.length) return;
+    const fresh = await this.import([...new Set(known.map(([, i]) => i.path))]);
+    const byPath = new Map(fresh.map((i) => [i.path, i]));
+    for (const [id, old] of known) {
+      const img = byPath.get(old.path);
+      if (img) this.byId.set(id, { ...img, id });
+    }
+    this.items = this.items.map((i) => this.byId.get(i.id) ?? i);
+    this.version++;
   }
 
   remove(id: string): void {
@@ -98,7 +142,7 @@ class Library {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.decoding = 'async';
-      l = { img, ready: false, failed: false };
+      l = { img, ready: false, failed: false, used: performance.now() };
       map.set(id, l);
       const rec = l;
       img.onload = () => {
@@ -107,21 +151,38 @@ class Library {
       };
       img.onerror = () => {
         rec.failed = true;
+        // Let a later render retry (e.g. after the cache was rebuilt).
+        if (map.get(id) === rec) setTimeout(() => map.get(id) === rec && map.delete(id), 3000);
       };
       img.src = url;
+      if (map === this.bitmaps) this.evictProxies();
+    } else {
+      l.used = performance.now();
     }
     return l;
   }
 
+  private evictProxies(): void {
+    if (this.bitmaps.size <= MAX_PROXIES) return;
+    const cutoff = performance.now() - PROXY_GRACE_MS;
+    const old = [...this.bitmaps].filter(([, l]) => l.used < cutoff).sort((a, b) => a[1].used - b[1].used);
+    for (const [id] of old.slice(0, this.bitmaps.size - MAX_PROXIES)) this.bitmaps.delete(id);
+  }
+
   /**
-   * Bitmap for the editor canvas. Small on-screen sizes use the 384 px thumbnail,
-   * larger ones the 2048 px proxy (falling back to whatever is loaded).
+   * Bitmap for the editor canvas. Small on-screen sizes use the 384 px thumbnail
+   * (or the proxy if that happens to be decoded already), larger ones the
+   * 2048 px proxy (falling back to the thumbnail while it loads).
    */
   entry(id: string, neededPx = Infinity): ImageEntry | null {
     const info = this.byId.get(id);
     if (!info) return null;
     const thumb = this.load(this.thumbs, id, fileUrl(info.thumb));
-    if (neededPx <= 360 && thumb.ready) return this.wrap(id, thumb, 'thumb');
+    if (neededPx <= 360) {
+      if (thumb.ready) return this.wrap(id, thumb, 'thumb');
+      const p = this.bitmaps.get(id);
+      return p?.ready ? this.wrap(id, p, 'proxy') : null;
+    }
     const proxy = this.entryProxy(id, info);
     if (proxy) return proxy;
     return thumb.ready ? this.wrap(id, thumb, 'thumb') : null;
@@ -136,18 +197,21 @@ class Library {
     return l.ready ? this.wrap(id, l, 'proxy') : null;
   }
 
-  /** Resolves when the proxies of the given assets are decoded. */
-  async preload(ids: string[]): Promise<void> {
+  /** Resolves when the bitmaps `entry(id, neededPx)` would use are decoded (or failed). */
+  async preload(ids: string[], neededPx = Infinity): Promise<void> {
     await Promise.all(
       ids.map(
         (id) =>
           new Promise<void>((resolve) => {
-            if (this.entry(id, Infinity)?.key.endsWith('@proxy')) return resolve();
-            const l = this.bitmaps.get(id);
-            if (!l || l.failed) return resolve();
-            const done = () => resolve();
-            l.img.addEventListener('load', done, { once: true });
-            l.img.addEventListener('error', done, { once: true });
+            const info = this.byId.get(id);
+            if (!info) return resolve();
+            const l =
+              neededPx <= 360
+                ? this.load(this.thumbs, id, fileUrl(info.thumb))
+                : this.load(this.bitmaps, id, fileUrl(info.proxy));
+            if (l.ready || l.failed) return resolve();
+            l.img.addEventListener('load', () => resolve(), { once: true });
+            l.img.addEventListener('error', () => resolve(), { once: true });
           }),
       ),
     );

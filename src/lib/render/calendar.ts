@@ -45,6 +45,8 @@ export function drawCalendar(c: AnyCtx, el: CalendarElement): void {
   void ensureFont(el.font, 400);
   void ensureFont(el.font, 600);
   const { w, h } = el;
+  // The element's own opacity is already applied; tints multiply onto it.
+  const alpha = c.globalAlpha;
   const grid = monthGrid(el.year, el.month, el.firstDay);
   const names = dayNames(el.firstDay);
   const rows = grid.length;
@@ -85,15 +87,15 @@ export function drawCalendar(c: AnyCtx, el: CalendarElement): void {
   c.font = cssFont(el.font, 600, Math.min(headH * 0.5, cellW * 0.32));
   names.forEach((n, i) => {
     c.fillStyle = weekendIdx.includes(i) ? el.weekendColor : el.color;
-    c.globalAlpha = 0.85;
+    c.globalAlpha = alpha * 0.85;
     c.fillText(n.toUpperCase(), padX + (i + 0.5) * cellW, padY + titleH + headH / 2);
-    c.globalAlpha = 1;
+    c.globalAlpha = alpha;
   });
 
   const lineW = Math.max(0.5, Math.min(w, h) * 0.003);
   if (el.style === 'lines') {
     c.strokeStyle = el.color;
-    c.globalAlpha = 0.25;
+    c.globalAlpha = alpha * 0.25;
     c.lineWidth = lineW;
     c.beginPath();
     for (let r = 0; r <= rows; r++) {
@@ -101,14 +103,14 @@ export function drawCalendar(c: AnyCtx, el: CalendarElement): void {
       c.lineTo(w - padX, gridTop + r * cellH);
     }
     c.stroke();
-    c.globalAlpha = 1;
+    c.globalAlpha = alpha;
   } else if (el.style === 'boxes') {
     c.strokeStyle = el.color;
-    c.globalAlpha = 0.22;
+    c.globalAlpha = alpha * 0.22;
     c.lineWidth = lineW;
     for (let r = 0; r < rows; r++)
       for (let i = 0; i < 7; i++) c.strokeRect(padX + i * cellW, gridTop + r * cellH, cellW, cellH);
-    c.globalAlpha = 1;
+    c.globalAlpha = alpha;
   }
 
   const numSize = Math.min(cellH * 0.48, cellW * 0.42);
@@ -127,11 +129,11 @@ export function drawCalendar(c: AnyCtx, el: CalendarElement): void {
         c.fillStyle = '#ffffff';
       } else if (el.style === 'dots') {
         c.fillStyle = el.color;
-        c.globalAlpha = 0.07;
+        c.globalAlpha = alpha * 0.07;
         c.beginPath();
         c.arc(cx, cy, Math.min(cellW, cellH) * 0.36, 0, Math.PI * 2);
         c.fill();
-        c.globalAlpha = 1;
+        c.globalAlpha = alpha;
         c.fillStyle = weekendIdx.includes(i) ? el.weekendColor : el.color;
       } else {
         c.fillStyle = weekendIdx.includes(i) ? el.weekendColor : el.color;

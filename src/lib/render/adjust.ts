@@ -98,9 +98,17 @@ export function applyAdjustPixels(d: Uint8ClampedArray, a: PhotoAdjust): void {
 }
 
 /** LRU cache of adjusted bitmaps, keyed by source + adjustment. */
+/**
+ * Adjusted copies of photos, least recently used dropped first. Bounded by
+ * memory rather than count, so a page with many small adjusted photos (B&W
+ * thumbnails) doesn't recompute them all on every frame, while full-size
+ * export copies still can't pile up.
+ */
 export class AdjustCache {
-  private map = new Map<string, AnyCanvas>();
-  constructor(private limit = 12) {}
+  private map = new Map<string, { canvas: AnyCanvas; bytes: number }>();
+  private bytes = 0;
+  /** `maxMB`: budget for the cached RGBA copies, in megabytes. */
+  constructor(private maxMB = 256) {}
 
   get(sourceKey: string, source: CanvasImageSource, w: number, h: number, a: PhotoAdjust): AnyCanvas {
     const key = `${sourceKey}|${w}x${h}|${adjustKey(a)}`;
@@ -108,7 +116,7 @@ export class AdjustCache {
     if (hit) {
       this.map.delete(key);
       this.map.set(key, hit);
-      return hit;
+      return hit.canvas;
     }
     const canvas = makeCanvas(w, h);
     const c = ctx2d(canvas);
@@ -116,15 +124,20 @@ export class AdjustCache {
     const img = c.getImageData(0, 0, w, h);
     applyAdjustPixels(img.data, a);
     c.putImageData(img, 0, 0);
-    this.map.set(key, canvas);
-    while (this.map.size > this.limit) {
-      const first = this.map.keys().next().value as string;
+    const bytes = w * h * 4;
+    this.map.set(key, { canvas, bytes });
+    this.bytes += bytes;
+    // Always keep the newest entry, even if it alone exceeds the budget.
+    while (this.bytes > this.maxMB * 1024 * 1024 && this.map.size > 1) {
+      const [first, e] = this.map.entries().next().value!;
       this.map.delete(first);
+      this.bytes -= e.bytes;
     }
     return canvas;
   }
 
   clear(): void {
     this.map.clear();
+    this.bytes = 0;
   }
 }

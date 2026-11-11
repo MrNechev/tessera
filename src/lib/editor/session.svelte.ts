@@ -25,8 +25,15 @@ function defaultPage(): { width: number; height: number; dpi: number; preset: st
   return { width, height, dpi: preset.px ? 72 : s.defaultDpi, preset: preset.id };
 }
 
-export function openEditor(doc: CollageDoc, path: string | null = null): void {
+/**
+ * Show `doc` in the editor. Pending edits of the previous document are saved
+ * first; brand-new documents (`fresh`) are saved right away so they show up
+ * in Recent even if they're never touched.
+ */
+export function openEditor(doc: CollageDoc, path: string | null = null, fresh = path === null): void {
+  flushAutosave();
   editor.load(doc, path);
+  if (fresh) void autosave();
   editor.tool = doc.layout.engine !== 'none' ? 'layouts' : doc.template ? 'photos' : 'photos';
   app.view = 'editor';
 }
@@ -81,11 +88,12 @@ export async function addPhotos(): Promise<string[]> {
 
 /* ------------------------------------------------------------ projects */
 
-function editorResources(): RenderResources {
+/** Resources for the small Recent thumbnail: library thumbnails are plenty. */
+function thumbnailResources(): RenderResources {
   return {
-    image: (id, need) => library.entry(id, need),
+    image: (id) => library.entry(id, 360),
     sticker: (id) => stickers.image(id),
-    adjustCache: new AdjustCache(4),
+    adjustCache: new AdjustCache(64),
   };
 }
 
@@ -93,19 +101,40 @@ function serialize(doc: CollageDoc): string {
   return JSON.stringify({ ...doc, version: DOC_VERSION }, null, 0);
 }
 
-/** Save into the app's project library (home screen "Recent"). */
-export async function autosave(): Promise<void> {
-  if (!isTauri || !editor.open) return;
+let autosaveChain: Promise<void> = Promise.resolve();
+let autosaveWarned = false;
+
+/**
+ * Save into the app's project library (home screen "Recent") and, for a
+ * project opened from a file, back into that file. Everything is captured
+ * synchronously, so a save started before another project is opened still
+ * writes the old document to the old place; saves run one at a time, in order.
+ */
+export function autosave(): Promise<void> {
+  if (!isTauri || !editor.open) return autosaveChain;
   const doc = editor.doc;
-  try {
-    const used = [...editor.usedAssets()];
-    await library.preload(used);
-    const thumb = await renderThumbnail(doc, editorResources());
-    await api.saveProject(doc.id, serialize(doc), thumb);
-    if (editor.projectPath) await api.saveProjectFile(editor.projectPath, serialize(doc));
-  } catch (e) {
-    console.warn('autosave failed', e);
-  }
+  const path = editor.projectPath;
+  // The thumbnail shows the active page only.
+  const used = doc.elements.flatMap((e) => (e.kind === 'photo' && e.asset ? [e.asset] : []));
+  if (doc.background.image) used.push(doc.background.image.asset);
+  const job = autosaveChain.then(async () => {
+    try {
+      await library.preload(used, 360);
+      const thumb = await renderThumbnail(doc, thumbnailResources());
+      const json = serialize(doc);
+      await api.saveProject(doc.id, json, thumb);
+      if (path) await api.saveProjectFile(path, json);
+      autosaveWarned = false;
+    } catch (e) {
+      console.warn('autosave failed', e);
+      if (!autosaveWarned) {
+        autosaveWarned = true;
+        toasts.push({ kind: 'error', title: 'Could not save your project', message: String(e) });
+      }
+    }
+  });
+  autosaveChain = job;
+  return job;
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -115,6 +144,25 @@ export function scheduleAutosave(): void {
     autosaveTimer = null;
     void autosave();
   }, 1500);
+}
+
+/** Start any pending (debounced) autosave now; resolves when every save has finished. */
+export function flushAutosave(): Promise<void> {
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+    return autosave();
+  }
+  return autosaveChain;
+}
+
+/** Close the editor without saving pending edits (used when its project is deleted). */
+export async function closeEditor(): Promise<void> {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+  await autosaveChain;
+  editor.open = false;
+  if (app.view === 'editor') app.view = 'home';
 }
 
 export function parseProject(json: string): CollageDoc {
@@ -128,7 +176,7 @@ export async function openProjectPath(path: string, external: boolean): Promise<
   try {
     const doc = parseProject(await api.loadProject(path));
     const missing = await library.ensureAssets(doc.assets);
-    openEditor(doc, external ? path : null);
+    openEditor(doc, external ? path : null, false);
     if (missing.length) {
       toasts.push({
         kind: 'warning',
@@ -252,7 +300,7 @@ export async function quickSave(): Promise<void> {
 
 /** Save As: the caller (export dialog) already chose format, options and pages. */
 export async function saveAs(format: ExportFormat, quality: number, scale: number, scope: PageScope = 'all'): Promise<void> {
-  if (!checkEmpty()) return;
+  if (saveState.busy || !checkEmpty()) return;
   const s = app.settings;
   const file = buildFilename('{name}', editor.doc.name, format);
   const ext = file.split('.').pop()!;
@@ -266,7 +314,11 @@ export async function saveAs(format: ExportFormat, quality: number, scale: numbe
   };
   const path = await pickSavePath(s.saveDirectory ? joinPath(s.saveDirectory, file) : file, [{ name: names[format], extensions: [ext] }]);
   if (!path) return;
-  const final = /\.[a-z0-9]{2,5}$/i.test(path) ? path : `${path}.${ext}`;
+  // Only accept the extensions of the chosen format: "Mum & Dad 25.12" or
+  // "card.png" with JPEG selected still get the right one appended.
+  const exts = format === 'jpeg' ? ['jpg', 'jpeg'] : format === 'tiff' ? ['tif', 'tiff'] : [ext];
+  const cur = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  const final = path.lastIndexOf('.') > path.lastIndexOf('/') && exts.includes(cur) ? path : `${path}.${ext}`;
   await runExport(final, format, quality, scale, false, scope);
 }
 

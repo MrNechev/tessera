@@ -10,6 +10,7 @@
   import { DPI_CHOICES, PAGE_PRESETS } from '../model/pages';
   import { app } from '../stores/app.svelte';
   import { formatBytes } from '../stores/batch.svelte';
+  import { library } from '../stores/library.svelte';
   import { toasts } from '../stores/toasts.svelte';
 
   const s = $derived(app.settings);
@@ -34,6 +35,8 @@
     await app.checkUpdates(true);
     checking = false;
   }
+
+  let clearing = $state(false);
 
   onMount(async () => {
     try {
@@ -150,11 +153,21 @@
       <span class="spacer"></span>
       <button
         class="btn small"
+        disabled={clearing}
         onclick={async () => {
-          const freed = await api.clearCache();
-          cache = await api.cacheSize();
-          toasts.push({ kind: 'success', title: `Freed ${formatBytes(freed)}` });
-        }}>Clear cache</button
+          clearing = true;
+          try {
+            const freed = await api.clearCache();
+            toasts.push({ kind: 'success', title: `Freed ${formatBytes(freed)}` });
+            // Photos already in use get their previews back straight away.
+            await library.rebuild();
+            cache = await api.cacheSize();
+          } catch (e) {
+            toasts.push({ kind: 'error', title: 'Could not clear the cache', message: String(e) });
+          } finally {
+            clearing = false;
+          }
+        }}>{clearing ? 'Clearing…' : 'Clear cache'}</button
       >
     </div>
   </section>

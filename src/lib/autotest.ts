@@ -14,6 +14,7 @@ import { newBlank, newFromTemplate, newQuickCollage, openEditor, printProject } 
 import { instantiateTemplate } from './templates/instantiate';
 import { createCalendar, createSticker } from './model/factory';
 import type { LayoutEngine, LayoutShape, PhotoElement, TextElement } from './model/types';
+import { perfStats } from './perf';
 import { app, type View } from './stores/app.svelte';
 import { compressQueue, convertQueue, toolsQueue } from './stores/batch.svelte';
 import { library } from './stores/library.svelte';
@@ -24,7 +25,9 @@ import { defaultMetadataPolicy } from './api/types';
 type Step = Record<string, unknown> & { do: string };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const log = (msg: string) => invoke('autotest_log', { msg }).catch(() => {});
+const t0 = performance.now();
+const log = (msg: string) =>
+  invoke('autotest_log', { msg: `+${Math.round(performance.now() - t0)}ms ${msg}` }).catch(() => {});
 
 async function run(step: Step): Promise<void> {
   const s = step as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -82,9 +85,14 @@ async function run(step: Step): Promise<void> {
     case 'regenerate':
       editor.regenerate();
       break;
-    case 'layout':
+    case 'layout': {
+      const t = performance.now();
       editor.setLayout(s.settings as never);
+      const sync = performance.now() - t;
+      await sleep(0);
+      await log(`layout sync=${sync.toFixed(1)}ms +effects=${(performance.now() - t).toFixed(1)}ms`);
       break;
+    }
     case 'background':
       editor.update((d) => {
         Object.assign(d.background, s.background as object);
@@ -228,6 +236,13 @@ async function run(step: Step): Promise<void> {
     case 'print':
       void printProject('all');
       break;
+    case 'perf':
+      if (s.reset) perfStats.reset();
+      else
+        await log(
+          `perf draws=${perfStats.draws} avg=${(perfStats.drawMs / Math.max(1, perfStats.draws)).toFixed(1)}ms max=${perfStats.maxDrawMs.toFixed(1)}ms`,
+        );
+      break;
     case 'log':
       await log(String(s.msg));
       break;
@@ -261,7 +276,9 @@ export async function maybeRunAutotest(): Promise<void> {
   for (const [i, step] of steps.entries()) {
     try {
       await log(`step ${i}: ${step.do}`);
+      const t = performance.now();
       await run(step);
+      if (step.do !== 'wait' && step.do !== 'shot') await log(`step ${i} took ${Math.round(performance.now() - t)}ms`);
     } catch (e) {
       await log(`step ${i} FAILED: ${e}`);
     }

@@ -98,18 +98,20 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (app.view !== 'editor' || exportOpen) return;
+    if (app.view !== 'editor' || exportOpen || app.modals > 0) return;
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     if (mod && k === 's') {
       e.preventDefault();
+      // Commit a half-typed name (inputs apply on change/blur) before saving.
+      if (isTyping(e)) (e.target as HTMLElement).blur();
       if (e.shiftKey) exportOpen = true;
       else void quickSave();
       return;
     }
     if (mod && k === 'r') {
       e.preventDefault();
-      editor.regenerate();
+      if (!isTyping(e)) editor.regenerate();
       return;
     }
     if (mod && k === 'p') {
@@ -209,7 +211,7 @@
           <div class="divider"></div>
           <button role="menuitem" onclick={() => void quickSave()}><Download size={15} /> Save image <span class="kbd">Ctrl+S</span></button>
           <button role="menuitem" onclick={() => (exportOpen = true)}><FileImage size={15} /> Save image as… <span class="kbd">Ctrl+⇧+S</span></button>
-          <button role="menuitem" onclick={() => void printProject('all')}><Printer size={15} /> Print… <span class="kbd">Ctrl+P</span></button>
+          <button role="menuitem" disabled={saveState.busy} onclick={() => void printProject('all')}><Printer size={15} /> Print… <span class="kbd">Ctrl+P</span></button>
           <div class="divider"></div>
           <button role="menuitem" onclick={() => editor.addPage()}><FilePlus size={15} /> Add a page</button>
           {#if editor.pageCount > 1}
@@ -232,7 +234,7 @@
       <button class="icon-btn" title="Fit (Ctrl+0)" onclick={() => canvasRef?.fitView()}><Maximize size={15} /></button>
     </div>
     <div class="spacer"></div>
-    <button class="btn" onclick={() => (exportOpen = true)} title="Choose format, size and location (Ctrl+Shift+S)">Save as…</button>
+    <button class="btn" onclick={() => (exportOpen = true)} disabled={saveState.busy} title="Choose format, size and location (Ctrl+Shift+S)">Save as…</button>
     <button class="btn primary" onclick={() => void quickSave()} disabled={saveState.busy} title={app.settings.saveDirectory ? `Save a copy to ${app.settings.saveDirectory} (Ctrl+S)` : 'Set a save folder in Settings'}>
       <Save size={16} />
       {saveState.busy ? `${Math.round(saveState.progress * 100)}%` : 'Save'}

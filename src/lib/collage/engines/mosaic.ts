@@ -92,10 +92,23 @@ function score(node: Node, target: number, n: number): number {
   return aspectErr * 4 + balance * 0.18;
 }
 
-export function mosaicPlacements(items: LayoutItem[], area: Rect, gap: number, rng: Rng): Placement[] {
+/**
+ * The tree search depends only on the random state, the photos' aspect ratios
+ * and the area's aspect ratio, not on the gap. Remember the last few results
+ * so dragging the spacing slider over a big collage doesn't redo thousands of
+ * random trees per tick.
+ */
+const searchCache = new Map<string, { tree: Node; after: number }>();
+const SEARCH_CACHE_SIZE = 8;
+
+function searchTree(items: LayoutItem[], target: number, rng: Rng): Node {
   const n = items.length;
-  if (n === 0) return [];
-  const target = area.w / area.h;
+  const key = `${rng.state()}|${target.toFixed(6)}|${items.map((i) => i.aspect.toFixed(5)).join(',')}`;
+  const hit = searchCache.get(key);
+  if (hit) {
+    rng.setState(hit.after);
+    return hit.tree;
+  }
   const order = items.map((_, i) => i);
   let best: Node | null = null;
   let bestScore = Infinity;
@@ -109,8 +122,22 @@ export function mosaicPlacements(items: LayoutItem[], area: Rect, gap: number, r
       best = tree;
     }
   }
+  searchCache.set(key, { tree: best!, after: rng.state() });
+  if (searchCache.size > SEARCH_CACHE_SIZE) searchCache.delete(searchCache.keys().next().value!);
+  return best!;
+}
+
+export function mosaicPlacements(items: LayoutItem[], area: Rect, gap: number, rng: Rng): Placement[] {
+  if (items.length === 0) return [];
+  // Search for a slightly rounded aspect ratio (4 % steps): dragging the
+  // margin slider then keeps the arrangement instead of re-searching (and
+  // jumping to a different one) on every tick. The tree is still fitted to
+  // the exact area below.
+  const step = 0.04;
+  const target = Math.exp(Math.round(Math.log(area.w / area.h) / step) * step);
+  const best = searchTree(items, target, rng);
   const out = new Map<number, Rect>();
-  placeWithGap(best!, area, gap, out);
+  placeWithGap(best, area, gap, out);
   return [...out.entries()].map(([item, rect]) => ({ item, rect }));
 }
 

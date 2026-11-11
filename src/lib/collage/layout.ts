@@ -117,7 +117,12 @@ export function relayout(doc: CollageDoc, opts: RelayoutOptions = {}): CollageDo
     pool.set(p.asset, list);
   }
   const template = old[0];
-  const fresh: PhotoElement[] = result.placements.map((pl) => {
+  // Keep the photos in layout order (not the engine's placement order): the
+  // next relayout reads the order back from the elements, so anything else
+  // would reshuffle the collage whenever a setting such as the spacing moves.
+  // Regenerate shuffles that order, so stacking (scatter) still looks random.
+  const placements = [...result.placements].sort((a, b) => a.item - b.item);
+  const fresh: PhotoElement[] = placements.map((pl) => {
     const asset = items[pl.item].key;
     const reuse = pool.get(asset)?.shift();
     const base: PhotoElement = reuse

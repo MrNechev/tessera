@@ -42,6 +42,15 @@
     if (el) editor.patch(el.id, p, { key: key ? `${key}:${el.id}` : undefined });
   }
 
+  /** Patch the element selected now once `ready` resolves (e.g. a font has loaded), even if the selection changed meanwhile. */
+  function patchWhenReady(ready: Promise<unknown>, p: Partial<CollageElement>) {
+    const id = el?.id;
+    if (!id) return;
+    void ready.then(() => {
+      if (editor.element(id)) editor.patch(id, p);
+    });
+  }
+
   const DEFAULT_SHADOW = { color: 'rgba(20,15,30,0.35)', blur: 0.012, x: 0, y: 0.005 };
 
   const FRAMES: { id: PhotoFrameStyle; name: string }[] = [
@@ -172,7 +181,7 @@
         style:font-family="'{fontInfo(t.font).family}'"
         onchange={(e) => {
           const id = (e.target as HTMLSelectElement).value;
-          void ensureFont(id, t.weight).then(() => patch({ font: id } as Partial<TextElement>));
+          patchWhenReady(ensureFont(id, t.weight), { font: id } as Partial<TextElement>);
         }}
       >
         {#each fontsByCat as c (c.id)}
@@ -196,7 +205,7 @@
         <span class="spacer"></span>
         <button class="icon-btn" class:active={t.weight >= 600} title="Bold" onclick={() => {
           const w = t.weight >= 600 ? 400 : 700;
-          void ensureFont(t.font, w).then(() => patch({ weight: w } as Partial<TextElement>));
+          patchWhenReady(ensureFont(t.font, w), { weight: w } as Partial<TextElement>);
         }}><Bold size={16} /></button>
         <button class="icon-btn" class:active={t.italic} title="Italic (slanted)" onclick={() => patch({ italic: !t.italic } as Partial<TextElement>)}><Italic size={16} /></button>
         <button class="icon-btn" class:active={!!t.uppercase} title="Uppercase" onclick={() => patch({ uppercase: !t.uppercase } as Partial<TextElement>)}><CaseUpper size={16} /></button>
@@ -285,14 +294,14 @@
       {/if}
     </Section>
     <Section title="Fonts & colours">
-      <select class="select" value={cal.titleFont} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; void ensureFont(id, 700).then(() => patch({ titleFont: id } as Partial<CalendarElement>)); }}>
+      <select class="select" value={cal.titleFont} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; patchWhenReady(ensureFont(id, 700), { titleFont: id } as Partial<CalendarElement>); }}>
         {#each fontsByCat as c (c.id)}
           <optgroup label="{c.name} — title">
             {#each c.fonts as f (f.id)}<option value={f.id} style:font-family="'{f.family}'">{f.family}</option>{/each}
           </optgroup>
         {/each}
       </select>
-      <select class="select" value={cal.font} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; void ensureFont(id, 400).then(() => patch({ font: id } as Partial<CalendarElement>)); }}>
+      <select class="select" value={cal.font} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; patchWhenReady(ensureFont(id, 400), { font: id } as Partial<CalendarElement>); }}>
         {#each fontsByCat.filter((c) => ['sans', 'rounded', 'serif', 'display'].includes(c.id)) as c (c.id)}
           <optgroup label="{c.name} — days">
             {#each c.fonts as f (f.id)}<option value={f.id} style:font-family="'{f.family}'">{f.family}</option>{/each}

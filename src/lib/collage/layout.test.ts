@@ -220,3 +220,64 @@ describe('calendar dates', () => {
     expect(sun[0]).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 });
+
+describe('mosaic search cache', () => {
+  const rects = (d: CollageDoc) =>
+    d.elements.flatMap((e) => (e.kind === 'photo' ? [[e.asset, e.x, e.y, e.w, e.h].map((v) => (typeof v === 'number' ? Math.round(v) : v))] : []));
+
+  it('gives the same layout on a repeat run as on the first', () => {
+    const a = relayout(docWith(120, 'mosaic'));
+    const b = relayout(docWith(120, 'mosaic'));
+    expect(rects(b)).toEqual(rects(a));
+  });
+
+  it('keeps the arrangement when only the spacing changes', () => {
+    const base = docWith(40, 'mosaic');
+    const tight = relayout({ ...base, layout: { ...base.layout, spacing: 0.002 } });
+    // Chained, like a slider: each relayout starts from the previous result.
+    const loose = relayout({ ...tight, layout: { ...tight.layout, spacing: 0.03 } });
+    // Same tree, so every photo stays roughly where it was (only the gaps move).
+    const pos = (d: CollageDoc) => new Map(d.elements.flatMap((e) => (e.kind === 'photo' ? [[e.asset, e]] : [])));
+    const t = pos(tight);
+    for (const [a, e] of pos(loose)) {
+      const o = t.get(a)!;
+      expect(Math.abs(e.x + e.w / 2 - (o.x + o.w / 2))).toBeLessThan(base.page.width * 0.05);
+      expect(Math.abs(e.y + e.h / 2 - (o.y + o.h / 2))).toBeLessThan(base.page.height * 0.05);
+    }
+  });
+
+  it('is not slower the second time with many photos', () => {
+    const doc = docWith(150, 'mosaic');
+    let t = performance.now();
+    const once = relayout({ ...doc, layout: { ...doc.layout, spacing: 0.01 } });
+    const first = performance.now() - t;
+    t = performance.now();
+    relayout({ ...once, layout: { ...once.layout, spacing: 0.02 } });
+    const second = performance.now() - t;
+    expect(second).toBeLessThan(Math.max(first / 3, 5));
+  });
+});
+
+describe('relayout stability', () => {
+  for (const engine of ALL) {
+    it(`${engine}: re-running the layout with the same settings changes nothing`, () => {
+      const once = relayout(docWith(30, engine));
+      const twice = relayout(once);
+      const pos = (d: CollageDoc) =>
+        d.elements.flatMap((e) => (e.kind === 'photo' ? [`${e.asset}:${Math.round(e.x)},${Math.round(e.y)},${Math.round(e.w)},${Math.round(e.h)}`] : [])).sort();
+      expect(pos(twice)).toEqual(pos(once));
+    });
+  }
+});
+
+describe('margin changes', () => {
+  it('a small margin change keeps the mosaic arrangement', () => {
+    const a = relayout(docWith(40, 'mosaic'));
+    const b = relayout({ ...a, layout: { ...a.layout, margin: a.layout.margin + 0.002 } });
+    const order = (d: CollageDoc) => d.elements.flatMap((e) => (e.kind === 'photo' ? [e.asset] : []));
+    expect(order(b)).toEqual(order(a));
+    const pos = (d: CollageDoc) => new Map(d.elements.flatMap((e) => (e.kind === 'photo' ? [[e.asset, e]] : [])));
+    const pa = pos(a);
+    for (const [k, e] of pos(b)) expect(Math.abs(e.x - pa.get(k)!.x)).toBeLessThan(a.page.width * 0.03);
+  });
+});

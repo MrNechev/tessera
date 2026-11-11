@@ -27,6 +27,8 @@ export interface ExportOptions {
 }
 
 const TILE = 2048;
+/** Photos decoded in parallel during export. */
+const LOAD_CONCURRENCY = 4;
 
 /**
  * Render one page at full resolution into a backend export job and return
@@ -63,21 +65,34 @@ export async function renderToJob(
     }
   }
 
-  // 2. Load full-quality pixels.
+  // 2. Load full-quality pixels, a few at a time (the backend decodes each
+  //    on its own thread; one by one leaves most cores idle).
   const bitmaps = new Map<string, ImageEntry>();
-  let i = 0;
-  for (const [id, size] of need) {
-    if (opts.signal?.cancelled) throw new Error('Export cancelled');
-    const a = doc.assets[id];
-    progress((0.45 * i) / Math.max(1, need.size), `Loading photo ${i + 1} of ${need.size}`);
-    try {
-      const data = await api.loadImagePixels(a.path, Math.max(1, size.w), Math.max(1, size.h));
-      const bmp = await createImageBitmap(data);
-      bitmaps.set(id, { source: bmp, width: bmp.width, height: bmp.height, key: `${id}@export` });
-    } catch (e) {
-      throw new Error(`Could not load “${a.name}”: ${e}`);
+  const queue = [...need];
+  let done = 0;
+  const loadNext = async (): Promise<void> => {
+    for (let item = queue.shift(); item; item = queue.shift()) {
+      if (opts.signal?.cancelled) throw new Error('Export cancelled');
+      const [id, size] = item;
+      const a = doc.assets[id];
+      try {
+        const data = await api.loadImagePixels(a.path, Math.max(1, size.w), Math.max(1, size.h));
+        const bmp = await createImageBitmap(data);
+        bitmaps.set(id, { source: bmp, width: bmp.width, height: bmp.height, key: `${id}@export` });
+      } catch (e) {
+        queue.length = 0;
+        throw new Error(`Could not load “${a.name}”: ${e}`);
+      }
+      done++;
+      progress((0.45 * done) / need.size, `Loading photo ${done} of ${need.size}`);
     }
-    i++;
+  };
+  progress(0, `Loading photo 1 of ${need.size}`);
+  try {
+    await Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, need.size) }, loadNext));
+  } catch (e) {
+    for (const b of bitmaps.values()) (b.source as ImageBitmap).close?.();
+    throw e;
   }
 
   // 3. Fonts and stickers must be ready before drawing.
@@ -94,7 +109,7 @@ export async function renderToJob(
   const resources: RenderResources = {
     image: (id) => bitmaps.get(id) ?? null,
     sticker: (id) => stickers.image(id),
-    adjustCache: new AdjustCache(6),
+    adjustCache: new AdjustCache(768),
   };
 
   // 4. Render tiles and stream them to the backend.
@@ -103,6 +118,9 @@ export async function renderToJob(
     const cols = Math.ceil(W / TILE);
     const rows = Math.ceil(H / TILE);
     let n = 0;
+    // One canvas for every tile (edge tiles use its top-left part).
+    const canvas = makeCanvas(Math.min(TILE, W), Math.min(TILE, H));
+    const c = ctx2d(canvas);
     for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < cols; tx++) {
         if (opts.signal?.cancelled) throw new Error('Export cancelled');
@@ -110,8 +128,12 @@ export async function renderToJob(
         const y = ty * TILE;
         const w = Math.min(TILE, W - x);
         const h = Math.min(TILE, H - y);
-        const canvas = makeCanvas(w, h);
-        const c = ctx2d(canvas);
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, canvas.width, canvas.height);
+        c.save();
+        c.beginPath();
+        c.rect(0, 0, w, h);
+        c.clip();
         c.translate(-x, -y);
         renderDocument(c, doc, {
           scale,
@@ -119,6 +141,7 @@ export async function renderToJob(
           placeholders: false,
           clip: { x: x / scale, y: y / scale, w: w / scale, h: h / scale },
         });
+        c.restore();
         const pixels = c.getImageData(0, 0, w, h).data;
         await api.exportTile(job, x, y, w, h, pixels);
         n++;

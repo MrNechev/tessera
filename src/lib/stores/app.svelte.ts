@@ -29,8 +29,8 @@ class AppState {
   settings = $state<Settings>(defaultSettings());
   update = $state<UpdateInfo | null>(null);
   ready = $state(false);
-  /** Files handed from the home screen / drag & drop to the converter or compressor. */
-  pendingTool = $state<{ view: 'convert' | 'compress'; files: string[] } | null>(null);
+  /** Number of open modal dialogs; editor shortcuts stay quiet while one is up. */
+  modals = $state(0);
 
   async init(): Promise<void> {
     void stickers.load();

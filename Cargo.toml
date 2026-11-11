@@ -16,5 +16,9 @@ codegen-units = 4
 strip = "debuginfo"
 
 # Image codecs are painfully slow unoptimized; keep dev builds usable.
+# "*" covers dependencies only, so the workspace's own imaging crate is listed too.
 [profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.tessera-imaging]
 opt-level = 3

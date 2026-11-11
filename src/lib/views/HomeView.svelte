@@ -9,7 +9,7 @@
   import Modal from '../components/ui/Modal.svelte';
   import Toggle from '../components/ui/Toggle.svelte';
   import { editor } from '../editor/editor.svelte';
-  import { newBlank, newFromTemplate, newQuickCollage, openProjectDialog, openProjectPath } from '../editor/session.svelte';
+  import { closeEditor, newBlank, newFromTemplate, newQuickCollage, openProjectDialog, openProjectPath } from '../editor/session.svelte';
   import { app } from '../stores/app.svelte';
   import { library } from '../stores/library.svelte';
   import { toasts } from '../stores/toasts.svelte';
@@ -21,6 +21,7 @@
   let chosen = $state<TemplateDef | null>(null);
   let useLibrary = $state(true);
   let newProject = $state<'book' | 'calendar' | null>(null);
+  let deleting = $state<ProjectSummary | null>(null);
 
   const featured = ['letters-love', 'cal-photo-month', 'love-be-mine', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
     .map((id) => templateById(id))
@@ -36,9 +37,16 @@
   }
 
   async function remove(p: ProjectSummary) {
-    await api.deleteProject(p.id);
+    deleting = null;
+    try {
+      // Otherwise the next autosave of the open project would bring it back.
+      if (editor.open && editor.doc.id === p.id) await closeEditor();
+      await api.deleteProject(p.id);
+      toasts.push({ kind: 'info', title: `Deleted “${p.name}”` });
+    } catch (e) {
+      toasts.push({ kind: 'error', title: 'Could not delete the project', message: String(e) });
+    }
     await refresh();
-    toasts.push({ kind: 'info', title: `Deleted “${p.name}”` });
   }
 
   function pickTemplate(t: TemplateDef) {
@@ -140,7 +148,7 @@
               <span class="truncate"><b>{p.name}</b></span>
               <span class="hint">{ago(p.modified)} · {p.width}×{p.height}</span>
             </div>
-            <button class="icon-btn small del" title="Delete" onclick={(e) => { e.stopPropagation(); void remove(p); }}><Trash2 size={14} /></button>
+            <button class="icon-btn small del" title="Delete" onclick={(e) => { e.stopPropagation(); deleting = p; }}><Trash2 size={14} /></button>
           </div>
         {/each}
       </div>
@@ -158,6 +166,17 @@
 
 {#if newProject}
   <NewProjectDialog kind={newProject} onclose={() => (newProject = null)} />
+{/if}
+
+{#if deleting}
+  {@const p = deleting}
+  <Modal title="Delete “{p.name}”?" width={420} onclose={() => (deleting = null)}>
+    <p class="hint">The project is removed from Recent. Photos and saved images are not touched.</p>
+    {#snippet footer()}
+      <button class="btn" onclick={() => (deleting = null)}>Cancel</button>
+      <button class="btn danger" onclick={() => void remove(p)}>Delete</button>
+    {/snippet}
+  </Modal>
 {/if}
 
 {#if chosen}
