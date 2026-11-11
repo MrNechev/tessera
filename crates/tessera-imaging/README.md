@@ -10,6 +10,11 @@ system libheif (>= 1.17); when it is on, AVIF is also decoded through libheif
 first (for `irot`/`imir` transforms and EXIF), falling back to dav1d. The crate
 builds and passes its tests with `--no-default-features`.
 
+Camera RAW decoding uses [`rawler`](https://crates.io/crates/rawler) (pure
+Rust, LGPL-2.1) and colour management uses
+[`moxcms`](https://crates.io/crates/moxcms) (pure Rust, BSD-3-Clause/Apache-2.0);
+both are always enabled.
+
 ## Format support
 
 | Format | Decode | Encode | Lossy (quality) | Lossless | Alpha | EXIF r/w | ICC r/w | XMP r/w |
@@ -24,16 +29,89 @@ builds and passes its tests with `--no-default-features`.
 | ICO | yes (largest entry) | yes (≤256×256, PNG entries) | no | yes | yes | no | no | no |
 | HEIC/HEIF | `heif` feature | no | – | – | yes | yes/– | yes/– | yes/– |
 | JPEG XL | jxl-oxide | no | – | – | yes | yes/– | yes/– | –/– |
+| Camera RAW | rawler (developed to 8-bit sRGB) | no | – | – | no | synthesised/– | –/– | –/– |
 
 Writing metadata to a format that cannot hold it returns a warning (e.g.
 "AVIF: metadata (EXIF/ICC/XMP) is not written by this version"); it never
 fails the job. `ImageFormat::supports_*` and `capabilities()` expose the same
 table to the UI.
 
-Pixels are not colour-managed: ICC profiles are carried through (when the
-policy keeps them) but never applied, so `load_scaled_rgba`/previews of wide
-gamut (e.g. Display P3) photos look slightly desaturated, and stripping the
-ICC profile of such a photo changes how it renders.
+## Camera RAW
+
+`ImageFormat::Raw` ("raw", label "Camera RAW"): DNG, CR2, CR3, CRW, NEF, NRW,
+ARW, SRF, SR2, RAF, ORF, RW2, RWL, RAW, PEF, SRW, ERF, MEF, MOS, MRW, KDC,
+DCR, DCS, 3FR, FFF, IIQ, X3F, ARI, QTK (`RAW_EXTENSIONS`, a superset of
+rawler's own list; cameras are limited to what rawler supports).
+
+* **Detection**: `detect(bytes)` recognises DNG (TIFF with DNGVersion in
+  IFD0), CR2, CR3 (ISO-BMFF `crx `), CRW, RAF, ORF, RW2/RWL, MRW and X3F by
+  content. NEF/ARW/PEF/SRW/... are plain TIFF structures, so `detect` says
+  TIFF and the extension decides: `detect_path(path)` (and `load`/`probe`)
+  turn "TIFF content + RAW extension" into `Raw`; `load_bytes` does the same
+  with `hint = Some(Raw)`.
+* **`load`** develops the RAW: black/white levels, demosaic (PPG Bayer,
+  bilinear X-Trans), active-area and default crop, camera white balance,
+  camera matrix → linear sRGB (rawler), then dcraw-style auto-exposure (99th
+  percentile to white, gain 1–4×), sRGB transfer curve and a gentle default
+  tone curve (midtone lift + S-curve, close to in-camera JPEG rendering) to
+  8-bit RGB, then the orientation from the RAW metadata is applied. 16–24 MP
+  develops in 0.15–0.6 s, 24 MP CR3 in ~0.8 s (release, 16 threads).
+* **EXIF** is synthesised as a bare TIFF block from rawler's metadata (Make,
+  Model, lens, DateTimeOriginal/ModifyDate, exposure, ISO, focal length,
+  serials, artist/copyright, GPS IFD, ...; Orientation = 1), so
+  `read_summary`, `filter_exif` and all metadata policies work as for
+  JPEGs. MakerNotes are not carried. No ICC/XMP is read from RAW files.
+* **`probe`/`read_summary`** parse metadata and image geometry only (no
+  pixel decompression; 2–20 ms, ~70 ms for CR2). Dimensions are the
+  developed (default-crop, upright) size.
+* **`make_preview`/`load_scaled_rgba`** use the embedded preview (normally
+  the camera JPEG, rotated upright) when it has the frame's aspect ratio
+  (±2 %) and covers the requested size; otherwise they develop. In practice
+  CR2 (1536 px), NEF (full size), CR3 (full size) and RAF (1920 px) previews
+  are used for 1024 px proxies (20–110 ms); ARW/PEF (640 px previews), ORF,
+  Panasonic RAW and DNG (rawler exposes no preview) are developed.
+* **Convert/compress** with `TargetFormat::Keep` writes JPEG (quality from
+  the options; `QualityMode::Original` = q100 4:4:4) with the warning "Camera
+  RAW can't be written; developed and saved as JPEG". `To { Raw }` fails.
+
+## Colour management
+
+`ColorMode` (`"srgb"` default, `"keep"`) on `ConvertOptions`,
+`CompressOptions` (`color`, absent in old JSON = sRGB) and
+`LoadOptions` for `load_with`/`load_bytes_with`.
+
+* **sRGB (default)**: when an image carries an ICC profile that is not
+  (near-)sRGB, the pixels are converted to sRGB with moxcms (perceptual
+  intent; 8/16-bit integer fast paths, f32 for float images; RGB, RGBA with
+  alpha preserved, grey and grey+alpha) and the profile is dropped
+  (`metadata.icc = None`, `SourceImage::color_converted = true`), so
+  encoders write untagged sRGB. Jobs report "Converted from <profile
+  description> to sRGB". A 24 MP 8-bit conversion takes ~45 ms.
+* `load`, `load_bytes`, `load_scaled_rgba` and `make_preview` (including the
+  JPEG DCT-scaled path) always return sRGB, so previews and collages render
+  wide-gamut photos correctly.
+* **Keep**: pixels and profile are untouched; the profile is written when
+  the metadata policy keeps ICC (previous behaviour).
+* **sRGB detection** (`icc_is_srgb`, `MetadataSummary::icc_is_srgb`): RGB
+  matrix/TRC profiles must have sRGB colorants (D50-adapted XYZ within
+  ±0.004) and sRGB-like tone curves (within 1.2 % over 20 samples; gamma 2.2
+  passes), regardless of their name; grey profiles need an sRGB-like TRC;
+  LUT-based RGB profiles and profiles moxcms can't parse count as sRGB only
+  when their description says "sRGB". Untagged images report
+  `icc_is_srgb = true`.
+* Profiles that can't be applied (CMYK, Lab, corrupt, or no usable
+  transform) leave pixels and profile untouched in both modes.
+* Paths that don't decode pixels (JPEG pass-through, lossless JPEG/PNG
+  optimisation, "keep original" for `keep_if_larger`) are still taken in
+  sRGB mode when the policy keeps the profile, since the output then renders
+  correctly. When the policy would drop a non-sRGB profile, the image is
+  re-encoded with the conversion instead (no silent colour shift).
+* HEIC/AVIF via libheif: the ICC profile (`prof`/`rICC`) is used; when the
+  file only has an `nclx` description with non-BT.709 primaries (e.g. Display
+  P3) an equivalent ICC is synthesised from the CICP values and treated like
+  an embedded profile. PQ/HLG (HDR) transfer functions are not converted.
+  AVIF decoded by dav1d (without the `heif` feature) only uses an ICC
+  profile; nclx-only AVIFs are treated as sRGB.
 
 ## Orientation
 
@@ -80,8 +158,8 @@ ICC profile of such a photo changes how it renders.
   image data is byte-identical). `Reduce{p}` = quality 100−p (`p = 0` is the
   same as `Original`); `Fixed{q}`. For PNG/GIF the quality drives imagequant;
   BMP/QOI/TIFF/TGA/ICO ignore it with a warning.
-* HEIC/JPEG XL inputs with `TargetFormat::Keep` are saved as JPEG (PNG when
-  transparent) with a warning. Alpha is flattened onto `background` for
+* HEIC/JPEG XL/camera RAW inputs with `TargetFormat::Keep` are saved as JPEG
+  (PNG when transparent) with a warning. Alpha is flattened onto `background` for
   formats without alpha.
 * `CompressLevel::Lossless`: JPEG input→JPEG is transcoded at the DCT
   coefficient level (Huffman re-optimisation + mozjpeg progressive scan
@@ -152,8 +230,14 @@ stripped, `keep_if_larger` off):
 
 ## Known limitations
 
-* No colour management (see above); 16-bit/HDR sources are written as 8-bit
+* Colour management converts to sRGB only (no wide-gamut output space); HDR
+  (PQ/HLG) is not tone-mapped; 16-bit/HDR sources are written as 8-bit
   except to PNG/TIFF.
+* Camera RAW: decode only; a fixed default develop (no lens corrections,
+  noise reduction, highlight recovery or per-camera base curves); the
+  embedded preview may differ from the develop (e.g. lens-corrected framing
+  for CR3). Fuji SuperCCD files rotated by the develop may probe with
+  unrotated dimensions. Multi-image RAWs use the first image.
 * Animated GIF/WebP/APNG: only the first frame is decoded/written.
 * AVIF metadata is not written; AVIF EXIF/transforms are only read when the
   `heif` feature is enabled and libheif can decode AV1.

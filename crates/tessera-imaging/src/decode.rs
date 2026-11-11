@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use image::{DynamicImage, GrayImage, ImageDecoder, RgbImage, RgbaImage};
 use serde::{Deserialize, Serialize};
 
+use crate::color::{self, ColorMode, LoadOptions};
 use crate::container::{jpeg, normalize_exif, png, webp};
 use crate::error::{guard, Error, Result};
 use crate::exif_util;
@@ -40,6 +41,10 @@ pub struct SourceImage {
     pub orientation: u16,
     pub metadata: RawMetadata,
     pub file_size: u64,
+    /// The pixels were converted from a non-sRGB embedded ICC profile to
+    /// sRGB (`metadata.icc` is then `None`). Always false with
+    /// [`ColorMode::Keep`].
+    pub color_converted: bool,
 }
 
 /// Quick file information for import.
@@ -85,22 +90,41 @@ pub(crate) fn limits() -> image::Limits {
     l
 }
 
-/// Decode a file fully. Pixels are returned upright.
+/// Decode a file fully. Pixels are returned upright and in sRGB (an
+/// embedded non-sRGB ICC profile is applied, see [`load_with`]).
 pub fn load(path: &Path) -> Result<SourceImage> {
+    load_with(path, &LoadOptions::default())
+}
+
+/// Decode a file fully with explicit options. With [`ColorMode::Srgb`] the
+/// pixels of images whose embedded ICC profile is not (near-)sRGB are
+/// converted to sRGB and `metadata.icc` is cleared; with
+/// [`ColorMode::Keep`] pixels and profile are returned untouched.
+pub fn load_with(path: &Path, opts: &LoadOptions) -> Result<SourceImage> {
     let bytes = read_file(path)?;
     let format = format::resolve(&bytes, path).ok_or_else(|| unknown_format(path))?;
-    decode_bytes(&bytes, format)
+    Ok(decode_color(&bytes, format, opts.color)?.0)
 }
 
-/// Decode an in-memory file. `hint` is used when the content has no
-/// recognisable signature (TGA).
+/// Decode an in-memory file (colour-managed to sRGB like [`load`]). `hint`
+/// is used when the content has no recognisable signature (TGA) and to
+/// identify TIFF-based camera RAW files (`Some(ImageFormat::Raw)`).
 pub fn load_bytes(bytes: &[u8], hint: Option<ImageFormat>) -> Result<SourceImage> {
-    let format = ImageFormat::detect(bytes)
-        .or(hint)
-        .ok_or_else(|| Error::UnknownFormat(String::new()))?;
-    decode_bytes(bytes, format)
+    load_bytes_with(bytes, hint, &LoadOptions::default())
 }
 
+/// [`load_bytes`] with explicit options.
+pub fn load_bytes_with(
+    bytes: &[u8],
+    hint: Option<ImageFormat>,
+    opts: &LoadOptions,
+) -> Result<SourceImage> {
+    let format = format::with_hint(ImageFormat::detect(bytes), hint)
+        .ok_or_else(|| Error::UnknownFormat(String::new()))?;
+    Ok(decode_color(bytes, format, opts.color)?.0)
+}
+
+/// Decode without colour management (pixels and ICC as stored).
 pub(crate) fn decode_bytes(bytes: &[u8], format: ImageFormat) -> Result<SourceImage> {
     let label = format.label();
     let (mut image, metadata, orientation, needs_orient) =
@@ -116,7 +140,38 @@ pub(crate) fn decode_bytes(bytes: &[u8], format: ImageFormat) -> Result<SourceIm
         orientation,
         metadata,
         file_size: bytes.len() as u64,
+        color_converted: false,
     })
+}
+
+/// Decode and apply `mode`. Also returns the description of the profile the
+/// pixels were converted from, when a conversion happened.
+pub(crate) fn decode_color(
+    bytes: &[u8],
+    format: ImageFormat,
+    mode: ColorMode,
+) -> Result<(SourceImage, Option<String>)> {
+    let mut src = decode_bytes(bytes, format)?;
+    let from = apply_color(&mut src.image, &mut src.metadata.icc, mode);
+    src.color_converted = from.is_some();
+    Ok((src, from))
+}
+
+/// Convert `img` to sRGB in place when `mode` is `Srgb` and `icc` is a
+/// usable non-sRGB profile; the profile is then cleared. Returns the source
+/// profile description on conversion.
+pub(crate) fn apply_color(
+    img: &mut DynamicImage,
+    icc: &mut Option<Vec<u8>>,
+    mode: ColorMode,
+) -> Option<String> {
+    if mode != ColorMode::Srgb {
+        return None;
+    }
+    let c = color::to_srgb(img, icc.as_deref()?)?;
+    *img = c.image;
+    *icc = None;
+    Some(c.from)
 }
 
 fn image_err(label: &'static str, e: image::ImageError) -> Error {
@@ -262,6 +317,11 @@ fn decode_inner(bytes: &[u8], format: ImageFormat) -> Result<Decoded> {
             };
             // jxl-oxide applies the codestream orientation itself.
             Ok((image, md, o, false))
+        }
+        ImageFormat::Raw => {
+            let f = crate::raw::open(bytes)?;
+            let (image, o) = f.develop()?;
+            Ok((image, crate::raw::metadata(&f), o, true))
         }
         ImageFormat::Gif
         | ImageFormat::Bmp
@@ -430,6 +490,12 @@ pub(crate) fn scan(path: &Path) -> Result<Scan> {
                     },
                     false,
                 )
+            }
+            ImageFormat::Raw => {
+                let bytes = whole(&mut file)?;
+                let f = crate::raw::open(&bytes)?;
+                let (w, h, o) = f.dimensions()?;
+                (w, h, o, crate::raw::metadata(&f), true)
             }
             ImageFormat::Tiff => {
                 let bytes = whole(&mut file)?;
@@ -616,7 +682,12 @@ pub(crate) fn taken_at(exif: &[u8]) -> Option<String> {
 
 /// Decode a JPEG at reduced size using libjpeg's DCT-domain scaling (1/2,
 /// 1/4, 1/8), apply orientation, and resize to fit inside (max_w, max_h).
-fn jpeg_scaled_upright(bytes: &[u8], max_w: u32, max_h: u32) -> Result<DynamicImage> {
+fn jpeg_scaled_upright(
+    bytes: &[u8],
+    max_w: u32,
+    max_h: u32,
+    mode: ColorMode,
+) -> Result<DynamicImage> {
     let info = jpeg::parse(bytes)?.info();
     if info.components != 1 && info.components != 3 {
         return Err(Error::Unsupported("CMYK JPEG".into()));
@@ -667,7 +738,45 @@ fn jpeg_scaled_upright(bytes: &[u8], max_w: u32, max_h: u32) -> Result<DynamicIm
             img.apply_orientation(o);
         }
     }
+    let mut icc = info.icc;
+    apply_color(&mut img, &mut icc, mode);
     Ok(resize_exact(img, tw, th))
+}
+
+/// Embedded preview of a RAW file, upright, when it covers `max_w` x
+/// `max_h` (0 = unbounded never qualifies).
+fn raw_preview_upright(bytes: &[u8], max_w: u32, max_h: u32) -> Option<DynamicImage> {
+    if max_w == 0 || max_h == 0 {
+        return None;
+    }
+    guard("Camera RAW", true, || -> Result<Option<DynamicImage>> {
+        let f = crate::raw::open(bytes)?;
+        let (fw, fh, o) = f.dimensions()?;
+        let Some(mut img) = f.preview() else {
+            return Ok(None);
+        };
+        // A preview stored for a different aspect ratio (e.g. 16:9 crop of a
+        // 3:2 sensor) would change the framing; require a close match.
+        let (pw, ph) = (img.width() as f64, img.height() as f64);
+        let (rw, rh) = (fw as f64, fh as f64);
+        if pw < 1.0 || ph < 1.0 || ((pw / ph) - (rw / rh)).abs() > 0.02 * (rw / rh) {
+            return Ok(None);
+        }
+        if o != 1 {
+            if let Some(o) = image::metadata::Orientation::from_exif(o as u8) {
+                img.apply_orientation(o);
+            }
+        }
+        let (uw, uh) = upright(fw, fh, o);
+        let (tw, th) = fit_dimensions(uw, uh, max_w, max_h);
+        if img.width() < tw || img.height() < th {
+            return Ok(None);
+        }
+        let (tw, th) = fit_dimensions(img.width(), img.height(), max_w, max_h);
+        Ok(Some(resize_exact(img, tw, th)))
+    })
+    .ok()
+    .flatten()
 }
 
 fn scaled_upright(
@@ -675,24 +784,31 @@ fn scaled_upright(
     format: ImageFormat,
     max_w: u32,
     max_h: u32,
+    mode: ColorMode,
 ) -> Result<DynamicImage> {
     if format == ImageFormat::Jpeg {
-        if let Ok(img) = jpeg_scaled_upright(bytes, max_w, max_h) {
+        if let Ok(img) = jpeg_scaled_upright(bytes, max_w, max_h, mode) {
             return Ok(img);
         }
     }
-    let src = decode_bytes(bytes, format)?;
+    if format == ImageFormat::Raw {
+        if let Some(img) = raw_preview_upright(bytes, max_w, max_h) {
+            return Ok(img);
+        }
+    }
+    let (src, _) = decode_color(bytes, format, mode)?;
     let (tw, th) = fit_dimensions(src.image.width(), src.image.height(), max_w, max_h);
     Ok(resize_exact(src.image, tw, th))
 }
 
 /// Decode `path` upright, fitting inside `max_w` x `max_h` (0 = unbounded),
-/// never upscaling, as 8-bit RGBA. JPEGs use DCT-domain downscaling. Colour
-/// values are passed through unchanged (no ICC conversion).
+/// never upscaling, as 8-bit RGBA in sRGB (embedded non-sRGB ICC profiles
+/// are applied). JPEGs use DCT-domain downscaling; camera RAW files use the
+/// embedded preview when it is large enough (see [`make_preview`]).
 pub fn load_scaled_rgba(path: &Path, max_w: u32, max_h: u32) -> Result<RgbaImage> {
     let bytes = read_file(path)?;
     let format = format::resolve(&bytes, path).ok_or_else(|| unknown_format(path))?;
-    Ok(scaled_upright(&bytes, format, max_w, max_h)?.to_rgba8())
+    Ok(scaled_upright(&bytes, format, max_w, max_h, ColorMode::Srgb)?.to_rgba8())
 }
 
 fn has_transparency(img: &DynamicImage) -> bool {
@@ -724,7 +840,12 @@ fn with_ext(dst: &Path, allowed: &[&str], ext: &str) -> PathBuf {
 /// Write an upright preview proxy of `src` no larger than `max_side` on its
 /// long edge: JPEG (`jpeg_quality`) for opaque images, PNG when the image has
 /// any transparency. The extension of `dst` is adjusted accordingly and the
-/// path actually written is returned.
+/// path actually written is returned. Pixels are converted to sRGB.
+///
+/// Camera RAW: when the file embeds a preview (normally the camera JPEG)
+/// with the full frame's aspect ratio whose upright size covers the
+/// requested size, that preview is used (fast, and it carries the camera's
+/// own rendering); otherwise the RAW is developed (seconds for 20+ MP).
 pub fn make_preview(
     src: &Path,
     dst: &Path,
@@ -733,7 +854,7 @@ pub fn make_preview(
 ) -> Result<PreviewInfo> {
     let bytes = read_file(src)?;
     let format = format::resolve(&bytes, src).ok_or_else(|| unknown_format(src))?;
-    let img = scaled_upright(&bytes, format, max_side, max_side)?;
+    let img = scaled_upright(&bytes, format, max_side, max_side, ColorMode::Srgb)?;
     let (width, height) = (img.width(), img.height());
     let (path, data) = if has_transparency(&img) {
         let path = with_ext(dst, &["png"], "png");

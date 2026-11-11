@@ -76,7 +76,7 @@ fn configure_bundled_libheif() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     configure_bundled_libheif();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,rawler=error")).init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

@@ -7,8 +7,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 
+use crate::color::{self, ColorMode};
 use crate::container::{jpeg, png, webp};
-use crate::decode::{decode_bytes, image_has_transparency, load_bytes, read_file, RawMetadata};
+use crate::decode::{
+    decode_bytes, decode_color, image_has_transparency, load_bytes, read_file, RawMetadata,
+};
 use crate::encode::{self, Chroma, EncodeOptions};
 use crate::error::{Error, Result};
 use crate::exif_util;
@@ -22,8 +25,8 @@ use crate::smart;
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TargetFormat {
-    /// Same as the input (HEIC/JPEG XL fall back to JPEG, or PNG when
-    /// transparent, since they cannot be written).
+    /// Same as the input (HEIC/JPEG XL/camera RAW fall back to JPEG, or PNG
+    /// when transparent, since they cannot be written).
     #[default]
     Keep,
     To {
@@ -75,6 +78,9 @@ pub struct ConvertOptions {
     pub output: OutputSpec,
     /// Used to flatten transparency for formats without alpha.
     pub background: [u8; 3],
+    /// Colour handling of images with a non-sRGB ICC profile.
+    #[serde(default)]
+    pub color: ColorMode,
 }
 
 impl Default for ConvertOptions {
@@ -86,6 +92,7 @@ impl Default for ConvertOptions {
             metadata: MetadataPolicy::default(),
             output: OutputSpec::default(),
             background: [255, 255, 255],
+            color: ColorMode::Srgb,
         }
     }
 }
@@ -146,6 +153,9 @@ pub struct CompressOptions {
     /// If the result is not smaller than the original, keep the original
     /// (with the metadata policy applied when that can be done losslessly).
     pub keep_if_larger: bool,
+    /// Colour handling of images with a non-sRGB ICC profile.
+    #[serde(default)]
+    pub color: ColorMode,
 }
 
 impl Default for CompressOptions {
@@ -160,6 +170,7 @@ impl Default for CompressOptions {
                 ..Default::default()
             },
             keep_if_larger: true,
+            color: ColorMode::Srgb,
         }
     }
 }
@@ -233,14 +244,15 @@ fn resolve_target(
                 } else {
                     ImageFormat::Jpeg
                 };
-                Ok((
-                    f,
-                    Some(format!(
-                        "{} can't be written; saved as {}",
-                        src.label(),
+                let msg = if src == ImageFormat::Raw {
+                    format!(
+                        "Camera RAW can't be written; developed and saved as {}",
                         f.label()
-                    )),
-                ))
+                    )
+                } else {
+                    format!("{} can't be written; saved as {}", src.label(), f.label())
+                };
+                Ok((f, Some(msg)))
             }
         }
     }
@@ -259,6 +271,24 @@ fn wants(target: &TargetFormat, src: ImageFormat, f: ImageFormat) -> bool {
     match *target {
         TargetFormat::Keep => src == f,
         TargetFormat::To { format } => format == f,
+    }
+}
+
+/// Whether pixels may be passed through untouched (no decode) under
+/// `mode`: always with `Keep`; with `Srgb` unless the profile would be
+/// converted *and* the policy drops it (the colours would then shift).
+fn untouched_ok(md: &RawMetadata, policy: &MetadataPolicy, mode: ColorMode) -> bool {
+    mode == ColorMode::Keep
+        || policy.keeps_icc()
+        || md
+            .icc
+            .as_deref()
+            .is_none_or(|i| !color::needs_conversion(i))
+}
+
+fn conversion_warning(from: Option<String>, warnings: &mut Vec<String>) {
+    if let Some(from) = from {
+        warnings.push(format!("Converted from {from} to sRGB"));
     }
 }
 
@@ -718,7 +748,9 @@ fn convert_core(inp: &Input, opts: &ConvertOptions) -> Result<Produced> {
             .map(exif_util::read_orientation)
             .unwrap_or(1);
         let (uw, uh) = upright(w, h, o);
-        if target_dimensions(uw, uh, &opts.resize) == (uw, uh) {
+        if target_dimensions(uw, uh, &opts.resize) == (uw, uh)
+            && untouched_ok(&md, &opts.metadata, opts.color)
+        {
             let bytes =
                 apply_policy_unrotated(&inp.bytes, ImageFormat::Jpeg, &md, &opts.metadata, true)?
                     .unwrap_or_else(|| inp.bytes.clone());
@@ -740,11 +772,12 @@ fn convert_core(inp: &Input, opts: &ConvertOptions) -> Result<Produced> {
         }
     }
 
-    let src = decode_bytes(&inp.bytes, inp.format)?;
+    let (src, from) = decode_color(&inp.bytes, inp.format, opts.color)?;
     let mut warnings = Vec::new();
     let alpha = image_has_transparency(&src.image);
     let (target, w) = resolve_target(&opts.format, inp.format, alpha)?;
     warnings.extend(w);
+    conversion_warning(from, &mut warnings);
     let img = apply_resize(src.image, &opts.resize);
     if target == ImageFormat::Ico && (img.width() > 256 || img.height() > 256) {
         warnings.push("ICO is limited to 256×256; the image was downscaled".into());
@@ -866,7 +899,9 @@ fn original_candidate(inp: &Input, opts: &CompressOptions) -> Result<Option<Prod
         }
     };
     let (uw, uh) = upright(w, h, o);
-    if target_dimensions(uw, uh, &opts.resize) != (uw, uh) {
+    if target_dimensions(uw, uh, &opts.resize) != (uw, uh)
+        || !untouched_ok(&md, &opts.metadata, opts.color)
+    {
         return Ok(None);
     }
     let Some(bytes) = apply_policy_unrotated(&inp.bytes, f, &md, &opts.metadata, true)? else {
@@ -907,16 +942,19 @@ fn compress_inner(inp: &Input, opts: &CompressOptions) -> Result<Produced> {
             .map(exif_util::read_orientation)
             .unwrap_or(1);
         let (uw, uh) = upright(w, h, o);
-        if target_dimensions(uw, uh, &opts.resize) == (uw, uh) {
+        if target_dimensions(uw, uh, &opts.resize) == (uw, uh)
+            && untouched_ok(&md, policy, opts.color)
+        {
             return lossless_optimize(inp, &md, policy, uw, uh);
         }
     }
 
-    let src = decode_bytes(&inp.bytes, inp.format)?;
+    let (src, from) = decode_color(&inp.bytes, inp.format, opts.color)?;
     let mut warnings = Vec::new();
     let alpha = image_has_transparency(&src.image);
     let (target, w) = resolve_target(&opts.format, inp.format, alpha)?;
     warnings.extend(w);
+    conversion_warning(from, &mut warnings);
     let img = apply_resize(src.image, &opts.resize);
     let bg = [255, 255, 255];
     if alpha && !target.supports_alpha() {

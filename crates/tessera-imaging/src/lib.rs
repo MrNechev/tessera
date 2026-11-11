@@ -5,6 +5,7 @@
 //! See `README.md` in this crate for the format/metadata support matrix and
 //! the calibration of the smart compression levels.
 
+mod color;
 mod container;
 mod decode;
 mod encode;
@@ -17,18 +18,20 @@ mod jobs;
 mod jpegtran;
 mod metadata;
 mod quality;
+mod raw;
 mod resize;
 mod smart;
 mod tiff_out;
 
+pub use color::{icc_is_srgb, ColorMode, LoadOptions};
 pub use container::jpeg::image_data_fingerprint as jpeg_image_data;
 pub use decode::{
-    load, load_bytes, load_scaled_rgba, make_preview, probe, PreviewInfo, ProbeInfo, RawMetadata,
-    SourceImage,
+    load, load_bytes, load_bytes_with, load_scaled_rgba, load_with, make_preview, probe,
+    PreviewInfo, ProbeInfo, RawMetadata, SourceImage,
 };
 pub use encode::{encode, rgba_to_pdf, Chroma, EncodeOptions};
 pub use error::{Error, Result};
-pub use format::{capabilities, input_extensions, FormatCapabilities, ImageFormat};
+pub use format::{capabilities, input_extensions, FormatCapabilities, ImageFormat, RAW_EXTENSIONS};
 pub use jobs::{
     compress_file, compress_preview, convert_file, CompressLevel, CompressOptions, CompressPreview,
     ConflictPolicy, ConvertOptions, JobResult, JobStatus, OutputSpec, QualityMode, TargetFormat,

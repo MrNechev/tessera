@@ -360,6 +360,13 @@ pub struct MetadataSummary {
     pub has_icc: bool,
     pub has_xmp: bool,
     pub icc_description: Option<String>,
+    /// The colours are sRGB: no ICC profile (untagged images are treated as
+    /// sRGB) or a (near-)sRGB one (see [`crate::icc_is_srgb`]).
+    #[serde(default)]
+    pub icc_is_srgb: bool,
+    /// The file is a camera RAW (`format` is [`ImageFormat::Raw`]).
+    #[serde(default)]
+    pub raw: bool,
     /// Upright pixel size.
     pub width: u32,
     pub height: u32,
@@ -378,6 +385,12 @@ pub fn read_summary(path: &Path) -> Result<MetadataSummary> {
         has_icc: s.metadata.icc.is_some(),
         has_xmp: s.metadata.xmp.is_some(),
         icc_description: s.metadata.icc.as_deref().and_then(icc_description),
+        icc_is_srgb: s
+            .metadata
+            .icc
+            .as_deref()
+            .is_none_or(crate::color::icc_is_srgb),
+        raw: s.format == ImageFormat::Raw,
         width: s.width,
         height: s.height,
         format: Some(s.format),
@@ -523,8 +536,10 @@ pub fn icc_description(icc: &[u8]) -> Option<String> {
                 let soff = u32::from_be_bytes(rec[8..12].try_into().ok()?) as usize;
                 let s = data.get(soff..soff.checked_add(slen)?)?;
                 let units: Vec<u16> = s
-                    .chunks_exact(2)
-                    .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&c| u16::from_be_bytes(c))
                     .collect();
                 String::from_utf16_lossy(&units)
                     .trim_end_matches('\0')

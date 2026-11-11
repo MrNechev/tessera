@@ -20,16 +20,28 @@ pub enum ImageFormat {
     Tga,
     Heic,
     Jxl,
+    /// Camera RAW (decode only, developed to sRGB through `rawler`).
+    Raw,
 }
 
+/// Camera RAW extensions (lowercase). A superset of the extensions `rawler`
+/// lists in `rawler::decoders::supported_extensions()` (checked by a unit
+/// test) plus Sony/Kodak/Leica aliases handled by the same decoders.
+pub const RAW_EXTENSIONS: &[&str] = &[
+    "dng", "cr2", "cr3", "crm", "crw", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf", "ori",
+    "rw2", "rwl", "raw", "pef", "srw", "erf", "mef", "mos", "mrw", "kdc", "dcr", "dcs", "3fr",
+    "fff", "iiq", "x3f", "ari", "qtk",
+];
+
 /// Every variant, in UI order.
-pub const ALL_FORMATS: [ImageFormat; 12] = [
+pub const ALL_FORMATS: [ImageFormat; 13] = [
     ImageFormat::Jpeg,
     ImageFormat::Png,
     ImageFormat::Webp,
     ImageFormat::Avif,
     ImageFormat::Heic,
     ImageFormat::Jxl,
+    ImageFormat::Raw,
     ImageFormat::Tiff,
     ImageFormat::Gif,
     ImageFormat::Bmp,
@@ -55,6 +67,7 @@ impl ImageFormat {
             "tga" | "icb" | "vda" | "vst" => ImageFormat::Tga,
             "heic" | "heif" | "hif" => ImageFormat::Heic,
             "jxl" => ImageFormat::Jxl,
+            e if RAW_EXTENSIONS.contains(&e) => ImageFormat::Raw,
             _ => return None,
         })
     }
@@ -69,8 +82,16 @@ impl ImageFormat {
     /// Identify a format from the first bytes of a file (magic numbers).
     /// Prefer this over [`ImageFormat::from_path`]. TGA has no signature and
     /// is never detected here.
+    ///
+    /// Camera RAW is recognised for DNG (TIFF with a DNGVersion tag, when IFD0
+    /// lies inside `bytes`), CR2, CR3 (ISO-BMFF `crx `), CRW, RAF, ORF, RW2,
+    /// MRW and X3F. Other TIFF-based RAWs (NEF, ARW, PEF, ...) are reported
+    /// as TIFF here; [`ImageFormat::detect_path`] resolves them by extension.
     pub fn detect(bytes: &[u8]) -> Option<Self> {
         let b = bytes;
+        if is_raw_magic(b) {
+            return Some(ImageFormat::Raw);
+        }
         if b.starts_with(&[0xFF, 0xD8, 0xFF]) {
             return Some(ImageFormat::Jpeg);
         }
@@ -113,6 +134,20 @@ impl ImageFormat {
         None
     }
 
+    /// Content detection combined with the extension: like
+    /// [`ImageFormat::detect`] on the first bytes of the file, except that a
+    /// TIFF-structured file with a RAW extension (NEF, ARW, PEF, ...) is
+    /// reported as [`ImageFormat::Raw`]; falls back to the extension when
+    /// the content is not recognised. `None` if the file can't be read or
+    /// nothing matches.
+    pub fn detect_path(path: &Path) -> Option<Self> {
+        use std::io::Read;
+        let mut head = Vec::with_capacity(64 * 1024);
+        let f = std::fs::File::open(path).ok()?;
+        f.take(256 * 1024).read_to_end(&mut head).ok()?;
+        resolve(&head, path)
+    }
+
     /// Canonical file extension (no dot).
     pub fn extension(self) -> &'static str {
         match self {
@@ -128,6 +163,7 @@ impl ImageFormat {
             ImageFormat::Tga => "tga",
             ImageFormat::Heic => "heic",
             ImageFormat::Jxl => "jxl",
+            ImageFormat::Raw => "dng",
         }
     }
 
@@ -146,6 +182,7 @@ impl ImageFormat {
             ImageFormat::Tga => "image/x-tga",
             ImageFormat::Heic => "image/heic",
             ImageFormat::Jxl => "image/jxl",
+            ImageFormat::Raw => "image/x-raw",
         }
     }
 
@@ -164,6 +201,7 @@ impl ImageFormat {
             ImageFormat::Tga => "TGA",
             ImageFormat::Heic => "HEIC",
             ImageFormat::Jxl => "JPEG XL",
+            ImageFormat::Raw => "Camera RAW",
         }
     }
 
@@ -174,7 +212,10 @@ impl ImageFormat {
 
     /// Whether this build can write the format.
     pub fn can_encode(self) -> bool {
-        !matches!(self, ImageFormat::Heic | ImageFormat::Jxl)
+        !matches!(
+            self,
+            ImageFormat::Heic | ImageFormat::Jxl | ImageFormat::Raw
+        )
     }
 
     /// The quality setting has an effect when writing this format (for PNG
@@ -223,6 +264,7 @@ impl ImageFormat {
                 | ImageFormat::Tiff
                 | ImageFormat::Heic
                 | ImageFormat::Jxl
+                | ImageFormat::Raw
         )
     }
 
@@ -253,7 +295,7 @@ impl ImageFormat {
             ImageFormat::Ico => image::ImageFormat::Ico,
             ImageFormat::Qoi => image::ImageFormat::Qoi,
             ImageFormat::Tga => image::ImageFormat::Tga,
-            ImageFormat::Heic | ImageFormat::Jxl => return None,
+            ImageFormat::Heic | ImageFormat::Jxl | ImageFormat::Raw => return None,
         })
     }
 }
@@ -279,6 +321,9 @@ fn detect_isobmff(b: &[u8]) -> Option<ImageFormat> {
     }
     let has = |names: &[&[u8; 4]]| brands.iter().any(|br| names.iter().any(|n| br == n));
     let major = &b[8..12];
+    if major == b"crx " || has(&[b"crx "]) {
+        return Some(ImageFormat::Raw);
+    }
     if major == b"avif" || major == b"avis" {
         return Some(ImageFormat::Avif);
     }
@@ -311,7 +356,72 @@ pub fn input_extensions() -> Vec<&'static str> {
     if cfg!(feature = "heif") {
         v.extend(["heic", "heif", "hif"]);
     }
+    v.extend_from_slice(RAW_EXTENSIONS);
     v
+}
+
+/// RAW signatures that are unambiguous from the first bytes.
+fn is_raw_magic(b: &[u8]) -> bool {
+    // Fujifilm RAF
+    if b.starts_with(b"FUJIFILMCCD-RAW") {
+        return true;
+    }
+    // Olympus ORF ("IIRO", "IIRS", "MMOR"), Panasonic RW2/RAW/RWL ("IIU\0")
+    if b.starts_with(b"IIRO") || b.starts_with(b"IIRS") || b.starts_with(b"MMOR") {
+        return true;
+    }
+    if b.starts_with(b"IIU\0") {
+        return true;
+    }
+    // Minolta MRW, Sigma X3F
+    if b.starts_with(b"\0MRM") || b.starts_with(b"FOVb") {
+        return true;
+    }
+    // Canon CRW (CIFF)
+    if b.len() >= 14 && (b.starts_with(b"II") || b.starts_with(b"MM")) && &b[6..14] == b"HEAPCCDR" {
+        return true;
+    }
+    // Canon CR2: TIFF header followed by "CR\x02"
+    if b.len() >= 11 && b.starts_with(b"II*\0") && &b[8..11] == b"CR\x02" {
+        return true;
+    }
+    // DNG: TIFF whose IFD0 carries DNGVersion (0xC612).
+    tiff_ifd0_has_tag(b, 0xC612)
+}
+
+/// Whether the first IFD of a classic TIFF in `b` contains `tag`.
+fn tiff_ifd0_has_tag(b: &[u8], tag: u16) -> bool {
+    let le = if b.starts_with(b"II*\0") {
+        true
+    } else if b.starts_with(b"MM\0*") {
+        false
+    } else {
+        return false;
+    };
+    let u16_at = |p: usize| -> Option<u16> {
+        let s = b.get(p..p + 2)?;
+        Some(if le {
+            u16::from_le_bytes([s[0], s[1]])
+        } else {
+            u16::from_be_bytes([s[0], s[1]])
+        })
+    };
+    let u32_at = |p: usize| -> Option<u32> {
+        let s = b.get(p..p + 4)?;
+        let a = [s[0], s[1], s[2], s[3]];
+        Some(if le {
+            u32::from_le_bytes(a)
+        } else {
+            u32::from_be_bytes(a)
+        })
+    };
+    let Some(off) = u32_at(4).map(|o| o as usize) else {
+        return false;
+    };
+    let Some(n) = u16_at(off) else {
+        return false;
+    };
+    (0..n as usize).any(|i| u16_at(off + 2 + i * 12) == Some(tag))
 }
 
 /// Capability row for the UI.
@@ -351,7 +461,37 @@ pub fn capabilities() -> Vec<FormatCapabilities> {
         .collect()
 }
 
-/// Detect from content first, falling back to the extension.
+/// Detect from content first, falling back to the extension. TIFF-based
+/// RAW files (NEF, ARW, ...) are TIFF by content and RAW by extension.
 pub(crate) fn resolve(bytes: &[u8], path: &Path) -> Option<ImageFormat> {
-    ImageFormat::detect(bytes).or_else(|| ImageFormat::from_path(path))
+    with_hint(ImageFormat::detect(bytes), ImageFormat::from_path(path))
+}
+
+/// Combine a content detection with an extension/caller hint.
+pub(crate) fn with_hint(
+    detected: Option<ImageFormat>,
+    hint: Option<ImageFormat>,
+) -> Option<ImageFormat> {
+    match (detected, hint) {
+        (Some(ImageFormat::Tiff), Some(ImageFormat::Raw)) => Some(ImageFormat::Raw),
+        (Some(f), _) => Some(f),
+        (None, h) => h,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_extensions_cover_rawler() {
+        for e in rawler::decoders::supported_extensions() {
+            let e = e.to_ascii_lowercase();
+            assert!(
+                RAW_EXTENSIONS.contains(&e.as_str()),
+                "missing RAW extension {e}"
+            );
+            assert_eq!(ImageFormat::from_extension(&e), Some(ImageFormat::Raw));
+        }
+    }
 }

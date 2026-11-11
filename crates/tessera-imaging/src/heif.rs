@@ -26,7 +26,49 @@ fn metadata(handle: &ImageHandle) -> RawMetadata {
             md.icc = Some(p.data);
         }
     }
+    if md.icc.is_none() {
+        md.icc = handle.color_profile_nclx().and_then(|n| {
+            nclx_icc(
+                n.color_primaries() as u8,
+                n.transfer_characteristics() as u8,
+                n.matrix_coefficients() as u8,
+                n.full_range_flag() != 0,
+            )
+        });
+    }
     md
+}
+
+/// ICC profile equivalent to an `nclx` colour description whose primaries
+/// are not BT.709/sRGB (e.g. Display P3 HEICs without an ICC). HDR transfer
+/// functions (PQ/HLG) are not handled (no profile: pixels stay as decoded).
+fn nclx_icc(primaries: u8, transfer: u8, matrix: u8, full_range: bool) -> Option<Vec<u8>> {
+    use moxcms::{
+        CicpColorPrimaries, CicpProfile, ColorProfile, MatrixCoefficients, ProfileText,
+        TransferCharacteristics,
+    };
+    // 1 = BT.709, 2 = unspecified; 16 = PQ, 18 = HLG.
+    if matches!(primaries, 1 | 2) || matches!(transfer, 16 | 18) {
+        return None;
+    }
+    // Unspecified transfer: assume the sRGB curve.
+    let transfer = if transfer == 2 { 13 } else { transfer };
+    let cicp = CicpProfile {
+        color_primaries: CicpColorPrimaries::try_from(primaries).ok()?,
+        transfer_characteristics: TransferCharacteristics::try_from(transfer).ok()?,
+        matrix_coefficients: MatrixCoefficients::try_from(matrix)
+            .unwrap_or(MatrixCoefficients::Bt709),
+        full_range,
+    };
+    let mut p = ColorProfile::new_from_cicp(cicp);
+    let name = match primaries {
+        9 => "BT.2020".to_string(),
+        11 => "DCI-P3".to_string(),
+        12 => "Display P3".to_string(),
+        n => format!("CICP primaries {n}"),
+    };
+    p.description = Some(ProfileText::PlainString(name));
+    p.encode().ok()
 }
 
 /// Upright dimensions and metadata without decoding pixels.

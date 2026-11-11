@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.3.0" date="2026-11-11" type="development">
+      <description>
+        <p>Camera RAW files from most cameras open in collages, the converter and the compressor; wide-gamut photos are converted to sRGB through their ICC profile, or keep their profile if you prefer.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-11-11" type="development">
       <description>
         <p>Photos arranged into letters, numbers and words; a golden-spiral layout; month calendars with marked days and photo-calendar templates; 25 new templates and a second sticker pack.</p>

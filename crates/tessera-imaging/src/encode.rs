@@ -107,10 +107,12 @@ pub fn encode(img: &DynamicImage, opts: &EncodeOptions) -> Result<Vec<u8>> {
             encode_simple(&small, ImageFormat::Ico)
         }
         ImageFormat::Gif => encode_gif(img, if opts.lossless { 100 } else { q }),
-        ImageFormat::Heic | ImageFormat::Jxl => Err(Error::Unsupported(format!(
-            "{} files can be opened but not written; choose another output format",
-            opts.format.label()
-        ))),
+        ImageFormat::Heic | ImageFormat::Jxl | ImageFormat::Raw => {
+            Err(Error::Unsupported(format!(
+                "{} files can be opened but not written; choose another output format",
+                opts.format.label()
+            )))
+        }
     }
 }
 

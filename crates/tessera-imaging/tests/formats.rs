@@ -53,7 +53,7 @@ fn serde_names() {
         "\"webp\""
     );
     let caps = capabilities();
-    assert_eq!(caps.len(), 12);
+    assert_eq!(caps.len(), 13);
     let v = serde_json::to_value(&caps[0]).unwrap();
     assert!(v.get("canDecode").is_some() && v.get("canEncode").is_some());
     assert_eq!(serde_json::to_string(&Chroma::S444).unwrap(), "\"s444\"");

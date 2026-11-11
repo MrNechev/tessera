@@ -84,7 +84,13 @@ Free and open source. No accounts, no watermarks, no paywall.
 ### Image tools
 
 - **Convert** between JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI, ICO and TGA
-  (and import HEIC/HEIF and JPEG XL).
+  (and import HEIC/HEIF, JPEG XL and **camera RAW** files).
+  - **RAW:** CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2, PEF and many more open
+    everywhere in Tessera — in collages, the converter and the compressor —
+    developed with the camera's white balance and colour matrix.
+  - **Colour management:** wide-gamut photos (Display P3 from phones, Adobe RGB
+    from cameras) are converted to sRGB through their ICC profile, so they look
+    right on every screen and website. Or keep the original profile.
   - **Quality:** keep **100 %** (lossless wherever the format allows — a
     JPEG→JPEG copy never touches the image data) or **lower it by any percentage**.
   - **Metadata:** keep everything, remove everything, or choose: date & time,
@@ -181,9 +187,9 @@ The Flatpak is built from [`packaging/flatpak`](packaging/flatpak). See
 
 Priorities for the next releases, in order:
 
-1. **More templates, stickers and layouts** — photos arranged into letters,
-   numbers and words; photo calendars; new occasions and sticker sets.
-2. **RAW camera formats and colour management** (ICC conversion).
+1. ✅ **More templates, stickers and layouts** — photos arranged into letters,
+   numbers and words; photo calendars; new occasions and sticker sets (0.2.0).
+2. ✅ **RAW camera formats and colour management** (ICC conversion) (0.3.0).
 3. **Batch watermark, resize and rename tools.**
 4. **Printing and multi-page projects** (photo books, calendars).
 5. Bug fixing, polish and performance across all of the above.
@@ -213,4 +219,6 @@ later version.
   [mozjpeg](https://github.com/mozilla/mozjpeg), [libwebp](https://chromium.googlesource.com/webm/libwebp),
   [rav1e](https://github.com/xiph/rav1e), [oxipng](https://github.com/shssoichiro/oxipng),
   [libimagequant](https://pngquant.org/lib/), [libheif](https://github.com/strukturag/libheif),
-  [jxl-oxide](https://github.com/tirr-c/jxl-oxide) and [Lucide](https://lucide.dev) icons.
+  [jxl-oxide](https://github.com/tirr-c/jxl-oxide), [rawler](https://github.com/dnglab/dnglab)
+  (LGPL-2.1, camera RAW), [moxcms](https://github.com/awxkee/moxcms) (colour management)
+  and [Lucide](https://lucide.dev) icons.

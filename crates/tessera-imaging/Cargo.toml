@@ -35,9 +35,15 @@ rayon = "1.12"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 libheif-rs = { version = "3.0.0", optional = true, default-features = false, features = ["v1_17"] }
+# Camera RAW decoding (LGPL-2.1, pure Rust).
+rawler = { version = "0.8.0", default-features = false }
+# ICC colour management (BSD-3-Clause/Apache-2.0, pure Rust).
+moxcms = "0.9.2"
 
 [dev-dependencies]
 serde_json = "1"
+moxcms = "0.9.2"
+rawler = { version = "0.8.0", default-features = false }
 kamadak-exif = "0.6.1"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 filetime = "0.2.29"

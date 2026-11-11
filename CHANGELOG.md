@@ -4,6 +4,28 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-11-11
+
+### Camera RAW
+- Open RAW files from most cameras: Canon CR2/CR3, Nikon NEF, Sony ARW,
+  Adobe/phone DNG, Fujifilm RAF, Olympus ORF, Panasonic RW2/RAW, Pentax PEF
+  and more. They work everywhere: collages, Convert and Compress.
+- RAW photos are developed with the camera's white balance and colour matrix,
+  with highlight handling and the orientation from the file.
+- Their metadata (camera, lens, exposure, date) is read and can be carried
+  over to the converted files.
+
+### Colour management
+- Wide-gamut photos (Display P3, Adobe RGB, ProPhoto and others) are
+  converted to sRGB through their ICC profile so colours look right in
+  browsers and on other devices.
+- Convert has a new **Colour** section: convert to sRGB (default) or keep the
+  original profile. Compress keeps the profile by default with an option to
+  convert to sRGB.
+- The metadata panel shows the colour profile and whether it is sRGB.
+
+[0.3.0]: https://github.com/MrNechev/tessera/releases/tag/v0.3.0
+
 ## [0.2.0] — 2026-11-11
 
 ### Layouts
