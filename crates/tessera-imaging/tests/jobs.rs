@@ -483,6 +483,58 @@ fn lossless_compression() {
 }
 
 #[test]
+fn lossless_jpeg_keeps_comments_and_iptc() {
+    let dir = tmpdir("jobs-lossless-iptc");
+    let img = DynamicImage::ImageRgb8(photo_like(400, 300, 6));
+    let base = encode(
+        &img,
+        &EncodeOptions {
+            progressive: false,
+            effort: 0,
+            quality: 88,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let (base, _) = embed(base, ImageFormat::Jpeg, Some(&exif_block(1)), None, None).unwrap();
+    // Insert a COM and a Photoshop/IPTC APP13 segment right after SOI.
+    let segment = |marker: u8, payload: &[u8]| {
+        let mut v = vec![0xFF, marker];
+        v.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
+        v.extend_from_slice(payload);
+        v
+    };
+    let mut with_meta = base[..2].to_vec();
+    with_meta.extend(segment(0xFE, b"a caption in a comment"));
+    with_meta.extend(segment(
+        0xED,
+        b"Photoshop 3.0\08BIM\x04\x04 keywords: beach",
+    ));
+    with_meta.extend_from_slice(&base[2..]);
+    let src = write(&dir, "iptc.jpg", &with_meta);
+
+    let p = compress_preview(
+        &src,
+        &CompressOptions {
+            level: CompressLevel::Lossless,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let has = |needle: &[u8]| p.bytes.windows(needle.len()).any(|w| w == needle);
+    assert!(has(b"a caption in a comment"), "COM segment lost");
+    assert!(has(b"keywords: beach"), "IPTC (APP13) lost");
+    let e = exif::Reader::new()
+        .read_from_container(&mut std::io::Cursor::new(&p.bytes))
+        .unwrap();
+    assert_eq!(ascii_field(&e, Tag::Make).as_deref(), Some("TestCam"));
+    assert_eq!(
+        load_bytes(&p.bytes, None).unwrap().image.to_rgba8(),
+        load_bytes(&with_meta, None).unwrap().image.to_rgba8()
+    );
+}
+
+#[test]
 fn keep_if_larger_keeps_original() {
     let dir = tmpdir("jobs-keep");
     // Already heavily compressed JPEG: VL re-encode will be larger.

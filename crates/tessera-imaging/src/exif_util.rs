@@ -127,6 +127,28 @@ fn write_scalar(buf: &mut [u8], le: bool, e: Entry, value: u32) -> bool {
     }
 }
 
+/// Unlink IFD1 (the embedded thumbnail) by zeroing IFD0's next-IFD offset.
+/// The thumbnail bytes stay in the block but nothing references them, so
+/// viewers no longer show a stale preview. Returns whether a link was cut.
+pub(crate) fn unlink_thumbnail(buf: &mut [u8]) -> bool {
+    let Some(t) = TiffView::new(buf) else {
+        return false;
+    };
+    let Some(ifd0) = t.ifd0() else { return false };
+    let Some(n) = t.u16(ifd0) else { return false };
+    let next = ifd0 + 2 + n as usize * 12;
+    match t.u32(next) {
+        Some(0) | None => false,
+        Some(_) => match buf.get_mut(next..next + 4) {
+            Some(slot) => {
+                slot.fill(0);
+                true
+            }
+            None => false,
+        },
+    }
+}
+
 /// Patch Orientation and (optionally) PixelXDimension/PixelYDimension in
 /// place, preserving every other byte (MakerNote offsets stay valid).
 pub(crate) fn patch_in_place(exif: &mut [u8], orientation: Option<u16>, dims: Option<(u32, u32)>) {
@@ -577,5 +599,47 @@ mod tests {
         let policy = crate::MetadataPolicy::keep_all();
         let _ = crate::filter_exif(&block, &policy);
         let _ = crate::filter_exif_sized(&block, &policy, 4, 4);
+    }
+
+    /// Little-endian TIFF: IFD0 (Orientation=6) linked to an IFD1 thumbnail IFD.
+    fn with_thumbnail() -> Vec<u8> {
+        let mut v = b"II*\0".to_vec();
+        v.extend_from_slice(&8u32.to_le_bytes());
+        // IFD0 at 8: one entry, then next-IFD offset -> 26.
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&0x0112u16.to_le_bytes());
+        v.extend_from_slice(&3u16.to_le_bytes());
+        v.extend_from_slice(&1u32.to_le_bytes());
+        v.extend_from_slice(&[6, 0, 0, 0]);
+        v.extend_from_slice(&26u32.to_le_bytes());
+        // IFD1 at 26: JPEGInterchangeFormatLength = 0, no next IFD.
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&0x0202u16.to_le_bytes());
+        v.extend_from_slice(&4u16.to_le_bytes());
+        v.extend_from_slice(&1u32.to_le_bytes());
+        v.extend_from_slice(&0u32.to_le_bytes());
+        v.extend_from_slice(&0u32.to_le_bytes());
+        v
+    }
+
+    #[test]
+    fn thumbnail_is_unlinked_only_when_pixels_change() {
+        let block = with_thumbnail();
+        let next = |b: &[u8]| u32::from_le_bytes(b[22..26].try_into().unwrap());
+        assert_eq!(next(&block), 26);
+        let policy = crate::MetadataPolicy::keep_all();
+        let resized = crate::filter_exif_sized(&block, &policy, 4, 4).unwrap();
+        assert_eq!(
+            next(&resized),
+            0,
+            "re-encoded output keeps a stale thumbnail"
+        );
+        assert_eq!(read_orientation(&resized), 1);
+        // Pixels untouched (lossless paths): thumbnail kept.
+        let same = crate::metadata::filter_exif_inner(&block, &policy, 6, None).unwrap();
+        assert_eq!(next(&same), 26);
+        // Malformed blocks are left alone.
+        let mut short = block[..20].to_vec();
+        assert!(!unlink_thumbnail(&mut short));
     }
 }

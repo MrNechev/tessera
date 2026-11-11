@@ -264,6 +264,37 @@ pub(crate) fn rewrite(
     xmp: Option<&[u8]>,
     keep: Keep,
 ) -> Result<Vec<u8>> {
+    rewrite_with(jpeg, exif, icc, xmp, keep, &[])
+}
+
+/// Metadata segments of `jpeg` other than EXIF, XMP and ICC that describe
+/// the picture rather than the file layout: comments, IPTC/Photoshop (APP13)
+/// and other application segments. MPF (APP2), whose offsets point into
+/// data after EOI, and the JFIF/Adobe headers are excluded.
+pub(crate) fn descriptive_segments<'a>(jpeg: &Jpeg<'a>) -> Vec<Segment<'a>> {
+    jpeg.segments
+        .iter()
+        .filter(|s| {
+            matches!(s.marker, 0xE0..=0xEF | 0xFE)
+                && !(s.is_exif() || s.is_xmp() || s.is_icc() || s.is_jfif() || s.is_adobe())
+                && !(s.marker == 0xE2 && s.data.starts_with(b"MPF\0"))
+                && !(s.marker == 0xE0 && s.data.starts_with(b"JFXX\0"))
+        })
+        .cloned()
+        .collect()
+}
+
+/// Like [`rewrite`], also writing `extra` segments (e.g. the comments and
+/// IPTC of the file `jpeg` was losslessly re-encoded from) after the
+/// metadata, when `keep.other` is set.
+pub(crate) fn rewrite_with(
+    jpeg: &Jpeg<'_>,
+    exif: Option<&[u8]>,
+    icc: Option<&[u8]>,
+    xmp: Option<&[u8]>,
+    keep: Keep,
+    extra: &[Segment<'_>],
+) -> Result<Vec<u8>> {
     let mut out = Vec::with_capacity(jpeg.tail.len() + 70_000);
     out.extend_from_slice(&[0xFF, 0xD8]);
     let mut rest: &[Segment] = &jpeg.segments;
@@ -281,6 +312,11 @@ pub(crate) fn rewrite(
     }
     if let Some(icc) = icc {
         write_icc(&mut out, icc)?;
+    }
+    if keep.other {
+        for s in extra {
+            write_segment(&mut out, s.marker, &[s.data])?;
+        }
     }
     for s in rest {
         if s.is_exif() || s.is_xmp() || s.is_icc() {

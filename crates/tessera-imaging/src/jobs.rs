@@ -1134,6 +1134,28 @@ fn lossless_optimize(
         }
     };
     let bytes = match &optimized {
+        // jpegtran writes no metadata at all: besides EXIF/ICC/XMP (re-added
+        // by the policy), carry over comments and IPTC captions/keywords.
+        Some(v) if inp.format == ImageFormat::Jpeg && policy.mode == MetadataMode::KeepAll => {
+            let orientation = md
+                .exif
+                .as_deref()
+                .map(exif_util::read_orientation)
+                .unwrap_or(1);
+            let exif = md
+                .exif
+                .as_deref()
+                .and_then(|e| metadata::filter_exif_inner(e, policy, orientation, None));
+            let original = jpeg::parse(&inp.bytes)?;
+            Some(jpeg::rewrite_with(
+                &jpeg::parse(v)?,
+                exif.as_deref(),
+                md.icc.as_deref(),
+                md.xmp.as_deref(),
+                jpeg::Keep { other: true },
+                &jpeg::descriptive_segments(&original),
+            )?)
+        }
         Some(v) => apply_policy_unrotated(v, inp.format, md, policy, false)?,
         None => apply_policy_unrotated(&inp.bytes, inp.format, md, policy, true)?,
     }

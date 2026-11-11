@@ -114,8 +114,9 @@ impl MetadataPolicy {
 /// Filter an EXIF block (bare TIFF structure) according to `policy`, for
 /// pixels that have been rotated upright: Orientation is always 1.
 ///
-/// * `KeepAll`: byte copy with Orientation patched in place (MakerNote and
-///   thumbnail preserved).
+/// * `KeepAll`: byte copy with Orientation patched in place (MakerNote
+///   preserved; the thumbnail is unlinked when a new pixel size is given,
+///   i.e. the pixels were re-encoded).
 /// * `Custom`: rebuilt with only the selected groups; the thumbnail (IFD1),
 ///   MakerNote, unknown tags and PixelX/YDimension are dropped.
 /// * `StripAll`: `None`.
@@ -154,6 +155,11 @@ pub(crate) fn filter_exif_inner(
                 let mut v = exif_tiff.to_vec();
                 let current = exif_util::read_orientation(&v);
                 exif_util::patch_in_place(&mut v, Some(orientation), dims);
+                if dims.is_some() {
+                    // Re-encoded pixels (rotated, resized, watermarked…): the
+                    // embedded thumbnail would show the old picture.
+                    exif_util::unlink_thumbnail(&mut v);
+                }
                 if current == 1
                     && orientation != 1
                     && exif_util::read_orientation(&v) != orientation
