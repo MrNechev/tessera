@@ -14,7 +14,9 @@ import { toasts } from '../stores/toasts.svelte';
 import { instantiateTemplate } from '../templates/instantiate';
 import type { TemplateDef } from '../templates/types';
 import { editor } from './editor.svelte';
-import { buildFilename, exportDocument, joinPath, renderThumbnail } from './exporter';
+import { buildFilename, exportDocument, exportPages, joinPath, renderThumbnail } from './exporter';
+import { printPages } from './print';
+import { allPages } from '../model/multipage';
 
 function defaultPage(): { width: number; height: number; dpi: number; preset: string } {
   const s = app.settings;
@@ -170,7 +172,7 @@ export interface SaveState {
 export const saveState = $state<SaveState>({ busy: false, progress: 0, stage: '' });
 
 function checkEmpty(): boolean {
-  const hasContent = editor.doc.elements.some((e) => !(e.kind === 'photo' && !e.asset));
+  const hasContent = allPages(editor.doc).some((p) => p.elements.some((e) => !(e.kind === 'photo' && !e.asset)));
   if (!hasContent) {
     toasts.push({ kind: 'warning', title: 'Nothing to save yet', message: 'Add some photos, text or stickers first.' });
     return false;
@@ -178,31 +180,48 @@ function checkEmpty(): boolean {
   return true;
 }
 
-async function runExport(path: string, format: ExportFormat, quality: number, scale: number, unique: boolean): Promise<void> {
+/** Which pages an export covers. */
+export type PageScope = 'current' | 'all';
+
+function pagesFor(scope: PageScope): number[] {
+  return scope === 'all' ? Array.from({ length: editor.pageCount }, (_, i) => i) : [editor.activePage];
+}
+
+async function runExport(
+  path: string,
+  format: ExportFormat,
+  quality: number,
+  scale: number,
+  unique: boolean,
+  scope: PageScope,
+): Promise<void> {
   if (saveState.busy) return;
   saveState.busy = true;
   saveState.progress = 0;
   saveState.stage = 'Preparing';
   try {
-    const res = await exportDocument(editor.doc, {
-      path,
-      format,
-      quality,
-      scale,
-      unique,
-      onProgress: (p, stage) => {
-        saveState.progress = p;
-        saveState.stage = stage;
-      },
-    });
+    const onProgress = (p: number, stage: string) => {
+      saveState.progress = p;
+      saveState.stage = stage;
+    };
+    const pages = pagesFor(scope);
+    const results =
+      pages.length === 1 && editor.pageCount === 1
+        ? [await exportDocument(editor.doc, { path, format, quality, scale, unique, onProgress })]
+        : await exportPages(editor.doc, pages, { path, format, quality, scale, unique, onProgress });
     editor.markSaved();
     void autosave();
-    const mb = (res.bytes / 1024 / 1024).toFixed(res.bytes > 10 * 1024 * 1024 ? 0 : 1);
+    const bytes = results.reduce((s, r) => s + r.bytes, 0);
+    const mb = (bytes / 1024 / 1024).toFixed(bytes > 10 * 1024 * 1024 ? 0 : 1);
+    const first = results[0];
     toasts.push({
       kind: 'success',
-      title: 'Collage saved',
-      message: `${res.path.split('/').pop()} · ${res.width}×${res.height} · ${mb} MB`,
-      action: { label: 'Show in folder', run: () => void api.revealPath(res.path) },
+      title: results.length > 1 ? `${results.length} pages saved` : pages.length > 1 ? `${pages.length}-page PDF saved` : 'Collage saved',
+      message:
+        results.length > 1
+          ? `${first.path.split('/').pop()} … · ${mb} MB`
+          : `${first.path.split('/').pop()} · ${first.width}×${first.height} · ${mb} MB`,
+      action: { label: 'Show in folder', run: () => void api.revealPath(first.path) },
     });
   } catch (e) {
     toasts.push({ kind: 'error', title: 'Saving failed', message: String(e) });
@@ -211,7 +230,7 @@ async function runExport(path: string, format: ExportFormat, quality: number, sc
   }
 }
 
-/** One-click Save: writes a copy into the default save folder. */
+/** One-click Save: writes a copy into the default save folder (every page of a multi-page project). */
 export async function quickSave(): Promise<void> {
   if (!checkEmpty()) return;
   let dir = app.settings.saveDirectory;
@@ -228,11 +247,11 @@ export async function quickSave(): Promise<void> {
   }
   const s = app.settings;
   const file = buildFilename(s.filenamePattern, editor.doc.name, s.exportFormat);
-  await runExport(joinPath(dir, file), s.exportFormat, s.exportQuality, 1, true);
+  await runExport(joinPath(dir, file), s.exportFormat, s.exportQuality, 1, true, 'all');
 }
 
-/** Save As: the caller (export dialog) already chose format and options. */
-export async function saveAs(format: ExportFormat, quality: number, scale: number): Promise<void> {
+/** Save As: the caller (export dialog) already chose format, options and pages. */
+export async function saveAs(format: ExportFormat, quality: number, scale: number, scope: PageScope = 'all'): Promise<void> {
   if (!checkEmpty()) return;
   const s = app.settings;
   const file = buildFilename('{name}', editor.doc.name, format);
@@ -248,7 +267,34 @@ export async function saveAs(format: ExportFormat, quality: number, scale: numbe
   const path = await pickSavePath(s.saveDirectory ? joinPath(s.saveDirectory, file) : file, [{ name: names[format], extensions: [ext] }]);
   if (!path) return;
   const final = /\.[a-z0-9]{2,5}$/i.test(path) ? path : `${path}.${ext}`;
-  await runExport(final, format, quality, scale, false);
+  await runExport(final, format, quality, scale, false, scope);
+}
+
+/** Open the system print dialog for the current page or every page. */
+export async function printProject(scope: PageScope = 'all'): Promise<void> {
+  if (!checkEmpty() || saveState.busy) return;
+  saveState.busy = true;
+  saveState.progress = 0;
+  saveState.stage = 'Preparing to print';
+  try {
+    await printPages(editor.doc, pagesFor(scope), (p, stage) => {
+      saveState.progress = p;
+      saveState.stage = stage;
+    });
+  } catch (e) {
+    toasts.push({ kind: 'error', title: 'Printing failed', message: String(e) });
+  } finally {
+    saveState.busy = false;
+  }
+}
+
+/** Use a template on the active page instead of starting a new project. */
+export function applyTemplateToPage(t: TemplateDef, useLibrary: boolean): void {
+  const photos = useLibrary
+    ? library.items.map((i) => ({ id: i.id, ref: { path: i.path, name: i.name, width: i.width, height: i.height } }))
+    : [];
+  const usable = t.slots?.length ? photos.slice(0, t.slots.length) : photos;
+  editor.replaceCurrentPage(instantiateTemplate(t, { photos: usable, stickerAspect: (id) => stickers.aspect(id) }));
 }
 
 export function newDocFromPreset(presetId: string, orientation: 'portrait' | 'landscape', dpi: number): CollageDoc {

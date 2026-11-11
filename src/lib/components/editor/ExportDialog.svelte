@@ -15,6 +15,8 @@
   let format = $state<ExportFormat>(app.settings.exportFormat);
   let quality = $state(app.settings.exportQuality);
   let scale = $state(1);
+  let scope = $state<'current' | 'all'>('all');
+  const multi = $derived(editor.pageCount > 1);
 
   const lossy = $derived(format === 'jpeg' || format === 'webp' || format === 'avif' || format === 'pdf');
   const W = $derived(Math.round(editor.doc.page.width * scale));
@@ -30,7 +32,7 @@
 
   async function go() {
     onclose();
-    await saveAs(format, quality, scale);
+    await saveAs(format, quality, scale, multi ? scope : 'all');
   }
 </script>
 
@@ -53,6 +55,19 @@
 
     {#if lossy}
       <Slider label="Quality" value={quality} min={40} max={100} step={1} unit="%" onchange={(v) => (quality = Math.round(v))} />
+    {/if}
+
+    {#if multi}
+      <span class="label">Pages</span>
+      <Segmented
+        options={[
+          { value: 'all', label: `All ${editor.pageCount} pages` },
+          { value: 'current', label: `Only page ${editor.activePage + 1}` },
+        ]}
+        value={scope}
+        onchange={(v) => (scope = v as 'current' | 'all')}
+      />
+      <p class="hint">{format === 'pdf' ? 'One PDF with a page for each.' : 'One file per page, numbered “… - page 01”.'}</p>
     {/if}
 
     <span class="label">Size</span>

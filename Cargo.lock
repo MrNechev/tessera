@@ -5341,8 +5341,10 @@ dependencies = [
  "dirs",
  "env_logger",
  "filetime",
+ "gtk",
  "image",
  "log",
+ "pdf-writer",
  "rayon",
  "semver",
  "serde",
@@ -5354,6 +5356,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tessera-imaging",
  "ureq",
+ "webkit2gtk",
 ]
 
 [[package]]

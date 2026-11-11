@@ -8,6 +8,7 @@ mod batch_tools;
 mod export;
 mod images;
 mod paths;
+mod print;
 mod projects;
 mod settings;
 mod system;
@@ -109,6 +110,11 @@ pub fn run() {
             export::export_tile,
             export::export_finish,
             export::export_cancel,
+            export::pdf_begin,
+            export::pdf_add_page,
+            export::pdf_finish,
+            export::pdf_cancel,
+            print::print_native,
             batch::convert_images,
             batch::compress_images,
             batch::compress_preview,

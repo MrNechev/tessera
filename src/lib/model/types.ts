@@ -307,6 +307,24 @@ export interface CollageDoc {
   assets: Record<string, AssetRef>;
   /** Template the document was started from, if any. */
   template?: string | null;
+  /**
+   * Multi-page projects (photo books, calendars). The active page's content
+   * lives in the top-level fields above; `pages` holds every page in order,
+   * with `null` at `activePage`. Absent for single-page collages.
+   */
+  pages?: (PageContent | null)[];
+  activePage?: number;
+  /** Id of the active page (its content is in the top-level fields). */
+  activePageId?: string;
+}
+
+/** Everything that differs between the pages of a multi-page project. */
+export interface PageContent {
+  id: string;
+  background: Background;
+  frame: PageFrame | null;
+  layout: LayoutSettings;
+  elements: CollageElement[];
 }
 
 export interface Rect {

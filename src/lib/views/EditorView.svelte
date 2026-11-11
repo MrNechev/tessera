@@ -21,6 +21,9 @@
     FileImage,
     Ruler,
     CalendarDays,
+    Printer,
+    Copy,
+    Trash2,
   } from '@lucide/svelte';
   import EditorCanvas from '../components/editor/EditorCanvas.svelte';
   import Inspector from '../components/editor/Inspector.svelte';
@@ -34,9 +37,10 @@
   import BackgroundPanel from '../components/editor/panels/BackgroundPanel.svelte';
   import PagePanel from '../components/editor/panels/PagePanel.svelte';
   import CalendarPanel from '../components/editor/panels/CalendarPanel.svelte';
+  import PageStrip from '../components/editor/PageStrip.svelte';
   import { onFontsLoaded } from '../assets/fonts';
   import { editor, type Tool } from '../editor/editor.svelte';
-  import { addPhotos, newBlank, openProjectDialog, quickSave, saveProjectAs, saveState, scheduleAutosave } from '../editor/session.svelte';
+  import { addPhotos, newBlank, openProjectDialog, printProject, quickSave, saveProjectAs, saveState, scheduleAutosave } from '../editor/session.svelte';
   import { describePage } from '../model/pages';
   import { app } from '../stores/app.svelte';
   import { onMount } from 'svelte';
@@ -106,6 +110,16 @@
     if (mod && k === 'r') {
       e.preventDefault();
       editor.regenerate();
+      return;
+    }
+    if (mod && k === 'p') {
+      e.preventDefault();
+      void printProject('all');
+      return;
+    }
+    if (mod && (e.key === 'PageDown' || e.key === 'PageUp')) {
+      e.preventDefault();
+      editor.goToPage(Math.max(0, Math.min(editor.pageCount - 1, editor.activePage + (e.key === 'PageDown' ? 1 : -1))));
       return;
     }
     if (isTyping(e)) return;
@@ -195,6 +209,13 @@
           <div class="divider"></div>
           <button role="menuitem" onclick={() => void quickSave()}><Download size={15} /> Save image <span class="kbd">Ctrl+S</span></button>
           <button role="menuitem" onclick={() => (exportOpen = true)}><FileImage size={15} /> Save image as… <span class="kbd">Ctrl+⇧+S</span></button>
+          <button role="menuitem" onclick={() => void printProject('all')}><Printer size={15} /> Print… <span class="kbd">Ctrl+P</span></button>
+          <div class="divider"></div>
+          <button role="menuitem" onclick={() => editor.addPage()}><FilePlus size={15} /> Add a page</button>
+          {#if editor.pageCount > 1}
+            <button role="menuitem" onclick={() => editor.duplicatePage()}><Copy size={15} /> Duplicate this page</button>
+            <button role="menuitem" onclick={() => editor.removePage()}><Trash2 size={15} /> Delete this page</button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -243,11 +264,13 @@
 
     <main class="stage">
       <EditorCanvas bind:this={canvasRef} onRequestPhoto={(id) => void requestPhoto(id)} />
+      <PageStrip />
       <footer class="status">
-        <span>{describePage(editor.doc.page.width, editor.doc.page.height, editor.doc.page.dpi)}</span>
+        <span class="shrink">{describePage(editor.doc.page.width, editor.doc.page.height, editor.doc.page.dpi)}</span>
+        {#if editor.pageCount > 1}<span>Page {editor.activePage + 1} of {editor.pageCount}</span>{/if}
         <span class="spacer"></span>
         {#if saveState.busy}
-          <span class="saving"><span class="bar"><span style:width="{saveState.progress * 100}%"></span></span>{saveState.stage}</span>
+          <span class="saving"><span class="bar"><span style:width="{saveState.progress * 100}%"></span></span><span class="shrink">{saveState.stage}</span></span>
         {/if}
         <span>{editor.doc.elements.length} elements</span>
         {#if editor.dirty}<span class="pill">Unsaved image</span>{/if}
@@ -412,12 +435,31 @@
     background: var(--panel);
     border-top: 1px solid var(--border);
     flex: none;
+    min-width: 0;
   }
-  .saving {
+  .status > span {
+    white-space: nowrap;
+    flex: none;
+  }
+  .status .shrink {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .status > .spacer {
+    flex: 1 1 0;
+  }
+  .status > .saving {
     display: flex;
     align-items: center;
     gap: 8px;
     color: var(--text-2);
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .bar {
+    flex: none;
   }
   .bar {
     width: 120px;
