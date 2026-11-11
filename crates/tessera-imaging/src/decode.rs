@@ -796,9 +796,13 @@ fn scaled_upright(
             return Ok(img);
         }
     }
-    let (src, _) = decode_color(bytes, format, mode)?;
+    // Downscale first, then convert colour: the ICC transform then runs on
+    // the (often far smaller) target size instead of the full image.
+    let mut src = decode_bytes(bytes, format)?;
     let (tw, th) = fit_dimensions(src.image.width(), src.image.height(), max_w, max_h);
-    Ok(resize_exact(src.image, tw, th))
+    let mut img = resize_exact(src.image, tw, th);
+    apply_color(&mut img, &mut src.metadata.icc, mode);
+    Ok(img)
 }
 
 /// Decode `path` upright, fitting inside `max_w` x `max_h` (0 = unbounded),
