@@ -1,5 +1,5 @@
 /** Imported photos and the bitmaps the canvas renders them with. */
-import { api, fileUrl, isTauri } from '../api/backend';
+import { api, fileUrl, isTauri, onProgress } from '../api/backend';
 import type { ImportedImage } from '../api/types';
 import type { AssetRef } from '../model/types';
 import type { ImageEntry } from '../render/renderer';
@@ -55,6 +55,10 @@ class Library {
   async import(paths: string[]): Promise<ImportedImage[]> {
     if (!paths.length || !isTauri) return [];
     this.importing = { done: 0, total: paths.length };
+    // Folders expand to many files in the backend; it reports the real count.
+    const unlisten = await onProgress((e) => {
+      if (e.task === 'import' && this.importing) this.importing = { done: e.done, total: e.total };
+    }).catch(() => null);
     try {
       const res = await api.importImages(paths);
       if (res.failed.length) {
@@ -70,6 +74,7 @@ class Library {
       toasts.push({ kind: 'error', title: 'Import failed', message: String(e) });
       return [];
     } finally {
+      unlisten?.();
       this.importing = null;
     }
   }

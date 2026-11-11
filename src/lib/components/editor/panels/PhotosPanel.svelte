@@ -61,7 +61,7 @@
       <button class="btn" title="Add a whole folder" onclick={addFolder}><FolderPlus size={16} /></button>
     </div>
     {#if library.importing}
-      <div class="importing"><LoaderCircle size={14} class="spin" /> Importing photos…</div>
+      <div class="importing"><LoaderCircle size={14} class="spin" /> Importing photos… {library.importing.done} / {library.importing.total}</div>
     {/if}
   </div>
 

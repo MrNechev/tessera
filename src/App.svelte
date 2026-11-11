@@ -157,6 +157,14 @@
   {/if}
 </div>
 
+{#if library.importing && library.importing.total > 1}
+  {@const imp = library.importing}
+  <div class="import-progress" role="status">
+    Importing photos… {imp.done} / {imp.total}
+    <span class="bar"><span style:width="{(100 * imp.done) / Math.max(1, imp.total)}%"></span></span>
+  </div>
+{/if}
+
 <Toasts />
 
 <style>
@@ -245,5 +253,36 @@
     color: #fff;
     font-weight: 700;
     box-shadow: var(--shadow);
+  }
+  .import-progress {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: var(--panel-3);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .import-progress .bar {
+    width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(127, 127, 127, 0.3);
+    overflow: hidden;
+  }
+  .import-progress .bar span {
+    display: block;
+    height: 100%;
+    background: var(--accent-grad);
+    transition: width 0.15s;
   }
 </style>

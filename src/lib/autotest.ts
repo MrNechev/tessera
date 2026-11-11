@@ -41,6 +41,10 @@ async function run(step: Step): Promise<void> {
     case 'quick':
       await newQuickCollage(s.photos as string[]);
       break;
+    case 'quickAsync':
+      // Start a quick collage without waiting for it (to watch progress UI).
+      void newQuickCollage(s.photos as string[]);
+      break;
     case 'blank':
       newBlank();
       break;
