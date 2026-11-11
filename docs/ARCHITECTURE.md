@@ -42,6 +42,13 @@ resolution independent only through `page.dpi` and the export scale.
 - Photos with `slot: true` belong to the **auto-layout** described by
   `doc.layout` (`engine`, `seed`, `spacing`, `margin`, optional `region`…).
 
+**Multi-page documents** (`src/lib/model/multipage.ts`) keep the active
+page's content in the usual top-level fields (`background`, `frame`,
+`layout`, `elements`), so the editor, renderer and layout engines only ever
+see a single page. `doc.pages` lists every page with `null` at `activePage`;
+switching pages swaps contents in and out. Page size, DPI and assets are shared
+by all pages. Single-page documents simply have no `pages`.
+
 Documents are immutable: every edit goes through `editor.update()` (Immer),
 which makes undo/redo a list of snapshots. Drags are wrapped in
 `begin()`/`end()` transactions, and slider changes coalesce by key, so one
@@ -78,6 +85,15 @@ placements`, tested in `collage/layout.test.ts`:
 
 `relayout()` re-runs an engine and keeps each managed photo's id and styling;
 **Regenerate** just changes the seed (and the order).
+
+Multi-page PDFs are assembled in Rust (`pdf_begin` / `pdf_add_page` /
+`pdf_finish` in `src-tauri/src/export.rs`, using pdf-writer): each page is
+rendered and JPEG-encoded as it arrives, so memory use stays at one page.
+
+Printing renders the pages at up to 300 DPI into a hidden print-only element
+and opens the print dialog. WebKitGTK ignores CSS `@page` sizes, so on Linux
+`src-tauri/src/print.rs` runs WebKit's print operation itself with a GTK page
+setup that matches the project's paper size and has no margins.
 
 ## Image engine
 

@@ -37,6 +37,10 @@ Free and open source. No accounts, no watermarks, no paywall.
 | **L-O-V-E** (letters layout) | **The Big Number** (letters layout) | |
 | <img src="docs/examples/letters.jpg" width="280" alt="Photos spelling LOVE"> | <img src="docs/examples/big-number.jpg" width="280" alt="Photos forming the number 30"> | |
 
+**Photo book** — a cover and varied page layouts, made from a folder of photos in one click:
+
+<img src="docs/examples/photo-book.jpg" width="840" alt="Three pages of a photo book: cover, a three-photo page and a full-page photo">
+
 - **Quick collage** — pick any number of photos (dozens or hundreds) and get a
   layout that fills the page. Press **Regenerate** until you love it, and step
   back and forth through previous layouts.
@@ -70,6 +74,13 @@ Free and open source. No accounts, no watermarks, no paywall.
   letters and numbers, and a baby’s first year.
 - **Print-ready sizes** — A3, A4, A5, US Letter/Legal, photo prints (4×6″, 5×7″…),
   scrapbook 12×12″ at 72–600 DPI, plus social-media and screen sizes.
+- **Multi-page projects** — add, duplicate, reorder and delete pages from the
+  page strip under the canvas; any template can go on the current page.
+- **Photo books** — pick your photos, a page size and a style (clean white,
+  warm paper or dark): Tessera makes a cover and pages with varied layouts and
+  page numbers, sorted by the date each photo was taken.
+- **Photo calendars** — a cover and twelve month pages from your photos, for
+  any year, with the week starting on Monday or Sunday.
 
 ### Saving
 
@@ -78,6 +89,11 @@ Free and open source. No accounts, no watermarks, no paywall.
 - **Save as…** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) lets you choose
   the location, file name, format (JPEG, PNG, WebP, AVIF, TIFF or PDF), quality
   and size. The print DPI is embedded in the file.
+- Multi-page projects save every page: one **multi-page PDF**, or numbered
+  images (`… - page 01.jpg`). Save as… can also export just the current page.
+- **Print** (<kbd>Ctrl</kbd>+<kbd>P</kbd>) opens the system print dialog with
+  the paper already set to your page size and no margins, so each page prints
+  on exactly one sheet.
 - Projects autosave and appear under **Recent** on the home screen; you can also
   save `.tessera` project files anywhere.
 
@@ -202,7 +218,7 @@ Priorities for the next releases, in order:
    numbers and words; photo calendars; new occasions and sticker sets (0.2.0).
 2. ✅ **RAW camera formats and colour management** (ICC conversion) (0.3.0).
 3. ✅ **Batch watermark, resize and rename tools** (0.4.0).
-4. **Printing and multi-page projects** (photo books, calendars).
+4. ✅ **Printing and multi-page projects** (photo books, calendars) (0.5.0).
 5. Bug fixing, polish and performance across all of the above.
 
 Planned for later: in-app updates for the AppImage, a Flathub listing,

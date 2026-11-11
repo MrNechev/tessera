@@ -59,7 +59,7 @@
   {:else}
     <div class="drop">
       <p><b>Drop images or folders here</b></p>
-      <p class="hint">JPEG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF, JPEG XL and more</p>
+      <p class="hint">JPEG, PNG, WebP, AVIF, HEIC, camera RAW, TIFF, JPEG XL and more</p>
     </div>
   {/if}
 </div>

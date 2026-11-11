@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.5.0" date="2026-11-11" type="development">
+      <description>
+        <p>Multi-page projects with a page strip; one-click photo books and photo calendars; multi-page PDF export; printing with the paper set to the project's page size.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-11" type="development">
       <description>
         <p>Batch tools: resize, watermark (text or logo) and rename many photos at once, with a live preview; copies or moves, and originals are never overwritten unless you ask.</p>

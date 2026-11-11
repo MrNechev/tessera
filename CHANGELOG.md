@@ -4,6 +4,35 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-11-11
+
+### Multi-page projects
+- Projects can have any number of pages. A page strip under the canvas shows
+  them all: click to switch (or Ctrl+PageUp / Ctrl+PageDown), and duplicate,
+  reorder or delete the current page. The File menu has the same actions.
+- Templates can be used on the current page instead of starting a new project.
+- **Save** writes every page; **Save as…** exports the current page or all
+  pages, as one multi-page PDF or as numbered images.
+
+### Photo books and calendars
+- **New photo book** on the home screen: a cover with title and subtitle,
+  then pages with varied layouts (or a fixed number of photos per page),
+  three styles and page numbers, in square 12×12″, A4, US Letter or 8×10″.
+- **New photo calendar**: a cover and twelve month pages with one photo each,
+  for any year, with the week starting on Monday or Sunday.
+
+### Printing
+- **Print** (Ctrl+P, or File → Print) opens the system print dialog with the
+  paper set to the project's page size and no margins, so every page prints
+  on one sheet. Printers, copies and "Print to File" are all in the dialog,
+  which remembers your printer.
+
+### Fixes
+- The status bar no longer wraps while saving.
+- The file drop areas mention camera RAW.
+
+[0.5.0]: https://github.com/MrNechev/tessera/releases/tag/v0.5.0
+
 ## [0.4.0] — 2026-11-11
 
 ### Batch tools
@@ -22,6 +51,8 @@ All notable changes to Tessera are documented here. The format follows
   overwrite an original unless "Replace" is chosen.
 - Output format: keep, or convert to JPEG, PNG, WebP, AVIF or TIFF, with
   metadata kept, chosen or removed.
+- TIFF-based RAW files (NEF, DNG, ARW…) are recognised as RAW and saved as
+  JPEG when the format is kept.
 
 [0.4.0]: https://github.com/MrNechev/tessera/releases/tag/v0.4.0
 
