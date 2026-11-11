@@ -1,5 +1,5 @@
 import { relayout } from '../collage/layout';
-import { createDoc, createPhoto, createShape, createSticker, createText, defaultLayout, uid } from '../model/factory';
+import { createCalendar, createDoc, createPhoto, createShape, createSticker, createText, defaultLayout, uid } from '../model/factory';
 import type { AssetRef, CollageDoc, CollageElement, PhotoElement } from '../model/types';
 import { syncTextHeight } from '../render/text';
 import type { SlotDef, TemplateDef } from './types';
@@ -60,6 +60,19 @@ export function instantiateTemplate(t: TemplateDef, opts: InstantiateOptions): C
         shadow: it.shadow ?? null,
       });
       (it.below ? below : above).push(el);
+    } else if (it.kind === 'calendar') {
+      const now = new Date();
+      above.push(
+        createCalendar({
+          x: it.x * W,
+          y: it.y * H,
+          w: it.w * W,
+          h: it.h * H,
+          month: it.month ?? now.getMonth() + 1,
+          year: it.year ?? now.getFullYear(),
+          ...(it.props ?? {}),
+        }),
+      );
     } else if (it.kind === 'sticker') {
       const aspect = opts.stickerAspect(it.sticker) || 1;
       const w = it.size * S;

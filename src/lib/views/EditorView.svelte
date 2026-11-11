@@ -20,6 +20,7 @@
     Download,
     FileImage,
     Ruler,
+    CalendarDays,
   } from '@lucide/svelte';
   import EditorCanvas from '../components/editor/EditorCanvas.svelte';
   import Inspector from '../components/editor/Inspector.svelte';
@@ -32,6 +33,8 @@
   import ShapesPanel from '../components/editor/panels/ShapesPanel.svelte';
   import BackgroundPanel from '../components/editor/panels/BackgroundPanel.svelte';
   import PagePanel from '../components/editor/panels/PagePanel.svelte';
+  import CalendarPanel from '../components/editor/panels/CalendarPanel.svelte';
+  import { onFontsLoaded } from '../assets/fonts';
   import { editor, type Tool } from '../editor/editor.svelte';
   import { addPhotos, newBlank, openProjectDialog, quickSave, saveProjectAs, saveState, scheduleAutosave } from '../editor/session.svelte';
   import { describePage } from '../model/pages';
@@ -50,6 +53,7 @@
     { id: 'text', label: 'Text', icon: Type },
     { id: 'stickers', label: 'Stickers', icon: Sticker },
     { id: 'shapes', label: 'Shapes', icon: Shapes },
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays },
     { id: 'background', label: 'Background', icon: Paintbrush },
     { id: 'page', label: 'Page', icon: Ruler },
   ];
@@ -162,7 +166,12 @@
   onMount(() => {
     const close = () => (fileMenu = false);
     window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
+    // Letter layouts are shaped by a font: re-run them once it has loaded.
+    const offFonts = onFontsLoaded(() => editor.refreshLayoutQuietly());
+    return () => {
+      window.removeEventListener('click', close);
+      offFonts();
+    };
   });
 </script>
 
@@ -226,6 +235,7 @@
       {:else if editor.tool === 'text'}<TextPanel />
       {:else if editor.tool === 'stickers'}<StickersPanel />
       {:else if editor.tool === 'shapes'}<ShapesPanel />
+      {:else if editor.tool === 'calendar'}<CalendarPanel />
       {:else if editor.tool === 'background'}<BackgroundPanel />
       {:else if editor.tool === 'page'}<PagePanel />
       {/if}

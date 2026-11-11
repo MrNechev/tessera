@@ -1,6 +1,8 @@
 /** Creative engines: photos forming a shape, scattered polaroids, and concentric rings. */
 import type { LayoutShape, Rect } from '../../model/types';
+import { cssFont, ensureFont, isFontLoaded } from '../../assets/fonts';
 import { polaroidHeightFor } from '../../render/frameGeometry';
+import { ctx2d, makeCanvas } from '../../render/patterns';
 import type { Engine, Placement } from './types';
 
 /* ------------------------------------------------------------------ shapes */
@@ -84,23 +86,42 @@ const SHAPE_BOUNDS: Record<LayoutShape, { x0: number; x1: number; y0: number; y1
   return out;
 })();
 
-export function shapeCells(shape: LayoutShape, area: Rect, gap: number, target: number): Rect[] {
+/** A filled figure in a unit box: `inside(u, v)` with u, v in 0..1 (v grows downwards). */
+export interface FigureMask {
+  /** Width / height of the figure's bounding box. */
+  aspect: number;
+  inside(u: number, v: number): boolean;
+  /**
+   * Thin figures (letters) need cells to be mostly covered, not just hit at
+   * their centre; `strict` samples several points per cell.
+   */
+  strict?: boolean;
+}
+
+function implicitMask(shape: LayoutShape): FigureMask {
   const b = SHAPE_BOUNDS[shape];
   const f = SHAPE_FNS[shape];
-  const shapeAspect = (b.x1 - b.x0) / (b.y1 - b.y0);
-  // Fit the shape's bounding box into the area, centred.
+  return {
+    aspect: (b.x1 - b.x0) / (b.y1 - b.y0),
+    inside: (u, v) => f(b.x0 + u * (b.x1 - b.x0), b.y1 - v * (b.y1 - b.y0)) <= 0,
+  };
+}
+
+/**
+ * Tile a figure with the largest square cells that yield at least `target`
+ * cells, then fit the result inside `area`.
+ */
+export function maskCells(mask: FigureMask, area: Rect, gap: number, target: number): Rect[] {
+  // Fit the figure's bounding box into the area, centred.
   let sw = area.w;
-  let sh = sw / shapeAspect;
+  let sh = sw / mask.aspect;
   if (sh > area.h) {
     sh = area.h;
-    sw = sh * shapeAspect;
+    sw = sh * mask.aspect;
   }
   const sx = area.x + (area.w - sw) / 2;
   const sy = area.y + (area.h - sh) / 2;
-  const toShape = (px: number, py: number): [number, number] => [
-    b.x0 + ((px - sx) / sw) * (b.x1 - b.x0),
-    b.y1 - ((py - sy) / sh) * (b.y1 - b.y0),
-  ];
+  const hit = (px: number, py: number) => mask.inside((px - sx) / sw, (py - sy) / sh);
 
   const cellsFor = (s: number): Rect[] => {
     const pitch = s + gap;
@@ -110,12 +131,18 @@ export function shapeCells(shape: LayoutShape, area: Rect, gap: number, target: 
     const out: Rect[] = [];
     // Columns symmetric around the vertical axis; rows from the top.
     const colOffset = (cols % 2 === 0 ? 0.5 : 0) * pitch;
+    const d = s * 0.3;
     for (let r = 0; r < rows; r++) {
       const py = sy + s / 2 + r * pitch;
       for (let c = -Math.ceil(cols / 2); c <= Math.ceil(cols / 2); c++) {
         const px = cx + c * pitch + colOffset;
-        const [x, y] = toShape(px, py);
-        if (f(x, y) <= 0) out.push({ x: px - s / 2, y: py - s / 2, w: s, h: s });
+        let ok = hit(px, py);
+        if (ok && mask.strict) {
+          let n = 0;
+          for (const [dx, dy] of [[-d, -d], [d, -d], [-d, d], [d, d]]) if (hit(px + dx, py + dy)) n++;
+          ok = n >= 2;
+        }
+        if (ok) out.push({ x: px - s / 2, y: py - s / 2, w: s, h: s });
       }
     }
     return out;
@@ -155,6 +182,94 @@ export function shapeCells(shape: LayoutShape, area: Rect, gap: number, target: 
   }
   return best;
 }
+
+export function shapeCells(shape: LayoutShape, area: Rect, gap: number, target: number): Rect[] {
+  return maskCells(implicitMask(shape), area, gap, target);
+}
+
+/* ----------------------------------------------------------------- letters */
+
+const textMaskCache = new Map<string, FigureMask>();
+
+/** Rasterise text into a figure mask (needs a canvas; returns null in Node). */
+export function textMask(text: string, font: string, weight: number): FigureMask | null {
+  // The fallback font is used until the real one loads: key the cache on that too.
+  const key = `${font}|${weight}|${isFontLoaded(font, weight) ? 1 : 0}|${text}`;
+  const hit = textMaskCache.get(key);
+  if (hit) return hit;
+  if (typeof OffscreenCanvas === 'undefined' && typeof document === 'undefined') return null;
+  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  if (!lines.length) return null;
+  const size = 160;
+  const lineHeight = size * 1.02;
+  const pad = size;
+  const probe = ctx2d(makeCanvas(8, 8));
+  probe.font = cssFont(font, weight, size);
+  const widths = lines.map((l) => probe.measureText(l).width);
+  const W = Math.ceil(Math.max(...widths) + pad * 2);
+  const H = Math.ceil(lines.length * lineHeight + pad * 2);
+  const canvas = makeCanvas(W, H);
+  const c = ctx2d(canvas);
+  c.font = cssFont(font, weight, size);
+  c.fillStyle = '#000';
+  c.textBaseline = 'middle';
+  c.textAlign = 'center';
+  lines.forEach((l, i) => c.fillText(l, W / 2, pad + (i + 0.5) * lineHeight));
+  const data = c.getImageData(0, 0, W, H).data;
+  let x0 = W;
+  let x1 = -1;
+  let y0 = H;
+  let y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 127) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return null;
+  const bw = x1 - x0 + 1;
+  const bh = y1 - y0 + 1;
+  const mask: FigureMask = {
+    aspect: bw / bh,
+    strict: true,
+    inside: (u, v) => {
+      if (u < 0 || v < 0 || u >= 1 || v >= 1) return false;
+      const x = x0 + Math.floor(u * bw);
+      const y = y0 + Math.floor(v * bh);
+      return data[(y * W + x) * 4 + 3] > 127;
+    },
+  };
+  if (textMaskCache.size > 40) textMaskCache.clear();
+  textMaskCache.set(key, mask);
+  return mask;
+}
+
+export const LETTER_FONTS = ['montserrat', 'poppins', 'fredoka', 'bebas-neue', 'righteous', 'abril-fatface', 'shrikhand', 'oswald'];
+
+export const lettersEngine: Engine = ({ items, area, gap, rng, settings, pageShort }) => {
+  const n = items.length;
+  if (n === 0) return { placements: [] };
+  const text = (settings.text ?? 'LOVE').toUpperCase();
+  const font = settings.font ?? 'montserrat';
+  const weight = settings.fontWeight ?? 800;
+  void ensureFont(font, weight);
+  const glyphs = text.replace(/\s/g, '').length || 1;
+  const mask = textMask(text, font, weight) ?? { aspect: Math.max(0.6, glyphs * 0.62), inside: () => true };
+  // Roughly 60 cells per glyph keep strokes four or five cells wide, so the
+  // letterforms stay crisp; photos repeat to fill the cells.
+  const target = Math.max(n, glyphs * 60);
+  const cells = maskCells(mask, area, gap, target);
+  const order = rng.shuffle(items.map((_, i) => i));
+  const placements: Placement[] = cells.map((rect, i) => ({ item: order[i % n], rect }));
+  return {
+    placements,
+    style: { mask: { shape: 'rect', radius: Math.min(0.12, (gap / pageShort) * 4) } },
+  };
+};
 
 export const shapeEngine: Engine = ({ items, area, gap, rng, settings, pageShort }) => {
   const n = items.length;

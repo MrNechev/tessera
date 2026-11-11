@@ -1,6 +1,7 @@
 import { createPhoto } from '../model/factory';
 import type { CollageDoc, LayoutEngine, PhotoElement, Rect } from '../model/types';
-import { ringEngine, scatterEngine, shapeEngine } from './engines/artistic';
+import { lettersEngine, ringEngine, scatterEngine, shapeEngine } from './engines/artistic';
+import { spiralEngine } from './engines/spiral';
 import { columnsEngine } from './engines/columns';
 import { featuredEngine, gridEngine, rowsEngine } from './engines/grids';
 import { mosaicEngine } from './engines/mosaic';
@@ -22,6 +23,8 @@ export const ENGINE_INFO: EngineInfo[] = [
   { id: 'shape', name: 'Shape', description: 'Photos arranged into a heart, circle, star and more.' },
   { id: 'scatter', name: 'Scattered', description: 'Polaroids casually tossed on the table.' },
   { id: 'ring', name: 'Rings', description: 'A circular centre photo surrounded by rings of photos.' },
+  { id: 'letters', name: 'Letters', description: 'Photos fill the letters of a word, a name or a number.' },
+  { id: 'spiral', name: 'Spiral', description: 'A golden spiral: each photo a little smaller than the last.' },
 ];
 
 const ENGINES: Record<Exclude<LayoutEngine, 'none'>, Engine> = {
@@ -33,6 +36,8 @@ const ENGINES: Record<Exclude<LayoutEngine, 'none'>, Engine> = {
   shape: shapeEngine,
   scatter: scatterEngine,
   ring: ringEngine,
+  letters: lettersEngine,
+  spiral: spiralEngine,
 };
 
 export function pageShort(doc: CollageDoc): number {

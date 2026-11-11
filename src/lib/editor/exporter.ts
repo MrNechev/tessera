@@ -79,6 +79,7 @@ export async function exportDocument(doc: CollageDoc, opts: ExportOptions): Prom
     if (el.kind === 'text') fonts.push(ensureFont(el.font, el.weight));
     if (el.kind === 'photo' && el.frame?.caption) fonts.push(ensureFont(el.frame.captionFont ?? 'caveat', 400));
     if (el.kind === 'sticker') stickerIds.push(el.sticker);
+    if (el.kind === 'calendar') fonts.push(ensureFont(el.titleFont, 700), ensureFont(el.font, 400), ensureFont(el.font, 600));
   }
   await Promise.all([...fonts, stickers.preload(stickerIds)]);
 

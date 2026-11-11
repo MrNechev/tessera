@@ -15,7 +15,7 @@ import { AUTO_PLACEHOLDER } from '../templates/instantiate';
 import { library } from '../stores/library.svelte';
 import { boundsOf, center } from './geometry';
 
-export type Tool = 'photos' | 'layouts' | 'templates' | 'text' | 'stickers' | 'shapes' | 'background' | 'page';
+export type Tool = 'photos' | 'layouts' | 'templates' | 'text' | 'stickers' | 'shapes' | 'calendar' | 'background' | 'page';
 
 export type Align = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
 
@@ -491,6 +491,16 @@ class Editor {
       Object.assign(d.layout, patch);
     });
     this.commit(relayout(doc), { key });
+  }
+
+  /** Re-run the layout without touching history (e.g. a font finished loading). */
+  refreshLayoutQuietly(): void {
+    if (this.doc.layout.engine !== 'letters') return;
+    const next = relayout(this.doc);
+    if (next !== this.doc) {
+      this.doc = next;
+      // Keep undo entries that point at the old layout meaningful: replace the tip.
+    }
   }
 
   /** Apply a style patch to every photo managed by the layout. */

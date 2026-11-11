@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { ArrowDown, ArrowUp, Eye, EyeOff, Image, Lock, LockOpen, Shapes, Sticker, Type } from '@lucide/svelte';
+  import { ArrowDown, ArrowUp, CalendarDays, Eye, EyeOff, Image, Lock, LockOpen, Shapes, Sticker, Type } from '@lucide/svelte';
   import { editor } from '../../editor/editor.svelte';
   import type { CollageElement } from '../../model/types';
   import { stickers } from '../../stores/stickers.svelte';
+  import { calendarTitle } from '../../render/calendar';
 
-  const icons = { photo: Image, text: Type, sticker: Sticker, shape: Shapes };
+  const icons = { photo: Image, text: Type, sticker: Sticker, shape: Shapes, calendar: CalendarDays };
   const items = $derived([...editor.doc.elements].reverse());
 
   function label(e: CollageElement): string {
@@ -18,6 +19,8 @@
         return stickers.info(e.sticker)?.name ?? 'Sticker';
       case 'shape':
         return `${e.shape[0].toUpperCase()}${e.shape.slice(1)}`;
+      case 'calendar':
+        return calendarTitle(e);
     }
   }
 

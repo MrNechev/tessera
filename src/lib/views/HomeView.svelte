@@ -20,7 +20,7 @@
   let chosen = $state<TemplateDef | null>(null);
   let useLibrary = $state(true);
 
-  const featured = ['love-heart-mosaic', 'love-be-mine', 'xmas-merry', 'bday-bash', 'travel-summer-vibes', 'wedding-just-married']
+  const featured = ['letters-love', 'cal-photo-month', 'love-be-mine', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
     .map((id) => templateById(id))
     .filter((t): t is TemplateDef => !!t);
 

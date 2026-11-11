@@ -32,16 +32,19 @@ Free and open source. No accounts, no watermarks, no paywall.
 | Simple & automatic | Hand-crafted | From a template |
 | :---: | :---: | :---: |
 | <img src="docs/examples/simple.jpg" width="280" alt="Automatic mosaic collage"> | <img src="docs/examples/handcrafted.jpg" width="280" alt="Hand-crafted scrapbook collage"> | <img src="docs/examples/template.jpg" width="200" alt="Valentine's template collage"> |
-| **Heart of Us** (shape layout) | **Merry Christmas** (template) | |
-| <img src="docs/examples/heart.jpg" width="280" alt="Photos arranged in a heart"> | <img src="docs/examples/christmas.jpg" width="280" alt="Christmas template collage"> | |
+| **Heart of Us** (shape layout) | **Merry Christmas** (template) | **Photo Calendar** (template) |
+| <img src="docs/examples/heart.jpg" width="280" alt="Photos arranged in a heart"> | <img src="docs/examples/christmas.jpg" width="280" alt="Christmas template collage"> | <img src="docs/examples/calendar.jpg" width="200" alt="Photo calendar page"> |
+| **L-O-V-E** (letters layout) | **The Big Number** (letters layout) | |
+| <img src="docs/examples/letters.jpg" width="280" alt="Photos spelling LOVE"> | <img src="docs/examples/big-number.jpg" width="280" alt="Photos forming the number 30"> | |
 
 - **Quick collage** — pick any number of photos (dozens or hundreds) and get a
   layout that fills the page. Press **Regenerate** until you love it, and step
   back and forth through previous layouts.
-- **Eight layout engines** — *Mosaic* (fills edge to edge with minimal cropping),
+- **Ten layout engines** — *Mosaic* (fills edge to edge with minimal cropping),
   *Classic* (a faithful port of [PhotoCollage](https://github.com/adrienverge/PhotoCollage)’s
   column algorithm), *Rows*, *Grid*, *Featured*, *Shape* (heart, circle, star,
-  hexagon, diamond), *Scattered polaroids* and *Rings*.
+  hexagon, diamond), *Letters* (photos fill any word, name or number),
+  *Spiral*, *Scattered polaroids* and *Rings*.
 - **Fix it by hand, PhotoCollage-style** — drag a photo inside its frame to
   re-centre it; drop it on another photo to swap them; double-click to zoom and
   reposition.
@@ -52,15 +55,19 @@ Free and open source. No accounts, no watermarks, no paywall.
   shadows, filters (B&W, vintage, warm, dreamy…) and adjustments.
 - **Text** — 26 bundled fonts (script, handwriting, display, serif…), outline,
   shadow, label backgrounds and **curved text**.
-- **144 original stickers** — hearts, Christmas, New Year, birthday, Halloween,
-  Easter, wedding, baby, graduation, travel, nature, pets, emoji-style faces and
-  scrapbook doodles (washi tape, arrows, banners, frames).
+- **Calendars** — add any month with marked birthdays and holidays, or all
+  twelve months at once, in four styles; photo-calendar templates included.
+- **270 original stickers** — hearts, Christmas, New Year, birthday, Halloween,
+  Easter, wedding, baby, graduation, travel, nature, pets, emoji-style faces,
+  scrapbook doodles, gold balloon numbers, sports, music, food, space, kids,
+  flowers, seasons and animals.
 - **Backgrounds** — colours, gradients, 16 patterns, paper textures, a blurred
   photo, vignette and decorative page borders (stitched, candy cane, hearts,
   snowflakes, gold, film strip…).
-- **33 templates** for Valentine’s Day and loved ones, anniversaries, Christmas,
+- **58 templates** for Valentine’s Day and loved ones, anniversaries, Christmas,
   New Year, birthdays, Mother’s and Father’s Day, weddings, new babies, travel,
-  Halloween, Easter, Thanksgiving, graduation, friends, pets and a year in review.
+  Halloween, Easter, autumn, spring, graduation, friends, pets, calendars,
+  letters and numbers, and a baby’s first year.
 - **Print-ready sizes** — A3, A4, A5, US Letter/Legal, photo prints (4×6″, 5×7″…),
   scrapbook 12×12″ at 72–600 DPI, plus social-media and screen sizes.
 

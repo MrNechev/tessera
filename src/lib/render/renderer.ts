@@ -20,6 +20,7 @@ import { drawPageFrame } from './pageFrames';
 import { ctx2d, makeCanvas, patternTile, textureTile, type AnyCtx } from './patterns';
 import { maskPath, shapePath } from './shapes';
 import { drawText } from './text';
+import { drawCalendar } from './calendar';
 import { cssFont, ensureFont } from '../assets/fonts';
 
 export interface ImageEntry {
@@ -408,6 +409,10 @@ export function drawElement(c: AnyCtx, el: CollageElement, doc: CollageDoc, opts
       break;
     case 'shape':
       drawShape(c, el, doc, opts);
+      break;
+    case 'calendar':
+      applyShadow(c, el.shadow, opts.scale, shortSide(doc));
+      drawCalendar(c, el);
       break;
   }
   c.restore();

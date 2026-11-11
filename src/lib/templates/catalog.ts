@@ -4,7 +4,7 @@
  * entirely the user's.
  */
 import type { Background, Fill, PageFrame, PhotoFrame, Shadow } from '../model/types';
-import type { ShapeDef, SlotDef, StickerDef, TemplateDef, TextDef } from './types';
+import type { CalendarDef, ShapeDef, SlotDef, StickerDef, TemplateDef, TextDef } from './types';
 
 /* ------------------------------------------------------------- helpers */
 
@@ -59,6 +59,12 @@ function shape(s: ShapeDef['shape'], x: number, y: number, w: number, h: number,
 }
 
 const frame = (style: PageFrame['style'], color: string, width: number, inset: number): PageFrame => ({ style, color, width, inset });
+
+function cal(x: number, y: number, w: number, h: number, props: CalendarDef['props'] = {}, month?: number): CalendarDef {
+  return { kind: 'calendar', x, y, w, h, month, props };
+}
+
+const A4P_CAL = { width: 2480, height: 3508, preset: 'a4' };
 
 /** Even grid of slots inside a region. */
 function gridSlots(cols: number, rows: number, x: number, y: number, w: number, h: number, gapX: number, gapY: number, extra: Partial<SlotDef> = {}): SlotDef[] {
@@ -710,7 +716,375 @@ export const TEMPLATES: TemplateDef[] = [
       }),
     ],
   },
+  /* ============================================================= CALENDARS */
+  {
+    id: 'cal-photo-month',
+    name: 'Photo Calendar',
+    category: 'calendar',
+    description: 'A big photo over this month’s calendar — the classic wall calendar page.',
+    page: A4P_CAL,
+    background: bg(solid('#ffffff')),
+    slots: [slot(0.06, 0.045, 0.88, 0.5, { mask: { shape: 'rect', radius: 0.02 } })],
+    items: [cal(0.09, 0.58, 0.82, 0.37, { style: 'lines', titleFont: 'playfair-display', font: 'inter' })],
+  },
+  {
+    id: 'cal-landscape',
+    name: 'Desk Calendar',
+    category: 'calendar',
+    description: 'Photo on the left, calendar on the right. Prints well at 7×5″.',
+    page: CARD_L,
+    background: bg(solid('#f6f2ea'), { texture: { id: 'paper', intensity: 0.6 } }),
+    slots: [slot(0.035, 0.07, 0.5, 0.86, { mask: { shape: 'rect', radius: 0.03 }, shadow: softShadow })],
+    items: [cal(0.57, 0.1, 0.4, 0.8, { style: 'dots', titleFont: 'montserrat', font: 'montserrat', color: '#2b2340', accent: '#ff8a5c' })],
+  },
+  {
+    id: 'cal-three-photos',
+    name: 'Calendar with Three Photos',
+    category: 'calendar',
+    description: 'A calendar page with a row of three square photos.',
+    page: A4P_CAL,
+    background: bg(linear(180, '#fff6f8', '#ffe9ef')),
+    slots: gridSlots(3, 1, 0.06, 0.05, 0.88, 0.293, 0.03, 0, { mask: { shape: 'rect', radius: 0.06 }, border: { width: 0.006, color: '#ffffff' }, shadow: softShadow }),
+    items: [
+      cal(0.08, 0.4, 0.84, 0.52, { style: 'clean', titleFont: 'dancing-script', font: 'inter', color: '#3b3446', accent: '#ff5d8f', background: '#ffffff' }),
+      sticker('heart-pink', 0.92, 0.37, 0.07, { rotation: 12 }),
+    ],
+  },
+  {
+    id: 'cal-year-glance',
+    name: 'Year at a Glance',
+    category: 'calendar',
+    description: 'All twelve months with one hero photo — a whole year on one poster.',
+    page: A3P,
+    background: bg(solid('#ffffff')),
+    slots: [slot(0.05, 0.04, 0.9, 0.3, { mask: { shape: 'rect', radius: 0.02 } })],
+    items: [
+      text('2027', 0.5, 0.385, 0.5, 'bebas-neue', 0.07, '#1d1b26', { letterSpacing: 0.3 }),
+      ...Array.from({ length: 12 }, (_, i) => {
+        const cw = (0.9 - 0.03 * 2) / 3;
+        const ch = (0.55 - 0.025 * 3) / 4;
+        return cal(0.05 + (i % 3) * (cw + 0.03), 0.42 + Math.floor(i / 3) * (ch + 0.025), cw, ch, { year: 2027, showYear: false, style: 'clean', titleFont: 'montserrat', font: 'inter', accent: '#ff5d8f' }, i + 1);
+      }),
+    ],
+  },
+  {
+    id: 'cal-family-birthdays',
+    name: 'Family Birthdays',
+    category: 'calendar',
+    description: 'Mark the birthdays, add the faces: a month that celebrates everyone.',
+    page: A4L,
+    background: bg(solid('#fff6dc'), { pattern: { id: 'confetti', color: 'multi', opacity: 0.4, scale: 0.09 } }),
+    slots: gridSlots(2, 2, 0.04, 0.1, 0.42, 0.82, 0.02, 0.03, { mask: { shape: 'circle', radius: 0 }, border: { width: 0.008, color: '#ffffff' }, shadow: softShadow }),
+    items: [
+      cal(0.5, 0.12, 0.46, 0.78, { style: 'boxes', titleFont: 'fredoka', font: 'inter', accent: '#ff5d8f', background: '#ffffff', marked: [] }),
+      sticker('bunting', 0.5, 0.045, 0.9),
+      sticker('balloon-bunch', 0.96, 0.9, 0.16, { rotation: 8 }),
+    ],
+  },
+
+  /* ====================================================== LETTERS & NUMBERS */
+  {
+    id: 'letters-love',
+    name: 'L-O-V-E',
+    category: 'letters',
+    description: 'Your photos spell out LOVE.',
+    page: WIDE,
+    background: bg(linear(135, '#fff1f3', '#ffe1e7'), { pattern: { id: 'hearts', color: '#ffffff', opacity: 0.5, scale: 0.08 } }),
+    layout: { engine: 'letters', text: 'LOVE', font: 'montserrat', fontWeight: 800, spacing: 0.006, margin: 0.03, region: { x: 0, y: 0.04, w: 1, h: 0.76 } },
+    previewPhotos: 10,
+    items: [
+      text('is all you need', 0.5, 0.9, 0.8, 'great-vibes', 0.11, '#c2185b'),
+      sticker('heart-red', 0.07, 0.1, 0.09, { rotation: -14 }),
+      sticker('heart-pink', 0.93, 0.86, 0.08, { rotation: 12 }),
+    ],
+  },
+  {
+    id: 'letters-big-birthday',
+    name: 'The Big Number',
+    category: 'letters',
+    description: 'A birthday number made of photos — change it to any age.',
+    page: SQUARE,
+    background: bg(radial('#1d2b5c', '#0a1230'), { pattern: { id: 'confetti', color: '#e7c35a', opacity: 0.5, scale: 0.08 } }),
+    layout: { engine: 'letters', text: '30', font: 'poppins', fontWeight: 800, spacing: 0.006, margin: 0.03, region: { x: 0.08, y: 0.14, w: 0.84, h: 0.62 } },
+    photoStyle: { border: { width: 0.003, color: '#e7c35a' } },
+    previewPhotos: 10,
+    items: [
+      text('HAPPY BIRTHDAY', 0.5, 0.085, 0.9, 'bebas-neue', 0.08, '#f3d27a', { letterSpacing: 0.25 }),
+      text('to the one and only', 0.5, 0.86, 0.8, 'great-vibes', 0.09, '#ffffff'),
+      sticker('balloon-bunch', 0.09, 0.78, 0.2, { rotation: -8 }),
+      sticker('party-popper', 0.91, 0.8, 0.14, { rotation: 10 }),
+      sticker('sparkle', 0.2, 0.2, 0.05),
+      sticker('sparkle', 0.85, 0.3, 0.04),
+    ],
+  },
+  {
+    id: 'letters-name',
+    name: 'Name in Photos',
+    category: 'letters',
+    description: 'A name spelled out with the photos of the person — change the word to any name.',
+    page: WIDE,
+    background: bg(solid('#ffffff')),
+    layout: { engine: 'letters', text: 'EMMA', font: 'fredoka', fontWeight: 600, spacing: 0.006, margin: 0.03, region: { x: 0, y: 0.08, w: 1, h: 0.72 } },
+    previewPhotos: 12,
+    items: [
+      text('est. 2024', 0.5, 0.9, 0.6, 'josefin-sans', 0.04, '#8a8396', { letterSpacing: 0.5, weight: 700 }),
+      sticker('sparkles-cluster', 0.08, 0.1, 0.09),
+      sticker('crown', 0.9, 0.1, 0.1, { rotation: 14 }),
+    ],
+  },
+  {
+    id: 'letters-mom',
+    name: 'MOM',
+    category: 'letters',
+    description: 'For Mother’s Day: the word she loves to hear, filled with memories.',
+    page: WIDE,
+    background: bg(linear(90, '#ffeef0', '#ffd9cf')),
+    layout: { engine: 'letters', text: 'MOM', font: 'abril-fatface', fontWeight: 400, spacing: 0.006, margin: 0.03, region: { x: 0, y: 0.04, w: 1, h: 0.74 } },
+    previewPhotos: 10,
+    items: [
+      text('we love you', 0.5, 0.89, 0.8, 'dancing-script', 0.1, '#c2456b', { weight: 700 }),
+      sticker('tulip', 0.07, 0.86, 0.1, { rotation: -12 }),
+      sticker('flower-bouquet', 0.92, 0.84, 0.16, { rotation: 10 }),
+    ],
+  },
+  {
+    id: 'letters-new-year',
+    name: '2027 in Photos',
+    category: 'letters',
+    description: 'The new year’s digits built from your favourite moments.',
+    page: WIDE,
+    background: bg(radial('#24242c', '#0d0d10')),
+    frame: frame('gold', '#c9a227', 0.004, 0.025),
+    layout: { engine: 'letters', text: '2027', font: 'bebas-neue', fontWeight: 400, spacing: 0.005, margin: 0.05, region: { x: 0, y: 0.1, w: 1, h: 0.66 } },
+    photoStyle: { border: { width: 0.003, color: '#e3c062' } },
+    previewPhotos: 12,
+    items: [
+      text('HAPPY NEW YEAR', 0.5, 0.085, 0.8, 'josefin-sans', 0.045, '#e3c062', { letterSpacing: 0.5, weight: 700 }),
+      sticker('firework-1', 0.09, 0.14, 0.12),
+      sticker('firework-2', 0.91, 0.14, 0.11),
+      sticker('champagne-glasses', 0.5, 0.9, 0.1),
+    ],
+  },
+  {
+    id: 'letters-initial',
+    name: 'Monogram',
+    category: 'letters',
+    description: 'A single big initial — elegant, for weddings and anniversaries.',
+    page: SQUARE,
+    background: bg(solid('#fbf8f2'), { texture: { id: 'paper', intensity: 0.7 } }),
+    layout: { engine: 'letters', text: 'A', font: 'abril-fatface', fontWeight: 400, spacing: 0.005, margin: 0.04, region: { x: 0.1, y: 0.08, w: 0.8, h: 0.74 } },
+    photoStyle: { border: { width: 0.003, color: '#ffffff' } },
+    previewPhotos: 12,
+    items: [
+      text('Anna & Alex', 0.5, 0.88, 0.8, 'great-vibes', 0.1, '#a8813a'),
+      text('06 · 14 · 2026', 0.5, 0.95, 0.6, 'cinzel', 0.025, '#7c6a4f', { letterSpacing: 0.3 }),
+      sticker('corner-flourish', 0.085, 0.085, 0.16),
+      sticker('corner-flourish', 0.915, 0.085, 0.16, { flipX: true }),
+    ],
+  },
+
+  /* ========================================================== MORE OCCASIONS */
+  {
+    id: 'baby-first-year',
+    name: 'Baby’s First Year',
+    category: 'baby',
+    description: 'Twelve months, twelve photos, one big smile.',
+    page: A3P,
+    background: bg(linear(90, '#fff8ea', '#ffeedd'), { pattern: { id: 'stars', color: '#ffffff', opacity: 0.7, scale: 0.07 } }),
+    slots: gridSlots(3, 4, 0.06, 0.15, 0.88, 0.78, 0.03, 0.04, { mask: { shape: 'rect', radius: 0.08 }, border: { width: 0.006, color: '#ffffff' }, shadow: softShadow }),
+    items: [
+      text('My First Year', 0.5, 0.06, 0.9, 'sacramento', 0.1, '#c2456b'),
+      text('Baby Name', 0.5, 0.115, 0.8, 'comfortaa', 0.028, '#8a8299', { weight: 700, letterSpacing: 0.3 }),
+      ...['1 month', '2 months', '3 months', '4 months', '5 months', '6 months', '7 months', '8 months', '9 months', '10 months', '11 months', '1 year!'].map((m, i) => {
+        const cw = (0.88 - 0.03 * 2) / 3;
+        const ch = (0.78 - 0.04 * 3) / 4;
+        return text(m, 0.06 + (i % 3) * (cw + 0.03) + cw / 2, 0.15 + Math.floor(i / 3) * (ch + 0.04) + ch + 0.016, cw, 'fredoka', 0.02, '#c2456b', { weight: 600 });
+      }),
+      sticker('moon-stars', 0.92, 0.05, 0.09),
+      sticker('rattle', 0.08, 0.05, 0.08, { rotation: -15 }),
+    ],
+  },
+  {
+    id: 'sports-champions',
+    name: 'Champions',
+    category: 'friends',
+    description: 'Team photos with a bold, sporty look.',
+    page: A4L,
+    background: bg(linear(135, '#0f2a44', '#1b4d32')),
+    layout: { engine: 'mosaic', spacing: 0.01, margin: 0.03, region: { x: 0.28, y: 0, w: 0.72, h: 1 } },
+    photoStyle: { border: { width: 0.005, color: '#ffffff' } },
+    previewPhotos: 7,
+    items: [
+      text('CHAMPIONS', 0.15, 0.3, 0.28, 'bebas-neue', 0.11, '#ffffff', { letterSpacing: 0.05 }),
+      text('SEASON 2026', 0.15, 0.42, 0.26, 'josefin-sans', 0.03, '#ffc145', { letterSpacing: 0.4, weight: 700 }),
+      sticker('trophy', 0.15, 0.68, 0.18),
+      sticker('soccer-ball', 0.06, 0.9, 0.09),
+      sticker('medal', 0.24, 0.9, 0.08, { rotation: 10 }),
+    ],
+  },
+  {
+    id: 'music-festival',
+    name: 'Festival Nights',
+    category: 'friends',
+    description: 'Concert and festival memories on a neon-dark background.',
+    page: SQUARE,
+    background: bg(radial('#3a1d4f', '#120a1a'), { pattern: { id: 'sparkles', color: '#c084fc', opacity: 0.25, scale: 0.1 } }),
+    layout: { engine: 'scatter', margin: 0.06, region: { x: 0, y: 0.17, w: 1, h: 0.83 } },
+    previewPhotos: 6,
+    items: [
+      text('Festival Nights', 0.5, 0.09, 0.9, 'righteous', 0.1, '#ff5d8f', { shadow: { color: 'rgba(255,93,143,0.7)', blur: 0.014, x: 0, y: 0 } }),
+      sticker('guitar', 0.08, 0.92, 0.15, { rotation: -20 }),
+      sticker('headphones', 0.92, 0.1, 0.11, { rotation: 15 }),
+      sticker('music-notes', 0.9, 0.9, 0.1),
+    ],
+  },
+  {
+    id: 'card-thank-you',
+    name: 'Thank You',
+    category: 'family',
+    description: 'A thank-you card with three photos and a handwritten note.',
+    page: CARD_L,
+    background: bg(solid('#fbf3ea'), { texture: { id: 'paper', intensity: 0.8 } }),
+    slots: [
+      slot(0.04, 0.1, 0.28, 0.56, { rotation: -4, frame: polaroid(), shadow: softShadow }),
+      slot(0.34, 0.14, 0.28, 0.56, { rotation: 3, frame: polaroid(), shadow: softShadow }),
+      slot(0.64, 0.09, 0.28, 0.56, { rotation: -2, frame: polaroid(), shadow: softShadow }),
+    ],
+    items: [
+      text('thank you', 0.5, 0.82, 0.8, 'caveat', 0.14, '#5b2333', { weight: 700 }),
+      text('for everything', 0.5, 0.93, 0.6, 'josefin-sans', 0.035, '#9c6b7a', { letterSpacing: 0.4 }),
+      sticker('thank-you-tag', 0.9, 0.84, 0.14, { rotation: 10 }),
+      sticker('heart-outline', 0.08, 0.86, 0.07, { rotation: -12 }),
+    ],
+  },
+  {
+    id: 'wedding-save-the-date',
+    name: 'Save the Date',
+    category: 'wedding',
+    description: 'An elegant announcement with one photo and a calendar marking the day.',
+    page: { width: 2100, height: 1500, preset: 'photo-5x7' },
+    background: bg(solid('#fbf8f2')),
+    frame: frame('double', '#c9a227', 0.003, 0.03),
+    slots: [slot(0.07, 0.09, 0.44, 0.82, { mask: { shape: 'arch', radius: 0 } })],
+    items: [
+      text('Save the Date', 0.75, 0.2, 0.42, 'great-vibes', 0.12, '#a8813a'),
+      text('ANNA & ALEX', 0.75, 0.32, 0.4, 'cinzel', 0.035, '#2b2340', { letterSpacing: 0.3, weight: 700 }),
+      cal(0.57, 0.4, 0.36, 0.46, { style: 'clean', titleFont: 'cinzel', font: 'lora', color: '#2b2340', accent: '#c9a227', showYear: true, marked: [14] }, 6),
+      sticker('wedding-rings', 0.75, 0.92, 0.06),
+    ],
+  },
+  {
+    id: 'season-autumn-walks',
+    name: 'Autumn Walks',
+    category: 'seasonal',
+    description: 'Warm autumn tones with leaves and a cup of cocoa.',
+    page: A4P,
+    background: bg(linear(180, '#f7e2c4', '#e8b98a'), { texture: { id: 'kraft', intensity: 0.5 } }),
+    layout: { engine: 'rows', spacing: 0.012, margin: 0.05, region: { x: 0, y: 0.14, w: 1, h: 0.78 } },
+    photoStyle: { mask: { shape: 'rect', radius: 0.03 }, border: { width: 0.006, color: '#fffaf2' } },
+    previewPhotos: 7,
+    items: [
+      text('Autumn walks', 0.5, 0.08, 0.9, 'lobster', 0.09, '#8a3b12'),
+      sticker('maple-leaf', 0.08, 0.07, 0.1, { rotation: -20 }),
+      sticker('autumn-leaves-pile', 0.9, 0.96, 0.16),
+      sticker('hot-cocoa', 0.1, 0.96, 0.1, { rotation: -8 }),
+    ],
+  },
+  {
+    id: 'season-spring-blooms',
+    name: 'Spring Blooms',
+    category: 'seasonal',
+    description: 'Soft pastels, blossoms and round photos.',
+    page: SQUARE,
+    background: bg(linear(135, '#fff7fb', '#e9f7ee')),
+    layout: { engine: 'ring', spacing: 0.012, margin: 0.02, region: { x: 0.1, y: 0.14, w: 0.8, h: 0.8 } },
+    photoStyle: { border: { width: 0.008, color: '#ffffff' }, shadow: softShadow },
+    previewPhotos: 9,
+    items: [
+      text('Hello Spring', 0.5, 0.08, 0.9, 'sacramento', 0.11, '#5a9e6f'),
+      sticker('cherry-blossom', 0.08, 0.1, 0.12, { rotation: -10 }),
+      sticker('butterfly-blue', 0.92, 0.09, 0.09, { rotation: 15 }),
+      sticker('bee', 0.9, 0.92, 0.08),
+      sticker('daisy-bunch', 0.09, 0.93, 0.12),
+    ],
+  },
+  {
+    id: 'travel-foodie',
+    name: 'Foodie Diary',
+    category: 'travel',
+    description: 'Every delicious plate of the trip.',
+    page: A4P,
+    background: bg(solid('#1d1b26')),
+    layout: { engine: 'grid', spacing: 0.015, margin: 0.05, region: { x: 0, y: 0.12, w: 1, h: 0.82 } },
+    photoStyle: { mask: { shape: 'rect', radius: 0.08 } },
+    previewPhotos: 9,
+    items: [
+      text('Foodie Diary', 0.5, 0.065, 0.9, 'shrikhand', 0.08, '#ffc145'),
+      sticker('pizza-whole', 0.08, 0.96, 0.1, { rotation: -10 }),
+      sticker('sushi', 0.5, 0.97, 0.08),
+      sticker('cocktail', 0.92, 0.96, 0.09, { rotation: 12 }),
+    ],
+  },
+  {
+    id: 'kids-playtime',
+    name: 'Playtime',
+    category: 'family',
+    description: 'Bright, bouncy frames for kids’ photos.',
+    page: A4L,
+    background: bg(solid('#d9f1ff'), { pattern: { id: 'polka', color: '#ffffff', opacity: 0.7, scale: 0.06 } }),
+    layout: { engine: 'scatter', margin: 0.06, region: { x: 0, y: 0.16, w: 1, h: 0.84 } },
+    previewPhotos: 6,
+    items: [
+      text('Playtime!', 0.5, 0.09, 0.9, 'fredoka', 0.1, '#ff6f61', { weight: 600, stroke: { width: 0.09, color: '#ffffff' } }),
+      sticker('rubber-duck', 0.08, 0.1, 0.1),
+      sticker('kite', 0.92, 0.12, 0.12, { rotation: 15 }),
+      sticker('dinosaur', 0.1, 0.92, 0.13),
+      sticker('robot', 0.9, 0.9, 0.11),
+    ],
+  },
+  {
+    id: 'space-explorer',
+    name: 'Little Space Explorer',
+    category: 'birthday',
+    description: 'Rockets and planets for a space-themed party.',
+    page: SQUARE,
+    background: bg(radial('#1d2b5c', '#070b1f'), { pattern: { id: 'stars', color: '#ffffff', opacity: 0.6, scale: 0.08 } }),
+    layout: { engine: 'ring', spacing: 0.012, margin: 0.02, region: { x: 0.12, y: 0.16, w: 0.76, h: 0.76 } },
+    photoStyle: { border: { width: 0.006, color: '#ffffff' } },
+    previewPhotos: 7,
+    items: [
+      text('To the moon and back', 0.5, 0.08, 0.9, 'righteous', 0.07, '#ffffff'),
+      sticker('rocket', 0.1, 0.88, 0.15, { rotation: 20 }),
+      sticker('planet-saturn', 0.9, 0.12, 0.13),
+      sticker('astronaut', 0.9, 0.9, 0.14, { rotation: -10 }),
+      sticker('shooting-star', 0.12, 0.12, 0.1),
+    ],
+  },
+  {
+    id: 'simple-instagram-grid',
+    name: 'Nine Grid',
+    category: 'simple',
+    description: 'A clean 3×3 square grid with thin gaps.',
+    page: SQUARE,
+    background: bg(solid('#ffffff')),
+    slots: gridSlots(3, 3, 0.02, 0.02, 0.96, 0.96, 0.015, 0.015),
+  },
+  {
+    id: 'simple-two-tone',
+    name: 'Two-tone Split',
+    category: 'simple',
+    description: 'A colour block with a title and a tall photo beside it.',
+    page: A4L,
+    background: bg(solid('#ffffff')),
+    slots: [slot(0.5, 0, 0.5, 1)],
+    items: [
+      shape('rect', 0, 0, 0.5, 1, solid('#2b2340'), { below: true }),
+      text('Our\nstory', 0.25, 0.42, 0.42, 'playfair-display', 0.14, '#ffffff', { italic: true, lineHeight: 1 }),
+      text('A FEW FAVOURITE MOMENTS', 0.25, 0.62, 0.42, 'josefin-sans', 0.025, '#c9c3d6', { letterSpacing: 0.4, weight: 700 }),
+    ],
+  },
 ];
+
 
 export function templateById(id: string): TemplateDef | undefined {
   return TEMPLATES.find((t) => t.id === id);

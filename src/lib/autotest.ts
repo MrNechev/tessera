@@ -11,7 +11,7 @@ import { editor } from './editor/editor.svelte';
 import { exportDocument } from './editor/exporter';
 import { newBlank, newFromTemplate, newQuickCollage, openEditor } from './editor/session.svelte';
 import { instantiateTemplate } from './templates/instantiate';
-import { createSticker } from './model/factory';
+import { createCalendar, createSticker } from './model/factory';
 import type { LayoutEngine, LayoutShape, PhotoElement, TextElement } from './model/types';
 import { app, type View } from './stores/app.svelte';
 import { compressQueue, convertQueue } from './stores/batch.svelte';
@@ -123,6 +123,14 @@ async function run(step: Step): Promise<void> {
         x: Number(s.x ?? 0.5) * W,
         y: Number(s.y ?? 0.5) * H,
       });
+      break;
+    }
+    case 'calendar': {
+      const S = editor.pageShort;
+      const el = createCalendar({ x: 0, y: 0, w: S * Number(s.w ?? 0.6), h: S * Number(s.h ?? 0.5), ...(s.props as object) });
+      const W = editor.doc.page.width;
+      const H = editor.doc.page.height;
+      editor.place(el, { x: Number(s.x ?? 0.5) * W, y: Number(s.y ?? 0.5) * H });
       break;
     }
     case 'select': {

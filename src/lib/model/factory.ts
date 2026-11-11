@@ -9,6 +9,7 @@ import {
   type LayoutSettings,
   type PhotoAdjust,
   type CollageElement,
+  type CalendarElement,
 } from './types';
 
 export function uid(prefix = 'e'): string {
@@ -150,6 +151,33 @@ export function createShape(p: Partial<ShapeElement> & Pick<ShapeElement, 'x' | 
     fill: { kind: 'solid', color: '#ff5d8f' },
     stroke: null,
     radius: 0,
+    shadow: null,
+    ...p,
+  };
+}
+
+export function createCalendar(
+  p: Partial<CalendarElement> & Pick<CalendarElement, 'x' | 'y' | 'w' | 'h'>,
+): CalendarElement {
+  const now = new Date();
+  return {
+    id: uid('cal'),
+    kind: 'calendar',
+    rotation: 0,
+    opacity: 1,
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    firstDay: 1,
+    style: 'clean',
+    titleFont: 'playfair-display',
+    font: 'inter',
+    color: '#1d1b26',
+    accent: '#ff5d8f',
+    weekendColor: '#8a8299',
+    showTitle: true,
+    showYear: true,
+    marked: [],
+    background: null,
     shadow: null,
     ...p,
   };

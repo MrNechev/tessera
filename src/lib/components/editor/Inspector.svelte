@@ -22,7 +22,8 @@
   import { FONTS, FONT_CATEGORIES, ensureFont, fontInfo } from '../../assets/fonts';
   import { editor } from '../../editor/editor.svelte';
   import { neutralAdjust } from '../../model/factory';
-  import type { CollageElement, PhotoAdjust, PhotoElement, PhotoFrameStyle, ShapeElement, TextElement } from '../../model/types';
+  import type { CalendarElement, CollageElement, PhotoAdjust, PhotoElement, PhotoFrameStyle, ShapeElement, TextElement } from '../../model/types';
+  import { MONTH_NAMES } from '../../render/calendar';
   import { FILTER_PRESETS, presetAdjust } from '../../render/adjust';
   import { MASK_SHAPES } from '../../render/shapes';
   import { stickers } from '../../stores/stickers.svelte';
@@ -245,6 +246,69 @@
     </Section>
   {/if}
 
+  {#if el.kind === 'calendar'}
+    {@const cal = el}
+    <Section title="Calendar">
+      <div class="row">
+        <select class="select grow" value={cal.month} onchange={(e) => patch({ month: +(e.target as HTMLSelectElement).value } as Partial<CalendarElement>)}>
+          {#each MONTH_NAMES as n, i (n)}<option value={i + 1}>{n}</option>{/each}
+        </select>
+        <input class="input year" type="number" min="1900" max="2200" value={cal.year} onchange={(e) => patch({ year: Math.max(1900, Math.min(2200, +(e.target as HTMLInputElement).value || cal.year)) } as Partial<CalendarElement>)} />
+      </div>
+      <div class="row">
+        <span class="label">Week starts on</span>
+        <span class="spacer"></span>
+        <Segmented full={false} options={[{ value: 1, label: 'Mon' }, { value: 0, label: 'Sun' }]} value={cal.firstDay} onchange={(v) => patch({ firstDay: v } as Partial<CalendarElement>)} />
+      </div>
+      <Segmented
+        options={[
+          { value: 'clean', label: 'Clean' },
+          { value: 'lines', label: 'Lines' },
+          { value: 'boxes', label: 'Boxes' },
+          { value: 'dots', label: 'Dots' },
+        ]}
+        value={cal.style}
+        onchange={(v) => patch({ style: v } as Partial<CalendarElement>)}
+      />
+      <input
+        class="input"
+        placeholder="Mark days, e.g. 3, 14, 25"
+        value={cal.marked.join(', ')}
+        onchange={(e) => {
+          const days = [...new Set((e.target as HTMLInputElement).value.split(/[\s,;]+/).map((v) => parseInt(v)).filter((d) => d >= 1 && d <= 31))].sort((a, b) => a - b);
+          patch({ marked: days } as Partial<CalendarElement>);
+        }}
+      />
+      <Toggle checked={cal.showTitle} label="Show month name" onchange={(v) => patch({ showTitle: v } as Partial<CalendarElement>)} />
+      {#if cal.showTitle}
+        <Toggle checked={cal.showYear} label="Show year" onchange={(v) => patch({ showYear: v } as Partial<CalendarElement>)} />
+      {/if}
+    </Section>
+    <Section title="Fonts & colours">
+      <select class="select" value={cal.titleFont} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; void ensureFont(id, 700).then(() => patch({ titleFont: id } as Partial<CalendarElement>)); }}>
+        {#each fontsByCat as c (c.id)}
+          <optgroup label="{c.name} — title">
+            {#each c.fonts as f (f.id)}<option value={f.id} style:font-family="'{f.family}'">{f.family}</option>{/each}
+          </optgroup>
+        {/each}
+      </select>
+      <select class="select" value={cal.font} onchange={(e) => { const id = (e.target as HTMLSelectElement).value; void ensureFont(id, 400).then(() => patch({ font: id } as Partial<CalendarElement>)); }}>
+        {#each fontsByCat.filter((c) => ['sans', 'rounded', 'serif', 'display'].includes(c.id)) as c (c.id)}
+          <optgroup label="{c.name} — days">
+            {#each c.fonts as f (f.id)}<option value={f.id} style:font-family="'{f.family}'">{f.family}</option>{/each}
+          </optgroup>
+        {/each}
+      </select>
+      <ColorInput label="Text" value={cal.color} onchange={(c) => patch({ color: c } as Partial<CalendarElement>, 'cal-color')} />
+      <ColorInput label="Weekends" value={cal.weekendColor} onchange={(c) => patch({ weekendColor: c } as Partial<CalendarElement>, 'cal-weekend')} />
+      <ColorInput label="Marked days" value={cal.accent} onchange={(c) => patch({ accent: c } as Partial<CalendarElement>, 'cal-accent')} />
+      <Toggle checked={!!cal.background} label="Card background" onchange={(v) => patch({ background: v ? '#ffffff' : null } as Partial<CalendarElement>)} />
+      {#if cal.background}
+        <ColorInput label="Card colour" value={cal.background} alpha onchange={(c) => patch({ background: c } as Partial<CalendarElement>, 'cal-bg')} />
+      {/if}
+    </Section>
+  {/if}
+
   <Section title="Appearance">
     <Slider label="Opacity" value={el.opacity} min={0} max={1} step={0.01} scale={100} unit="%" onchange={(v) => patch({ opacity: v }, 'opacity')} />
     <Toggle checked={!!el.shadow} label="Shadow" onchange={(v) => patch({ shadow: v ? { ...DEFAULT_SHADOW } : null })} />
@@ -327,6 +391,9 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px;
+  }
+  .year {
+    width: 84px;
   }
   .pos label {
     display: flex;

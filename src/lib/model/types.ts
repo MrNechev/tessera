@@ -88,7 +88,7 @@ export interface Crop {
   zoom: number;
 }
 
-export type ElementKind = 'photo' | 'text' | 'sticker' | 'shape';
+export type ElementKind = 'photo' | 'text' | 'sticker' | 'shape' | 'calendar';
 
 export interface ElementBase {
   id: string;
@@ -157,7 +157,31 @@ export interface ShapeElement extends ElementBase {
   radius: number;
 }
 
-export type CollageElement = PhotoElement | TextElement | StickerElement | ShapeElement;
+export type CalendarStyle = 'clean' | 'lines' | 'boxes' | 'dots';
+
+export interface CalendarElement extends ElementBase {
+  kind: 'calendar';
+  year: number;
+  /** 1–12. */
+  month: number;
+  /** 0 = Sunday, 1 = Monday. */
+  firstDay: 0 | 1;
+  style: CalendarStyle;
+  /** Font ids for the month title and the day numbers. */
+  titleFont: string;
+  font: string;
+  color: Color;
+  accent: Color;
+  weekendColor: Color;
+  showTitle: boolean;
+  showYear: boolean;
+  /** Days of this month to mark with the accent colour (birthdays, holidays…). */
+  marked: number[];
+  /** Optional background pill behind the whole calendar. */
+  background: Color | null;
+}
+
+export type CollageElement = PhotoElement | TextElement | StickerElement | ShapeElement | CalendarElement;
 
 export type PatternId =
   | 'dots'
@@ -235,7 +259,9 @@ export type LayoutEngine =
   | 'featured'
   | 'shape'
   | 'scatter'
-  | 'ring';
+  | 'ring'
+  | 'letters'
+  | 'spiral';
 
 export type LayoutShape = 'heart' | 'circle' | 'star' | 'hexagon' | 'diamond';
 
@@ -253,6 +279,11 @@ export interface LayoutSettings {
   repeat?: boolean;
   /** Preferred column count for `columns` / `grid` (0 = automatic). */
   columns?: number;
+  /** Text whose glyphs the photos fill (`letters` engine). */
+  text?: string;
+  /** Font id and weight used to shape the `letters` layout. */
+  font?: string;
+  fontWeight?: number;
 }
 
 export interface AssetRef {

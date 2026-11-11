@@ -4,6 +4,32 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-11-11
+
+### Layouts
+- **Letters** layout: photos fill the letters of any word, name or number
+  (eight bold fonts, repeating photos to keep strokes crisp).
+- **Spiral** layout: a golden spiral where each photo is a little smaller
+  than the last.
+
+### Calendars
+- New **calendar element**: any month and year, week starting Monday or
+  Sunday, four styles (clean, lines, boxes, dots), marked days for
+  birthdays and holidays, fonts, colours and an optional card background.
+- A **Calendar** tool in the editor with six themes, and “Add all 12 months”.
+- Templates: Photo Calendar, Desk Calendar, Calendar with Three Photos,
+  Year at a Glance, Family Birthdays, and a Save-the-Date card.
+
+### Templates & stickers
+- 25 new templates, including L-O-V-E, The Big Number, Name in Photos, MOM,
+  2027 in Photos, Monogram, Baby’s First Year, Champions, Festival Nights,
+  Thank You, Autumn Walks, Spring Blooms, Foodie Diary, Playtime, Little
+  Space Explorer, Nine Grid and Two-tone Split.
+- A second sticker pack: gold balloon numbers, sports, music, food & drink,
+  space, kids, flowers, celebration extras, seasons and animals.
+
+[0.2.0]: https://github.com/MrNechev/tessera/releases/tag/v0.2.0
+
 ## [0.1.0] — 2026-11-05 — first alpha
 
 ### Collages

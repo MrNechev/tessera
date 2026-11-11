@@ -141,3 +141,82 @@ describe('shape layouts', () => {
     xs.forEach((x, i) => expect(Math.abs(x - mirrored[i])).toBeLessThan(1));
   });
 });
+
+import { maskCells, type FigureMask } from './engines/artistic';
+import { daysInMonth, monthGrid } from '../render/calendar';
+
+describe('mask layouts', () => {
+  // A chunky "T": 10×10 bitmap.
+  const bitmap = [
+    '1111111111',
+    '1111111111',
+    '1111111111',
+    '0001111000',
+    '0001111000',
+    '0001111000',
+    '0001111000',
+    '0001111000',
+    '0001111000',
+    '0001111000',
+  ];
+  const mask: FigureMask = {
+    aspect: 1,
+    strict: true,
+    inside: (u, v) => u >= 0 && v >= 0 && u < 1 && v < 1 && bitmap[Math.floor(v * 10)][Math.floor(u * 10)] === '1',
+  };
+
+  it('fills a T-shaped mask with cells only where the mask is', () => {
+    const area = { x: 0, y: 0, w: 1000, h: 1000 };
+    const cells = maskCells(mask, area, 6, 40);
+    expect(cells.length).toBeGreaterThanOrEqual(40);
+    for (const c of cells) {
+      const u = (c.x + c.w / 2) / 1000;
+      const v = (c.y + c.h / 2) / 1000;
+      expect(mask.inside(u, v)).toBe(true);
+      expect(c.x).toBeGreaterThanOrEqual(-0.5);
+      expect(c.x + c.w).toBeLessThanOrEqual(1000.5);
+    }
+    // The bar is wider than the stem.
+    const top = cells.filter((c) => c.y < 250).length;
+    const stem = cells.filter((c) => c.y > 400).length;
+    expect(top).toBeGreaterThan(0);
+    expect(stem).toBeGreaterThan(0);
+  });
+
+  it('letters and spiral engines lay out photos without errors', () => {
+    for (const engine of ['letters', 'spiral'] as const) {
+      for (const n of [1, 3, 9]) {
+        const doc = relayout(docWith(n, engine));
+        const photos = doc.elements.filter((e) => e.kind === 'photo');
+        expect(photos.length).toBeGreaterThanOrEqual(n);
+        for (const p of photos) {
+          expect(p.w).toBeGreaterThan(0);
+          expect(p.h).toBeGreaterThan(0);
+          expect(p.x + p.w).toBeLessThanOrEqual(doc.page.width + 0.5);
+          expect(p.y + p.h).toBeLessThanOrEqual(doc.page.height + 0.5);
+        }
+        if (engine === 'spiral') {
+          for (let i = 0; i < photos.length; i++)
+            for (let j = i + 1; j < photos.length; j++) expect(overlap(photos[i], photos[j])).toBeLessThan(1);
+        }
+      }
+    }
+  });
+});
+
+describe('calendar dates', () => {
+  it('knows month lengths and leap years', () => {
+    expect(daysInMonth(2026, 2)).toBe(28);
+    expect(daysInMonth(2028, 2)).toBe(29);
+    expect(daysInMonth(2026, 11)).toBe(30);
+  });
+  it('lays out November 2026 starting on Monday', () => {
+    // 1 Nov 2026 is a Sunday.
+    const g = monthGrid(2026, 11, 1);
+    expect(g[0]).toEqual([0, 0, 0, 0, 0, 0, 1]);
+    expect(g[g.length - 1].filter(Boolean).pop()).toBe(30);
+    expect(g.every((w) => w.length === 7)).toBe(true);
+    const sun = monthGrid(2026, 11, 0);
+    expect(sun[0]).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+});

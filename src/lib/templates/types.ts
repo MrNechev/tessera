@@ -1,5 +1,6 @@
 import type {
   Background,
+  CalendarElement,
   Fill,
   LayoutSettings,
   Mask,
@@ -23,7 +24,9 @@ export type TemplateCategory =
   | 'seasonal'
   | 'friends'
   | 'school'
-  | 'pets';
+  | 'pets'
+  | 'calendar'
+  | 'letters';
 
 export const TEMPLATE_CATEGORIES: { id: TemplateCategory; name: string; emoji: string }[] = [
   { id: 'simple', name: 'Simple', emoji: '▦' },
@@ -39,6 +42,8 @@ export const TEMPLATE_CATEGORIES: { id: TemplateCategory; name: string; emoji: s
   { id: 'friends', name: 'Friends', emoji: '☺' },
   { id: 'school', name: 'Graduation', emoji: '✎' },
   { id: 'pets', name: 'Pets', emoji: '❦' },
+  { id: 'calendar', name: 'Calendars', emoji: '▤' },
+  { id: 'letters', name: 'Letters & numbers', emoji: 'A' },
 ];
 
 /** All coordinates are fractions of the page width (x, w) and height (y, h). */
@@ -110,7 +115,19 @@ export interface ShapeDef {
   below?: boolean;
 }
 
-export type ItemDef = TextDef | StickerDef | ShapeDef;
+export interface CalendarDef {
+  kind: 'calendar';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Month 1–12; omitted = the current month. Year omitted = this year. */
+  month?: number;
+  year?: number;
+  props?: Partial<Omit<CalendarElement, 'kind' | 'id' | 'x' | 'y' | 'w' | 'h'>>;
+}
+
+export type ItemDef = TextDef | StickerDef | ShapeDef | CalendarDef;
 
 export interface TemplateDef {
   id: string;

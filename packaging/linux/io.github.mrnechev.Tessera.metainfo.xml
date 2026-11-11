@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.2.0" date="2026-11-11" type="development">
+      <description>
+        <p>Photos arranged into letters, numbers and words; a golden-spiral layout; month calendars with marked days and photo-calendar templates; 25 new templates and a second sticker pack.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-05" type="development">
       <description>
         <p>First alpha release: collage editor with layouts, templates, text, stickers and shapes; image converter and compressor.</p>

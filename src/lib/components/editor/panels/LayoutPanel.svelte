@@ -1,6 +1,8 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight, Hand, Shuffle } from '@lucide/svelte';
   import { ENGINE_INFO, managedPhotos } from '../../../collage/layout';
+  import { LETTER_FONTS } from '../../../collage/engines/artistic';
+  import { ensureFont, fontInfo } from '../../../assets/fonts';
   import { editor } from '../../../editor/editor.svelte';
   import type { LayoutEngine, LayoutShape } from '../../../model/types';
   import ColorInput from '../../ui/ColorInput.svelte';
@@ -25,7 +27,25 @@
     shape: 'M20 27 9 17c-5-5-2-13 5-13 3 0 5 2 6 4 1-2 3-4 6-4 7 0 10 8 5 13z',
     scatter: 'M4 6l12-3 2 11-12 3zM20 9l13 2-2 12-13-2zM8 18l11 1-1 10-11-1z',
     ring: 'M20 9a6 6 0 1 1 0 12 6 6 0 0 1 0-12zM20 1a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM20 22a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM8 11a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM32 11a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z',
+    letters: 'M2 28L10 2h6l8 26h-6l-1.6-6H9.6L8 28zM11 17h4l-2-7zM26 2h6v20h6v6H26z',
+    spiral: 'M2 2h22v26H2zM26 2h12v16H26zM26 20h7v8h-7zM35 20h3v4h-3zM35 26h3v2h-3z',
   };
+
+  const letterFonts = LETTER_FONTS.map((id) => fontInfo(id));
+  let textDraft = $state('');
+  $effect.pre(() => {
+    textDraft = L.text ?? 'LOVE';
+  });
+  let textTimer: ReturnType<typeof setTimeout> | null = null;
+  function setText(v: string) {
+    textDraft = v;
+    if (textTimer) clearTimeout(textTimer);
+    textTimer = setTimeout(() => editor.setLayout({ text: v }, 'layout-text'), 350);
+  }
+  function setFont(id: string) {
+    const weight = fontInfo(id).weights.includes(800) ? 800 : Math.max(...fontInfo(id).weights);
+    void ensureFont(id, weight).then(() => editor.setLayout({ font: id, fontWeight: weight }));
+  }
 
   const shapes: { value: LayoutShape; label: string }[] = [
     { value: 'heart', label: '♥' },
@@ -75,6 +95,16 @@
     <p class="hint pad">Add photos from the <b>Photos</b> tab to fill the layout.</p>
   {:else}
     <p class="hint pad">Drag a photo inside its frame to re-centre it, or onto another photo to swap them.</p>
+  {/if}
+
+  {#if L.engine === 'letters'}
+    <Section title="Letters">
+      <input class="input" value={textDraft} placeholder="A word, a name, a number…" maxlength="24" oninput={(e) => setText((e.target as HTMLInputElement).value)} />
+      <p class="hint">Short and bold works best: a name, LOVE, MOM, 2027, a birthday number. Use several lines for longer words.</p>
+      <select class="select" value={L.font ?? 'montserrat'} onchange={(e) => setFont((e.target as HTMLSelectElement).value)}>
+        {#each letterFonts as f (f.id)}<option value={f.id} style:font-family="'{f.family}'">{f.family}</option>{/each}
+      </select>
+    </Section>
   {/if}
 
   {#if L.engine === 'shape'}
