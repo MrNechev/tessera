@@ -5333,7 +5333,7 @@ dependencies = [
 
 [[package]]
 name = "tessera"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5358,7 +5358,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-imaging"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "crc32fast",
  "fast_image_resize",
