@@ -52,6 +52,13 @@ export const api = {
   exportFinish: (job: number, path: string, format: string, quality: number, dpi: number, unique: boolean) =>
     invoke<ExportResult>('export_finish', { job, path, format, quality, dpi, unique }),
   exportCancel: (job: number) => invoke<void>('export_cancel', { job }),
+  pdfBegin: () => invoke<number>('pdf_begin'),
+  pdfAddPage: (pdf: number, job: number, quality: number, dpi: number) => invoke<void>('pdf_add_page', { pdf, job, quality, dpi }),
+  pdfFinish: (pdf: number, path: string, unique: boolean) => invoke<ExportResult>('pdf_finish', { pdf, path, unique }),
+  pdfCancel: (pdf: number) => invoke<void>('pdf_cancel', { pdf }),
+  /** Native print dialog sized to the page; 'unsupported' means use window.print(). */
+  printNative: (widthMm: number, heightMm: number, name: string) =>
+    invoke<'printing' | 'cancelled' | 'unsupported'>('print_native', { widthMm, heightMm, name }),
 
   convertImages: (files: string[], options: ConvertOptions) => invoke<JobResult[]>('convert_images', { files, options }),
   compressImages: (files: string[], options: CompressOptions) => invoke<JobResult[]>('compress_images', { files, options }),

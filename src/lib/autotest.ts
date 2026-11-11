@@ -8,8 +8,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api } from './api/backend';
 import type { ExportFormat } from './api/types';
 import { editor } from './editor/editor.svelte';
-import { exportDocument } from './editor/exporter';
-import { newBlank, newFromTemplate, newQuickCollage, openEditor } from './editor/session.svelte';
+import { exportDocument, exportPages } from './editor/exporter';
+import { buildPhotoBook, buildPhotoCalendar } from './editor/projects';
+import { newBlank, newFromTemplate, newQuickCollage, openEditor, printProject } from './editor/session.svelte';
 import { instantiateTemplate } from './templates/instantiate';
 import { createCalendar, createSticker } from './model/factory';
 import type { LayoutEngine, LayoutShape, PhotoElement, TextElement } from './model/types';
@@ -69,7 +70,7 @@ async function run(step: Step): Promise<void> {
     case 'settings':
       await app.saveSettings(s.settings as never);
       break;
-    case 'page':
+    case 'pageSize':
       editor.setPage(Number(s.width), Number(s.height), Number(s.dpi ?? 300), s.preset as string | undefined);
       break;
     case 'deselect':
@@ -202,6 +203,31 @@ async function run(step: Step): Promise<void> {
       await log(`batch ${JSON.stringify(res.map((r) => [r.status, r.output, r.width, r.height, r.message]))}`);
       break;
     }
+    case 'photobook': {
+      const imgs = await library.import(s.photos as string[]);
+      openEditor(buildPhotoBook(imgs, { presetId: 'scrapbook-12', orientation: 'landscape', perPage: 0, title: 'Our Story', subtitle: '2026', style: 'clean', pageNumbers: true, ...(s.options as object) }));
+      break;
+    }
+    case 'photocalendar': {
+      const imgs = await library.import(s.photos as string[]);
+      openEditor(buildPhotoCalendar(imgs, { year: 2027, firstDay: 1, title: 'Our Year', ...(s.options as object) }));
+      break;
+    }
+    case 'page':
+      editor.goToPage(Number(s.index));
+      break;
+    case 'addPage':
+      editor.addPage();
+      break;
+    case 'exportPages': {
+      const pages = (s.pages as number[] | undefined) ?? Array.from({ length: editor.pageCount }, (_, i) => i);
+      const res = await exportPages(editor.doc, pages, { path: s.path as string, format: (s.format as ExportFormat) ?? 'pdf', quality: Number(s.quality ?? 85), scale: Number(s.scale ?? 1) });
+      await log(`exportPages ${JSON.stringify(res.map((r) => [r.path, r.width, r.height, r.bytes]))}`);
+      break;
+    }
+    case 'print':
+      void printProject('all');
+      break;
     case 'log':
       await log(String(s.msg));
       break;

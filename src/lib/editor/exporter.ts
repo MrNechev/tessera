@@ -12,6 +12,7 @@ import { photoWindow } from '../render/frameGeometry';
 import { coverRect, renderDocument, type ImageEntry, type RenderResources } from '../render/renderer';
 import { ctx2d, makeCanvas } from '../render/patterns';
 import { stickers } from '../stores/stickers.svelte';
+import { pageDoc } from '../model/multipage';
 
 export interface ExportOptions {
   path: string;
@@ -27,7 +28,14 @@ export interface ExportOptions {
 
 const TILE = 2048;
 
-export async function exportDocument(doc: CollageDoc, opts: ExportOptions): Promise<ExportResult> {
+/**
+ * Render one page at full resolution into a backend export job and return
+ * its id. The caller finishes the job (single image) or adds it to a PDF.
+ */
+export async function renderToJob(
+  doc: CollageDoc,
+  opts: { scale?: number; onProgress?: (fraction: number, stage: string) => void; signal?: { cancelled: boolean } },
+): Promise<number> {
   const scale = opts.scale ?? 1;
   const W = Math.max(1, Math.round(doc.page.width * scale));
   const H = Math.max(1, Math.round(doc.page.height * scale));
@@ -117,8 +125,8 @@ export async function exportDocument(doc: CollageDoc, opts: ExportOptions): Prom
         progress(0.45 + (0.45 * n) / (cols * rows), `Rendering ${n} / ${cols * rows}`);
       }
     }
-    progress(0.92, 'Encoding');
-    return await api.exportFinish(job, opts.path, opts.format, opts.quality, Math.round(doc.page.dpi * scale), opts.unique ?? false);
+    progress(0.95, 'Encoding');
+    return job;
   } catch (e) {
     await api.exportCancel(job).catch(() => {});
     throw e;
@@ -126,6 +134,48 @@ export async function exportDocument(doc: CollageDoc, opts: ExportOptions): Prom
     for (const b of bitmaps.values()) (b.source as ImageBitmap).close?.();
     resources.adjustCache.clear();
   }
+}
+
+/** Export the document's active page to one image or PDF file. */
+export async function exportDocument(doc: CollageDoc, opts: ExportOptions): Promise<ExportResult> {
+  const scale = opts.scale ?? 1;
+  const job = await renderToJob(doc, opts);
+  return api.exportFinish(job, opts.path, opts.format, opts.quality, Math.round(doc.page.dpi * scale), opts.unique ?? false);
+}
+
+/**
+ * Export several pages. PDF → one multi-page file at `opts.path`; image
+ * formats → one file per page, numbered "<name> - page 01.jpg".
+ */
+export async function exportPages(doc: CollageDoc, pages: number[], opts: ExportOptions): Promise<ExportResult[]> {
+  const scale = opts.scale ?? 1;
+  const dpi = Math.round(doc.page.dpi * scale);
+  const progress = opts.onProgress ?? (() => {});
+  const per = (k: number) => (f: number, stage: string) => progress((k + f) / pages.length, `Page ${k + 1} of ${pages.length}: ${stage}`);
+  if (opts.format === 'pdf') {
+    const pdf = await api.pdfBegin();
+    try {
+      for (const [k, i] of pages.entries()) {
+        const job = await renderToJob(pageDoc(doc, i), { ...opts, onProgress: per(k) });
+        await api.pdfAddPage(pdf, job, opts.quality, dpi);
+      }
+      progress(0.98, 'Writing PDF');
+      return [await api.pdfFinish(pdf, opts.path, opts.unique ?? false)];
+    } catch (e) {
+      await api.pdfCancel(pdf).catch(() => {});
+      throw e;
+    }
+  }
+  const dot = opts.path.lastIndexOf('.');
+  const stem = dot > opts.path.lastIndexOf('/') ? opts.path.slice(0, dot) : opts.path;
+  const ext = dot > opts.path.lastIndexOf('/') ? opts.path.slice(dot) : `.${extensionFor(opts.format)}`;
+  const digits = Math.max(2, String(pages.length).length);
+  const out: ExportResult[] = [];
+  for (const [k, i] of pages.entries()) {
+    const path = pages.length === 1 ? opts.path : `${stem} - page ${String(i + 1).padStart(digits, '0')}${ext}`;
+    out.push(await exportDocument(pageDoc(doc, i), { ...opts, path, onProgress: per(k) }));
+  }
+  return out;
 }
 
 /** Small JPEG data URL used for project thumbnails on the home screen. */

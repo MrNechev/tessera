@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ArrowLeftRight, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, CalendarDays, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
+  import NewProjectDialog from '../components/NewProjectDialog.svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl, isTauri } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
@@ -19,6 +20,7 @@
   let gallery = $state(false);
   let chosen = $state<TemplateDef | null>(null);
   let useLibrary = $state(true);
+  let newProject = $state<'book' | 'calendar' | null>(null);
 
   const featured = ['letters-love', 'cal-photo-month', 'love-be-mine', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
     .map((id) => templateById(id))
@@ -82,6 +84,16 @@
         <span class="d">Free-form design with photos, text, stickers and shapes.</span>
       </button>
     </div>
+    <div class="projects">
+      <button class="project" onclick={() => (newProject = 'book')}>
+        <BookOpen size={20} />
+        <span><b>Photo book</b><span class="hint">Every photo on its own pages — cover, layouts, page numbers. Print it or save a PDF.</span></span>
+      </button>
+      <button class="project" onclick={() => (newProject = 'calendar')}>
+        <CalendarDays size={20} />
+        <span><b>Photo calendar</b><span class="hint">A cover and twelve months with your photos. Mark birthdays and holidays.</span></span>
+      </button>
+    </div>
     <div class="tools">
       <button class="tool" onclick={() => (app.view = 'convert')}><ArrowLeftRight size={18} /> <span><b>Convert</b> images between formats</span></button>
       <button class="tool" onclick={() => (app.view = 'compress')}><Minimize2 size={18} /> <span><b>Compress</b> images without visible loss</span></button>
@@ -142,6 +154,10 @@
   <Modal title="Templates" width={1100} onclose={() => (gallery = false)}>
     <TemplatesPanel wide onpick={pickTemplate} />
   </Modal>
+{/if}
+
+{#if newProject}
+  <NewProjectDialog kind={newProject} onclose={() => (newProject = null)} />
 {/if}
 
 {#if chosen}
@@ -233,6 +249,33 @@
   .d {
     color: var(--text-2);
     font-size: 12.5px;
+  }
+  .projects {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .project {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--accent);
+    cursor: pointer;
+    text-align: left;
+  }
+  .project:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+  }
+  .project > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--text);
   }
   .tools {
     display: flex;

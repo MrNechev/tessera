@@ -38,5 +38,11 @@ ureq = { version = "3", features = ["json"] }
 blake3 = "1"
 base64 = "0.22"
 filetime = "0.2"
+pdf-writer = "0.15"
 image = { version = "0.25.10", default-features = false }
 tessera-imaging = { path = "../crates/tessera-imaging" }
+
+# Native print dialog with the project's paper size (same versions Tauri uses).
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+webkit2gtk = "2.0"

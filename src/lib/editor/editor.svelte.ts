@@ -11,9 +11,24 @@ import type {
   TextElement,
 } from '../model/types';
 import { syncTextHeight } from '../render/text';
+import {
+  activePage,
+  allPages,
+  blankPage,
+  currentContent,
+  duplicatePage,
+  insertPages,
+  movePage,
+  pageCount,
+  removePage,
+  replaceCurrent,
+  switchPage,
+} from '../model/multipage';
+import type { PageContent } from '../model/types';
+import { fitToPage, resizeDoc } from './pageSize';
 import { AUTO_PLACEHOLDER } from '../templates/instantiate';
 import { library } from '../stores/library.svelte';
-import { boundsOf, center } from './geometry';
+import { boundsOf } from './geometry';
 
 export type Tool = 'photos' | 'layouts' | 'templates' | 'text' | 'stickers' | 'shapes' | 'calendar' | 'background' | 'page';
 
@@ -512,34 +527,73 @@ class Editor {
 
   /* ---------------------------------------------------------------- page */
 
-  /** Resize the page, scaling every element proportionally. */
+  /** Resize the page (every page of a multi-page project), scaling content proportionally. */
   setPage(width: number, height: number, dpi: number, preset?: string): void {
-    const old = this.doc.page;
-    const sx = width / old.width;
-    const sy = height / old.height;
-    const s = Math.sqrt(sx * sy);
-    let doc = produce(this.doc, (d) => {
-      d.page = { width, height, dpi, preset };
-      for (const e of d.elements) {
-        const c = center(e as CollageElement);
-        const w = e.w * s;
-        const h = e.h * s;
-        e.x = c.x * sx - w / 2;
-        e.y = c.y * sy - h / 2;
-        e.w = w;
-        e.h = h;
-        if (e.kind === 'text') {
-          e.size *= s;
-          if (e.stroke) e.stroke.width *= s;
-          syncTextHeight(e as TextElement);
-        }
-        if (e.kind === 'photo' && e.border) e.border.width *= s;
-        if (e.kind === 'shape' && e.stroke) e.stroke.width *= s;
-      }
-    });
-    if (doc.layout.engine !== 'none') doc = relayout(doc);
-    this.commit(doc);
+    this.commit(resizeDoc(this.doc, width, height, dpi, preset));
   }
+
+  /* --------------------------------------------------------------- pages */
+
+  get pageCount(): number {
+    return pageCount(this.doc);
+  }
+
+  get activePage(): number {
+    return activePage(this.doc);
+  }
+
+  private afterPageChange(): void {
+    this.selection = [];
+    this.cropTarget = null;
+    this.editingText = null;
+    this.layoutHistory = [];
+    this.recordLayout();
+  }
+
+  /** Show another page. Not an undo step by itself. */
+  goToPage(i: number): void {
+    if (i === this.activePage) return;
+    this.commit(switchPage(this.doc, i), { history: false });
+    this.afterPageChange();
+  }
+
+  addPage(content?: PageContent): void {
+    this.commit(insertPages(this.doc, [content ?? blankPage(currentContent(this.doc))]));
+    this.afterPageChange();
+  }
+
+  addPages(contents: PageContent[], after?: number): void {
+    if (!contents.length) return;
+    this.commit(insertPages(this.doc, contents, after));
+    this.afterPageChange();
+  }
+
+  duplicatePage(i = this.activePage): void {
+    this.commit(duplicatePage(this.doc, i));
+    this.afterPageChange();
+  }
+
+  removePage(i = this.activePage): void {
+    if (this.pageCount <= 1) return;
+    this.commit(removePage(this.doc, i));
+    this.afterPageChange();
+  }
+
+  movePage(from: number, to: number): void {
+    this.commit(movePage(this.doc, from, to));
+  }
+
+  /** Replace the content of the active page (e.g. with a template), fitted to the page size. */
+  replaceCurrentPage(source: CollageDoc): void {
+    const fitted = fitToPage(source, this.doc.page);
+    const doc = replaceCurrent(
+      { ...this.doc, assets: { ...this.doc.assets, ...fitted.assets } },
+      { background: fitted.background, frame: fitted.frame, layout: fitted.layout, elements: fitted.elements },
+    );
+    this.commit(doc);
+    this.afterPageChange();
+  }
+
 
   /* ---------------------------------------------------------------- text */
 
@@ -567,8 +621,10 @@ class Editor {
   /** All asset ids referenced by the document. */
   usedAssets(): Set<string> {
     const out = new Set<string>();
-    for (const e of this.doc.elements) if (e.kind === 'photo' && e.asset) out.add(e.asset);
-    if (this.doc.background.image) out.add(this.doc.background.image.asset);
+    for (const p of allPages(this.doc)) {
+      for (const e of p.elements) if (e.kind === 'photo' && e.asset) out.add(e.asset);
+      if (p.background.image) out.add(p.background.image.asset);
+    }
     return out;
   }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { editor } from '../../../editor/editor.svelte';
-  import { newFromTemplate } from '../../../editor/session.svelte';
+  import { applyTemplateToPage, newFromTemplate } from '../../../editor/session.svelte';
   import { library } from '../../../stores/library.svelte';
   import { TEMPLATES } from '../../../templates/catalog';
   import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateDef } from '../../../templates/types';
@@ -56,7 +56,10 @@
 {#if confirm}
   {@const t = confirm}
   <Modal title="Start from “{t.name}”?" onclose={() => (confirm = null)} width={440}>
-    <p>This opens the template as a new collage. Your current collage is saved automatically and stays in <b>Recent</b> on the home screen.</p>
+    <p>
+      Use it on <b>this page</b> (replacing its content{editor.pageCount > 1 ? `, page ${editor.activePage + 1} of ${editor.pageCount}` : ''}),
+      or start a <b>new project</b> — your current one is saved automatically and stays in <b>Recent</b>.
+    </p>
     {#if library.items.length}
       <Toggle
         checked={useLibrary}
@@ -68,11 +71,18 @@
     {#snippet footer()}
       <button class="btn" onclick={() => (confirm = null)}>Cancel</button>
       <button
+        class="btn"
+        onclick={() => {
+          applyTemplateToPage(t, useLibrary);
+          confirm = null;
+        }}>Use on this page</button
+      >
+      <button
         class="btn primary"
         onclick={() => {
           newFromTemplate(t, useLibrary);
           confirm = null;
-        }}>Use template</button
+        }}>New project</button
       >
     {/snippet}
   </Modal>
