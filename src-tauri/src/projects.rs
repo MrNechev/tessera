@@ -63,32 +63,46 @@ fn summarize(path: &Path) -> Option<ProjectSummary> {
     })
 }
 
-#[tauri::command]
-pub fn list_projects(app: AppHandle) -> CmdResult<Vec<ProjectSummary>> {
-    let dir = paths::projects(&app);
-    let mut out: Vec<ProjectSummary> = fs::read_dir(&dir)
-        .map_err(err)?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("tessera"))
-        .filter_map(|p| summarize(&p))
-        .collect();
-    out.sort_by(|a, b| b.modified.cmp(&a.modified));
-    Ok(out)
+/// Run blocking file work off the main (UI) thread: synchronous Tauri
+/// commands run on it, and saving happens on every autosave.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> CmdResult<T> + Send + 'static,
+) -> CmdResult<T> {
+    tauri::async_runtime::spawn_blocking(f).await.map_err(err)?
 }
 
 #[tauri::command]
-pub fn load_project(path: String) -> CmdResult<String> {
-    let p = paths::expand(&path);
-    let meta = fs::metadata(&p).map_err(|e| format!("{}: {e}", p.display()))?;
-    if meta.len() > MAX_PROJECT_BYTES {
-        return Err("Project file is too large".into());
-    }
-    fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))
+pub async fn list_projects(app: AppHandle) -> CmdResult<Vec<ProjectSummary>> {
+    blocking(move || {
+        let dir = paths::projects(&app);
+        let mut out: Vec<ProjectSummary> = fs::read_dir(&dir)
+            .map_err(err)?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("tessera"))
+            .filter_map(|p| summarize(&p))
+            .collect();
+        out.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(out)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn save_project(
+pub async fn load_project(path: String) -> CmdResult<String> {
+    blocking(move || {
+        let p = paths::expand(&path);
+        let meta = fs::metadata(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+        if meta.len() > MAX_PROJECT_BYTES {
+            return Err("Project file is too large".into());
+        }
+        fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn save_project(
     app: AppHandle,
     id: String,
     json: String,
@@ -97,36 +111,45 @@ pub fn save_project(
     if !valid_id(&id) {
         return Err("invalid project id".into());
     }
-    // Make sure it's a JSON document before writing anything.
-    serde_json::from_str::<serde_json::Value>(&json)
-        .map_err(|e| format!("invalid project data: {e}"))?;
-    let path = paths::projects(&app).join(format!("{id}.tessera"));
-    paths::write_atomic(&path, json.as_bytes()).map_err(err)?;
-    if let Some(data_url) = thumbnail {
-        if let Some((_, b64)) = data_url.split_once(";base64,") {
-            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
-                let _ = paths::write_atomic(&path.with_extension("jpg"), &bytes);
+    blocking(move || {
+        // Make sure it's a JSON document before writing anything.
+        serde_json::from_str::<serde_json::Value>(&json)
+            .map_err(|e| format!("invalid project data: {e}"))?;
+        let path = paths::projects(&app).join(format!("{id}.tessera"));
+        paths::write_atomic(&path, json.as_bytes()).map_err(err)?;
+        if let Some(data_url) = thumbnail {
+            if let Some((_, b64)) = data_url.split_once(";base64,") {
+                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                    let _ = paths::write_atomic(&path.with_extension("jpg"), &bytes);
+                }
             }
         }
-    }
-    summarize(&path).ok_or_else(|| "could not read back project".into())
+        summarize(&path).ok_or_else(|| "could not read back project".into())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn save_project_file(path: String, json: String) -> CmdResult<()> {
-    serde_json::from_str::<serde_json::Value>(&json)
-        .map_err(|e| format!("invalid project data: {e}"))?;
-    let p = paths::expand(&path);
-    paths::write_atomic(&p, json.as_bytes())
-        .map_err(|e| format!("Could not save {}: {e}", p.display()))
+pub async fn save_project_file(path: String, json: String) -> CmdResult<()> {
+    blocking(move || {
+        serde_json::from_str::<serde_json::Value>(&json)
+            .map_err(|e| format!("invalid project data: {e}"))?;
+        let p = paths::expand(&path);
+        paths::write_atomic(&p, json.as_bytes())
+            .map_err(|e| format!("Could not save {}: {e}", p.display()))
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn delete_project(app: AppHandle, id: String) -> CmdResult<()> {
+pub async fn delete_project(app: AppHandle, id: String) -> CmdResult<()> {
     if !valid_id(&id) {
         return Err("invalid project id".into());
     }
-    let base = paths::projects(&app).join(format!("{id}.tessera"));
-    let _ = fs::remove_file(base.with_extension("jpg"));
-    fs::remove_file(&base).map_err(err)
+    blocking(move || {
+        let base = paths::projects(&app).join(format!("{id}.tessera"));
+        let _ = fs::remove_file(base.with_extension("jpg"));
+        fs::remove_file(&base).map_err(err)
+    })
+    .await
 }

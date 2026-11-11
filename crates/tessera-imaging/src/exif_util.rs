@@ -90,6 +90,9 @@ pub(crate) fn read_orientation(exif: &[u8]) -> u16 {
     .unwrap_or(1)
 }
 
+/// Write a SHORT/LONG scalar at `e.value_pos`. Returns false (and leaves
+/// `buf` untouched) for other types or when the value lies outside `buf`
+/// (truncated EXIF).
 fn write_scalar(buf: &mut [u8], le: bool, e: Entry, value: u32) -> bool {
     match e.typ {
         3 if value <= u16::MAX as u32 => {
@@ -98,8 +101,13 @@ fn write_scalar(buf: &mut [u8], le: bool, e: Entry, value: u32) -> bool {
             } else {
                 (value as u16).to_be_bytes()
             };
-            buf[e.value_pos..e.value_pos + 2].copy_from_slice(&b);
-            true
+            match buf.get_mut(e.value_pos..e.value_pos + 2) {
+                Some(dst) => {
+                    dst.copy_from_slice(&b);
+                    true
+                }
+                None => false,
+            }
         }
         4 => {
             let b = if le {
@@ -107,8 +115,13 @@ fn write_scalar(buf: &mut [u8], le: bool, e: Entry, value: u32) -> bool {
             } else {
                 value.to_be_bytes()
             };
-            buf[e.value_pos..e.value_pos + 4].copy_from_slice(&b);
-            true
+            match buf.get_mut(e.value_pos..e.value_pos + 4) {
+                Some(dst) => {
+                    dst.copy_from_slice(&b);
+                    true
+                }
+                None => false,
+            }
         }
         _ => false,
     }
@@ -499,4 +512,70 @@ pub(crate) fn xmp_reset_orientation(xmp: &[u8]) -> Vec<u8> {
 
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// IFD0 with a single Orientation entry whose value field is cut off.
+    fn truncated(le: bool, typ: u16) -> Vec<u8> {
+        let u16b = |v: u16| if le { v.to_le_bytes() } else { v.to_be_bytes() };
+        let u32b = |v: u32| if le { v.to_le_bytes() } else { v.to_be_bytes() };
+        let mut v = if le {
+            b"II*\0".to_vec()
+        } else {
+            b"MM\0*".to_vec()
+        };
+        v.extend_from_slice(&u32b(8));
+        v.extend_from_slice(&u16b(1));
+        v.extend_from_slice(&u16b(0x0112));
+        v.extend_from_slice(&u16b(typ));
+        v.extend_from_slice(&u32b(1));
+        // Value bytes missing: value_pos == v.len().
+        v
+    }
+
+    #[test]
+    fn patching_truncated_exif_does_not_panic() {
+        for le in [true, false] {
+            for typ in [3u16, 4] {
+                let mut full = truncated(le, typ);
+                let orig = full.clone();
+                patch_in_place(&mut full, Some(1), Some((10, 20)));
+                assert_eq!(full, orig);
+                // One byte of a SHORT/LONG value present.
+                let mut partial = truncated(le, typ);
+                partial.push(6);
+                let orig = partial.clone();
+                patch_in_place(&mut partial, Some(1), None);
+                assert_eq!(partial, orig);
+            }
+        }
+    }
+
+    #[test]
+    fn write_scalar_checks_bounds() {
+        let e = Entry {
+            typ: 3,
+            count: 1,
+            value_pos: 3,
+        };
+        let mut buf = [0u8; 4];
+        assert!(!write_scalar(&mut buf, true, e, 6));
+        let mut buf = [0u8; 5];
+        assert!(write_scalar(&mut buf, true, e, 6));
+        assert_eq!(buf, [0, 0, 0, 6, 0]);
+        let e = Entry { typ: 4, ..e };
+        let mut buf = [0u8; 6];
+        assert!(!write_scalar(&mut buf, false, e, 6));
+    }
+
+    #[test]
+    fn filtering_truncated_exif_does_not_panic() {
+        let block = truncated(true, 3);
+        let policy = crate::MetadataPolicy::keep_all();
+        let _ = crate::filter_exif(&block, &policy);
+        let _ = crate::filter_exif_sized(&block, &policy, 4, 4);
+    }
 }

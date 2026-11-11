@@ -72,6 +72,12 @@ fn header<'a>(req: &'a Request<'_>, name: &str) -> CmdResult<&'a str> {
         .ok_or_else(|| format!("missing header {name}"))
 }
 
+/// Whether the tile `(x, y, w, h)` lies inside an `iw` × `ih` image (no
+/// overflow on malformed headers).
+fn tile_fits(x: u32, y: u32, w: u32, h: u32, iw: u32, ih: u32) -> bool {
+    x.checked_add(w).is_some_and(|r| r <= iw) && y.checked_add(h).is_some_and(|b| b <= ih)
+}
+
 #[tauri::command]
 pub fn export_tile(state: State<'_, AppState>, request: Request<'_>) -> CmdResult<()> {
     let job: u32 = header(&request, "x-job")?.parse().map_err(err)?;
@@ -86,17 +92,17 @@ pub fn export_tile(state: State<'_, AppState>, request: Request<'_>) -> CmdResul
     let InvokeBody::Raw(data) = request.body() else {
         return Err("tile must be sent as raw bytes".into());
     };
-    if data.len() != (w as usize) * (h as usize) * 4 {
+    let expected = u64::from(w) * u64::from(h) * 4;
+    if data.len() as u64 != expected {
         return Err(format!(
-            "tile has {} bytes, expected {}",
-            data.len(),
-            w * h * 4
+            "tile has {} bytes, expected {expected}",
+            data.len()
         ));
     }
     let mut jobs = state.exports.lock().map_err(err)?;
     let job = jobs.jobs.get_mut(&job).ok_or("unknown export job")?;
     let (iw, ih) = job.image.dimensions();
-    if x + w > iw || y + h > ih {
+    if !tile_fits(x, y, w, h, iw, ih) {
         return Err("tile outside the image".into());
     }
     let stride = iw as usize * 4;
@@ -326,6 +332,15 @@ pub async fn pdf_finish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tile_bounds_do_not_overflow() {
+        assert!(tile_fits(0, 0, 10, 10, 10, 10));
+        assert!(!tile_fits(1, 0, 10, 10, 10, 10));
+        assert!(!tile_fits(u32::MAX, 0, 2, 1, 10, 10));
+        assert!(!tile_fits(0, u32::MAX, 1, 2, 10, 10));
+        assert!(!tile_fits(5, 5, u32::MAX, u32::MAX, 10, 10));
+    }
 
     #[test]
     fn multi_page_pdf_has_every_page() {

@@ -416,7 +416,9 @@ fn container_metadata(bytes: &[u8], f: ImageFormat) -> Result<(RawMetadata, u32,
 
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-fn atomic_write(dst: &Path, bytes: &[u8]) -> Result<()> {
+/// Write `bytes` to a uniquely named temporary file next to `dst`, then
+/// rename it into place: readers never see a partially written file.
+pub(crate) fn atomic_write(dst: &Path, bytes: &[u8]) -> Result<()> {
     let dir = dst
         .parent()
         .filter(|p| !p.as_os_str().is_empty())

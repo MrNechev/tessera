@@ -59,8 +59,13 @@ pub fn load_settings(app: AppHandle) -> Settings {
     s
 }
 
+/// Async so the fsync in `write_atomic` doesn't run on the main thread.
 #[tauri::command]
-pub fn save_settings(app: AppHandle, settings: Settings) -> CmdResult<()> {
+pub async fn save_settings(app: AppHandle, settings: Settings) -> CmdResult<()> {
     let json = serde_json::to_vec_pretty(&settings).map_err(err)?;
-    paths::write_atomic(&file(&app), &json).map_err(|e| format!("Could not save settings: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        paths::write_atomic(&file(&app), &json).map_err(|e| format!("Could not save settings: {e}"))
+    })
+    .await
+    .map_err(err)?
 }
