@@ -172,12 +172,17 @@ The Flatpak is built from [`packaging/flatpak`](packaging/flatpak). See
 
 ## Roadmap
 
-- In-app updates for the AppImage, and a Flathub listing
-- RAW camera formats, colour management (ICC conversion)
-- More templates, stickers and layouts (letters & numbers, calendars)
-- Batch watermark, resize and rename tools
-- Printing and multi-page projects (photo books)
-- Translations, Windows and macOS builds
+Priorities for the next releases, in order:
+
+1. **More templates, stickers and layouts** — photos arranged into letters,
+   numbers and words; photo calendars; new occasions and sticker sets.
+2. **RAW camera formats and colour management** (ICC conversion).
+3. **Batch watermark, resize and rename tools.**
+4. **Printing and multi-page projects** (photo books, calendars).
+5. Bug fixing, polish and performance across all of the above.
+
+Planned for later: in-app updates for the AppImage, a Flathub listing,
+translations, and Windows and macOS builds.
 
 Ideas and bug reports are very welcome — [open an issue](https://github.com/MrNechev/tessera/issues).
 
