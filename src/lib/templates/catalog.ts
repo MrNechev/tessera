@@ -915,7 +915,7 @@ export const TEMPLATES: TemplateDef[] = [
     photoStyle: { border: { width: 0.005, color: '#ffffff' } },
     previewPhotos: 7,
     items: [
-      text('CHAMPIONS', 0.15, 0.3, 0.28, 'bebas-neue', 0.11, '#ffffff', { letterSpacing: 0.05 }),
+      text('CHAMPIONS', 0.15, 0.3, 0.27, 'bebas-neue', 0.085, '#ffffff', { letterSpacing: 0.04 }),
       text('SEASON 2026', 0.15, 0.42, 0.26, 'josefin-sans', 0.03, '#ffc145', { letterSpacing: 0.4, weight: 700 }),
       sticker('trophy', 0.15, 0.68, 0.18),
       sticker('soccer-ball', 0.06, 0.9, 0.09),
