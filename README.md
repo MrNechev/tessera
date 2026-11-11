@@ -57,7 +57,7 @@ Free and open source. No accounts, no watermarks, no paywall.
   shadow, label backgrounds and **curved text**.
 - **Calendars** — add any month with marked birthdays and holidays, or all
   twelve months at once, in four styles; photo-calendar templates included.
-- **270 original stickers** — hearts, Christmas, New Year, birthday, Halloween,
+- **259 original stickers** — hearts, Christmas, New Year, birthday, Halloween,
   Easter, wedding, baby, graduation, travel, nature, pets, emoji-style faces,
   scrapbook doodles, gold balloon numbers, sports, music, food, space, kids,
   flowers, seasons and animals.
