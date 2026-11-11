@@ -2,16 +2,7 @@
   import { LoaderCircle, Minimize2, Scan } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl, onProgress } from '../api/backend';
-  import {
-    defaultMetadataPolicy,
-    type ColorMode,
-  type CompressLevel,
-    type CompressOptions,
-    type CompressPreviewInfo,
-    type ImageFormat,
-    type MetadataPolicy,
-    type OutputSpec,
-  } from '../api/types';
+  import type { CompressLevel, CompressOptions, CompressPreviewInfo, MetadataPolicy, OutputSpec } from '../api/types';
   import FileQueue from '../components/tools/FileQueue.svelte';
   import MetadataOptions from '../components/tools/MetadataOptions.svelte';
   import OutputOptions from '../components/tools/OutputOptions.svelte';
@@ -19,7 +10,7 @@
   import Section from '../components/ui/Section.svelte';
   import Slider from '../components/ui/Slider.svelte';
   import Toggle from '../components/ui/Toggle.svelte';
-  import { compressQueue as queue, formatBytes } from '../stores/batch.svelte';
+  import { busyElsewhere, compressOptions as o, compressQueue as queue, formatBytes, isNum, reportResults } from '../stores/batch.svelte';
   import { toasts } from '../stores/toasts.svelte';
 
   type LevelId = CompressLevel['kind'];
@@ -32,51 +23,66 @@
     { id: 'targetSize', name: 'Target file size', desc: 'Fit under a size limit (e.g. for email or forms).' },
   ];
 
-  let level = $state<LevelId>('visuallyLossless');
-  let quality = $state(80);
-  let targetKb = $state(500);
-  let format = $state<ImageFormat | 'keep'>('keep');
-  let longEdge = $state(0);
-  let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
-  let output = $state<OutputSpec>({ directory: null, suffix: '-compressed', conflict: 'rename' });
-  let keepIfLarger = $state(true);
-  let color = $state<ColorMode>('keep');
+  /** Smallest / largest accepted target size, in KB. */
+  const MIN_KB = 10;
+  const MAX_KB = 1024 * 1024;
 
   let selected = $state<string | null>(null);
   let preview = $state<CompressPreviewInfo | null>(null);
   let previewing = $state(false);
   let split = $state(50);
   let actual = $state(false);
+  /** Bumped by every preview request; only the latest one may update the view. */
+  let previewSeq = 0;
+
+  const other = $derived(busyElsewhere(queue));
+  const invalid = $derived(o.level === 'targetSize' && !isNum(o.targetKb) ? 'Enter a maximum file size.' : null);
+  const blocked = $derived(other ? `Another job is running in ${other.label}.` : invalid);
 
   function options(): CompressOptions {
+    const kb = isNum(o.targetKb) ? Math.min(MAX_KB, Math.max(MIN_KB, o.targetKb)) : 500;
     const lv: CompressLevel =
-      level === 'custom' ? { kind: 'custom', quality } : level === 'targetSize' ? { kind: 'targetSize', bytes: Math.round(targetKb * 1024) } : ({ kind: level } as CompressLevel);
+      o.level === 'custom'
+        ? { kind: 'custom', quality: o.quality }
+        : o.level === 'targetSize'
+          ? { kind: 'targetSize', bytes: Math.round(kb * 1024) }
+          : ({ kind: o.level } as CompressLevel);
     return {
       level: lv,
-      format: format === 'keep' ? { kind: 'keep' } : { kind: 'to', format },
-      resize: longEdge > 0 ? { kind: 'longEdge', pixels: longEdge } : { kind: 'none' },
-      metadata: $state.snapshot(metadata) as MetadataPolicy,
-      output: $state.snapshot(output) as OutputSpec,
-      keepIfLarger,
-      color,
+      format: o.format === 'keep' ? { kind: 'keep' } : { kind: 'to', format: o.format },
+      resize: o.longEdge > 0 ? { kind: 'longEdge', pixels: o.longEdge } : { kind: 'none' },
+      metadata: $state.snapshot(o.metadata) as MetadataPolicy,
+      output: $state.snapshot(o.output) as OutputSpec,
+      keepIfLarger: o.keepIfLarger,
+      color: o.color,
     };
   }
 
   async function runPreview(path: string) {
+    const seq = ++previewSeq;
+    const opts = options();
     selected = path;
     previewing = true;
     try {
-      preview = await api.compressPreview(path, options());
+      const res = await api.compressPreview(path, opts);
+      if (seq !== previewSeq) return; // another file was selected meanwhile
+      if (JSON.stringify(options()) !== JSON.stringify(opts)) {
+        // The options changed while this was running: show the current ones instead.
+        void runPreview(path);
+        return;
+      }
+      preview = res;
     } catch (e) {
+      if (seq !== previewSeq) return;
       preview = null;
       toasts.push({ kind: 'error', title: 'Preview failed', message: String(e) });
     } finally {
-      previewing = false;
+      if (seq === previewSeq) previewing = false;
     }
   }
 
   async function run() {
-    if (!queue.files.length || queue.running) return;
+    if (!queue.files.length || queue.running || blocked) return;
     queue.running = true;
     queue.results = [];
     queue.progress = { done: 0, total: queue.files.length, current: null };
@@ -88,11 +94,11 @@
       const ok = queue.results.filter((r) => r.status === 'done');
       const before = ok.reduce((s, r) => s + r.inputBytes, 0);
       const after = ok.reduce((s, r) => s + r.outputBytes, 0);
-      toasts.push({
-        kind: 'success',
-        title: 'Compression finished',
-        message: `${ok.length} image${ok.length === 1 ? '' : 's'} · saved ${formatBytes(Math.max(0, before - after))}`,
-      });
+      reportResults(
+        queue.results,
+        { verb: 'compressed', title: 'Compression finished', failTitle: 'Compression failed' },
+        ` · saved ${formatBytes(Math.max(0, before - after))}`,
+      );
     } catch (e) {
       toasts.push({ kind: 'error', title: 'Compression failed', message: String(e) });
     } finally {
@@ -150,20 +156,20 @@
     <Section title="Compression">
       <div class="levels">
         {#each LEVELS as l (l.id)}
-          <label class="level" class:on={level === l.id}>
-            <input type="radio" name="level" value={l.id} bind:group={level} />
+          <label class="level" class:on={o.level === l.id}>
+            <input type="radio" name="level" value={l.id} bind:group={o.level} />
             <span class="lname">{l.name}</span>
             <span class="hint">{l.desc}</span>
           </label>
         {/each}
       </div>
-      {#if level === 'custom'}
-        <Slider label="Quality" value={quality} min={10} max={100} onchange={(v) => (quality = Math.round(v))} />
-      {:else if level === 'targetSize'}
+      {#if o.level === 'custom'}
+        <Slider label="Quality" value={o.quality} min={10} max={100} onchange={(v) => (o.quality = Math.round(v))} />
+      {:else if o.level === 'targetSize'}
         <div class="row">
           <span class="label">Maximum size</span>
           <span class="spacer"></span>
-          <input class="input" type="number" min="10" bind:value={targetKb} style="width:100px" /> KB
+          <input class="input" type="number" min="10" bind:value={o.targetKb} style="width:100px" /> KB
         </div>
       {/if}
     </Section>
@@ -172,7 +178,7 @@
       <div class="row">
         <span class="label">Output format</span>
         <span class="spacer"></span>
-        <select class="select" bind:value={format}>
+        <select class="select" bind:value={o.format}>
           <option value="keep">Same as original</option>
           <option value="jpeg">JPEG</option>
           <option value="webp">WebP (smaller)</option>
@@ -183,7 +189,7 @@
       <div class="row">
         <span class="label">Longest side</span>
         <span class="spacer"></span>
-        <select class="select" bind:value={longEdge}>
+        <select class="select" bind:value={o.longEdge}>
           <option value={0}>Original size</option>
           <option value={4096}>4096 px</option>
           <option value={3000}>3000 px</option>
@@ -192,16 +198,16 @@
           <option value={1280}>1280 px</option>
         </select>
       </div>
-      <Toggle checked={keepIfLarger} label="Keep the original if it can’t be made smaller" onchange={(v) => (keepIfLarger = v)} />
-      <Toggle checked={color === 'srgb'} label="Convert wide-gamut colours to sRGB" hint="Display P3 / Adobe RGB → sRGB. Off keeps the profile." onchange={(v) => (color = v ? 'srgb' : 'keep')} />
+      <Toggle checked={o.keepIfLarger} label="Keep the original if it can’t be made smaller" onchange={(v) => (o.keepIfLarger = v)} />
+      <Toggle checked={o.color === 'srgb'} label="Convert wide-gamut colours to sRGB" hint="Display P3 / Adobe RGB → sRGB. Off keeps the profile." onchange={(v) => (o.color = v ? 'srgb' : 'keep')} />
     </Section>
 
     <Section title="Metadata" open={false}>
-      <MetadataOptions value={metadata} onchange={(v) => (metadata = v)} />
+      <MetadataOptions value={o.metadata} onchange={(v) => (o.metadata = v)} />
     </Section>
 
     <Section title="Save to">
-      <OutputOptions value={output} onchange={(v) => (output = v)} />
+      <OutputOptions value={o.output} onchange={(v) => (o.output = v)} />
     </Section>
 
     <div class="go">
@@ -213,7 +219,8 @@
         {#if selected}
           <button class="btn block" onclick={() => selected && void runPreview(selected)}>Update preview</button>
         {/if}
-        <button class="btn primary large block" disabled={!queue.files.length} onclick={run}>
+        {#if blocked && queue.files.length}<p class="hint">{blocked}</p>{/if}
+        <button class="btn primary large block" disabled={!queue.files.length || queue.running || !!blocked} onclick={run}>
           <Minimize2 size={16} /> Compress {queue.files.length || ''} image{queue.files.length === 1 ? '' : 's'}
         </button>
       {/if}
@@ -355,6 +362,9 @@
   }
   .lname {
     font-weight: 600;
+  }
+  .go p {
+    margin: 0;
   }
   .go {
     padding: 16px 14px;

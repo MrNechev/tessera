@@ -2,7 +2,7 @@
   import { ArrowLeftRight, LoaderCircle } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, onProgress } from '../api/backend';
-  import { defaultMetadataPolicy, type ColorMode, type ConvertOptions, type ImageFormat, type MetadataPolicy, type OutputSpec } from '../api/types';
+  import type { ConvertOptions, MetadataPolicy, OutputSpec } from '../api/types';
   import FileQueue from '../components/tools/FileQueue.svelte';
   import MetadataCard from '../components/tools/MetadataCard.svelte';
   import MetadataOptions from '../components/tools/MetadataOptions.svelte';
@@ -13,38 +13,36 @@
   import Segmented from '../components/ui/Segmented.svelte';
   import Slider from '../components/ui/Slider.svelte';
   import { app } from '../stores/app.svelte';
-  import { convertQueue as queue } from '../stores/batch.svelte';
+  import { busyElsewhere, convertOptions as o, convertQueue as queue, isNum, reportResults, toInt } from '../stores/batch.svelte';
   import { toasts } from '../stores/toasts.svelte';
   import { parseHex } from '../render/fills';
 
   const encodable = $derived(app.info?.formats.filter((f) => f.canEncode) ?? []);
 
-  let target = $state<ImageFormat | 'keep'>('jpeg');
-  let qualityMode = $state<'original' | 'reduce'>('original');
-  let reduce = $state(20);
-  let resizeMode = $state<'none' | 'percent' | 'longEdge'>('none');
-  let percent = $state(50);
-  let longEdge = $state(2048);
-  let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
-  let output = $state<OutputSpec>({ directory: null, suffix: '', conflict: 'rename' });
-  let bg = $state('#ffffff');
-  let color = $state<ColorMode>('srgb');
-
   let inspected = $state<string | null>(null);
 
-  const cap = $derived(target === 'keep' ? null : encodable.find((f) => f.format === target));
+  const cap = $derived(o.target === 'keep' ? null : encodable.find((f) => f.format === o.target));
+
+  const other = $derived(busyElsewhere(queue));
+  const invalid = $derived(o.resizeMode === 'longEdge' && !isNum(o.longEdge) ? 'Enter a size for the longest side.' : null);
+  const blocked = $derived(other ? `Another job is running in ${other.label}.` : invalid);
 
   async function run() {
-    if (!queue.files.length || queue.running) return;
-    const rgb = parseHex(bg) ?? [255, 255, 255];
+    if (!queue.files.length || queue.running || blocked) return;
+    const rgb = parseHex(o.bg) ?? [255, 255, 255];
     const options: ConvertOptions = {
-      format: target === 'keep' ? { kind: 'keep' } : { kind: 'to', format: target },
-      quality: qualityMode === 'original' ? { kind: 'original' } : { kind: 'reduce', percent: reduce },
-      resize: resizeMode === 'none' ? { kind: 'none' } : resizeMode === 'percent' ? { kind: 'percent', percent } : { kind: 'longEdge', pixels: longEdge },
-      metadata: $state.snapshot(metadata) as MetadataPolicy,
-      output: $state.snapshot(output) as OutputSpec,
+      format: o.target === 'keep' ? { kind: 'keep' } : { kind: 'to', format: o.target },
+      quality: o.qualityMode === 'original' ? { kind: 'original' } : { kind: 'reduce', percent: o.reduce },
+      resize:
+        o.resizeMode === 'none'
+          ? { kind: 'none' }
+          : o.resizeMode === 'percent'
+            ? { kind: 'percent', percent: o.percent }
+            : { kind: 'longEdge', pixels: toInt(o.longEdge, 16, 20000, 2048) },
+      metadata: $state.snapshot(o.metadata) as MetadataPolicy,
+      output: $state.snapshot(o.output) as OutputSpec,
       background: rgb,
-      color,
+      color: o.color,
     };
     queue.running = true;
     queue.results = [];
@@ -54,12 +52,7 @@
         queue.files.map((f) => f.path),
         options,
       );
-      const failed = queue.results.filter((r) => r.status === 'failed').length;
-      toasts.push({
-        kind: failed ? 'warning' : 'success',
-        title: failed ? `Converted with ${failed} error${failed > 1 ? 's' : ''}` : 'Conversion finished',
-        message: `${queue.results.filter((r) => r.status === 'done').length} of ${queue.results.length} images converted.`,
-      });
+      reportResults(queue.results, { verb: 'converted', title: 'Conversion finished', failTitle: 'Conversion failed' });
     } catch (e) {
       toasts.push({ kind: 'error', title: 'Conversion failed', message: String(e) });
     } finally {
@@ -91,7 +84,7 @@
 
   <aside class="options card">
     <Section title="Convert to">
-      <select class="select" bind:value={target}>
+      <select class="select" bind:value={o.target}>
         <option value="keep">Keep original format</option>
         {#each encodable as f (f.format)}<option value={f.format}>{f.label} (.{f.extension})</option>{/each}
       </select>
@@ -102,7 +95,7 @@
         </p>
       {/if}
       {#if cap && !cap.alpha}
-        <ColorInput label="Fill transparent areas with" value={bg} onchange={(c) => (bg = c)} />
+        <ColorInput label="Fill transparent areas with" value={o.bg} onchange={(c) => (o.bg = c)} />
       {/if}
     </Section>
 
@@ -112,14 +105,14 @@
           { value: 'original', label: 'Keep 100%' },
           { value: 'reduce', label: 'Reduce' },
         ]}
-        value={qualityMode}
-        onchange={(v) => (qualityMode = v)}
+        value={o.qualityMode}
+        onchange={(v) => (o.qualityMode = v)}
       />
-      {#if qualityMode === 'original'}
+      {#if o.qualityMode === 'original'}
         <p class="hint">Lossless wherever the format allows. JPEG → JPEG copies the image data untouched.</p>
       {:else}
-        <Slider label="Lower quality by" value={reduce} min={1} max={90} unit="%" onchange={(v) => (reduce = Math.round(v))} />
-        <p class="hint">Encoder quality {100 - reduce}. Smaller files, slight loss of detail.</p>
+        <Slider label="Lower quality by" value={o.reduce} min={1} max={90} unit="%" onchange={(v) => (o.reduce = Math.round(v))} />
+        <p class="hint">Encoder quality {100 - o.reduce}. Smaller files, slight loss of detail.</p>
       {/if}
     </Section>
 
@@ -130,16 +123,16 @@
           { value: 'percent', label: 'Percent' },
           { value: 'longEdge', label: 'Long edge' },
         ]}
-        value={resizeMode}
-        onchange={(v) => (resizeMode = v)}
+        value={o.resizeMode}
+        onchange={(v) => (o.resizeMode = v)}
       />
-      {#if resizeMode === 'percent'}
-        <Slider label="Scale" value={percent} min={5} max={100} unit="%" onchange={(v) => (percent = Math.round(v))} />
-      {:else if resizeMode === 'longEdge'}
+      {#if o.resizeMode === 'percent'}
+        <Slider label="Scale" value={o.percent} min={5} max={100} unit="%" onchange={(v) => (o.percent = Math.round(v))} />
+      {:else if o.resizeMode === 'longEdge'}
         <div class="row">
           <span class="label">Longest side</span>
           <span class="spacer"></span>
-          <input class="input" type="number" min="16" max="20000" bind:value={longEdge} style="width:100px" /> px
+          <input class="input" type="number" min="16" max="20000" bind:value={o.longEdge} style="width:100px" /> px
         </div>
       {/if}
     </Section>
@@ -150,22 +143,22 @@
           { value: 'srgb', label: 'Convert to sRGB' },
           { value: 'keep', label: 'Keep profile' },
         ]}
-        value={color}
-        onchange={(v) => (color = v)}
+        value={o.color}
+        onchange={(v) => (o.color = v)}
       />
       <p class="hint">
-        {color === 'srgb'
+        {o.color === 'srgb'
           ? 'Wide-gamut photos (Display P3 from phones, Adobe RGB from cameras) are converted so they look right everywhere. RAW files are always developed to sRGB.'
           : 'Pixels and the embedded colour profile are left exactly as they are.'}
       </p>
     </Section>
 
     <Section title="Metadata">
-      <MetadataOptions value={metadata} onchange={(v) => (metadata = v)} />
+      <MetadataOptions value={o.metadata} onchange={(v) => (o.metadata = v)} />
     </Section>
 
     <Section title="Save to">
-      <OutputOptions value={output} onchange={(v) => (output = v)} />
+      <OutputOptions value={o.output} onchange={(v) => (o.output = v)} />
     </Section>
 
     <div class="go">
@@ -176,7 +169,8 @@
         </div>
         <button class="btn block" onclick={() => void api.cancelBatch()}>Cancel</button>
       {:else}
-        <button class="btn primary large block" disabled={!queue.files.length} onclick={run}>
+        {#if blocked && queue.files.length}<p class="hint">{blocked}</p>{/if}
+        <button class="btn primary large block" disabled={!queue.files.length || queue.running || !!blocked} onclick={run}>
           {#if queue.running}<LoaderCircle size={16} class="spin" />{:else}<ArrowLeftRight size={16} />{/if}
           Convert {queue.files.length || ''} image{queue.files.length === 1 ? '' : 's'}
         </button>
@@ -225,6 +219,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .go p {
+    margin: 0;
   }
   .prog {
     display: flex;

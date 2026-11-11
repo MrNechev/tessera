@@ -3,16 +3,7 @@
   import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import { api, onProgress, pickFolder } from '../api/backend';
-  import {
-    defaultMetadataPolicy,
-    type BatchOptions,
-    type ConflictPolicy,
-    type ImageFormat,
-    type MetadataPolicy,
-    type ProbeInfo,
-    type ResizeMode,
-    type WatermarkOptions,
-  } from '../api/types';
+  import type { BatchOptions, MetadataPolicy, ProbeInfo, ResizeMode, WatermarkOptions } from '../api/types';
   import { FONTS } from '../assets/fonts';
   import FileQueue from '../components/tools/FileQueue.svelte';
   import MetadataOptions from '../components/tools/MetadataOptions.svelte';
@@ -23,63 +14,56 @@
   import Slider from '../components/ui/Slider.svelte';
   import Toggle from '../components/ui/Toggle.svelte';
   import { app } from '../stores/app.svelte';
-  import { toolsQueue as queue } from '../stores/batch.svelte';
+  import { batchOptions as o, busyElsewhere, isNum, reportResults, toInt, toolsQueue as queue } from '../stores/batch.svelte';
   import { toasts } from '../stores/toasts.svelte';
-  import { DEFAULT_RENAME, RENAME_TOKENS, baseName, buildNames, sortFiles, type RenameSpec } from '../tools/rename';
+  import { RENAME_TOKENS, baseName, buildNames, sortFiles, type RenameSpec } from '../tools/rename';
   import { canvasToPng, placements, renderTextWatermark, resizedSize, watermarkSize, type TextWatermark, type WatermarkPosition } from '../tools/watermark';
 
   /* ---------------------------------------------------------- options */
 
-  let doResize = $state(true);
-  let resizeKind = $state<'longEdge' | 'width' | 'height' | 'percent'>('longEdge');
-  let resizeValue = $state(2048);
-
-  let doWatermark = $state(false);
-  let wmKind = $state<'text' | 'image'>('text');
-  let wmText = $state<TextWatermark>({ text: '© Your Name', font: 'montserrat', weight: 600, color: '#ffffff', outline: false, shadow: true });
-  let wmLogo = $state<string | null>(null);
-  let wmSize = $state(0.25);
-  let wmOpacity = $state(0.75);
-  let wmMargin = $state(0.03);
-  let wmPosition = $state<WatermarkPosition>('br');
-
-  let doRename = $state(false);
-  let rename = $state<RenameSpec>({ ...DEFAULT_RENAME, pattern: '{date} {n}' });
-  let suffix = $state('-edited');
-
-  let format = $state<ImageFormat | 'keep'>('keep');
-  let quality = $state(90);
-  let metadata = $state<MetadataPolicy>(defaultMetadataPolicy());
-  let directory = $state<string | null>(null);
-  let conflict = $state<ConflictPolicy>('rename');
-  let moveOriginals = $state(false);
-
   const wmFonts = FONTS.filter((f) => ['sans', 'display', 'script', 'serif', 'handwriting'].includes(f.category));
 
+  /** Largest pixel size accepted (the backend stores sizes as u32). */
+  const MAX_PX = 65535;
+  const px = $derived(toInt(o.resizeValue, 16, MAX_PX, 2048));
+
   const resizeMode = $derived<ResizeMode>(
-    !doResize
+    !o.doResize
       ? { kind: 'none' }
-      : resizeKind === 'longEdge'
-        ? { kind: 'longEdge', pixels: Math.max(16, resizeValue) }
-        : resizeKind === 'width'
-          ? { kind: 'fit', width: Math.max(16, resizeValue), height: 0 }
-          : resizeKind === 'height'
-            ? { kind: 'fit', width: 0, height: Math.max(16, resizeValue) }
-            : { kind: 'percent', percent: Math.min(100, Math.max(1, resizeValue)) },
+      : o.resizeKind === 'longEdge'
+        ? { kind: 'longEdge', pixels: px }
+        : o.resizeKind === 'width'
+          ? { kind: 'fit', width: px, height: 0 }
+          : o.resizeKind === 'height'
+            ? { kind: 'fit', width: 0, height: px }
+            : { kind: 'percent', percent: isNum(o.resizeValue) ? Math.min(100, Math.max(1, o.resizeValue)) : 50 },
   );
 
   /** Nothing changes the pixels or metadata: files can be copied — or renamed in place. */
-  const pureRename = $derived(!doResize && !doWatermark && format === 'keep' && metadata.mode === 'keepAll');
-  const canMove = $derived(pureRename && doRename && directory === null);
+  const pureRename = $derived(!o.doResize && !o.doWatermark && o.format === 'keep' && o.metadata.mode === 'keepAll');
+  const canMove = $derived(pureRename && o.doRename && o.directory === null);
 
-  const ordered = $derived(doRename ? sortFiles(queue.files, rename.sort) : queue.files);
+  /** The rename spec with its number fields sanitised (emptied inputs yield null). */
+  const renameSpec = $derived<RenameSpec>({ ...o.rename, start: toInt(o.rename.start, 0, 1e9, 1), padding: toInt(o.rename.padding, 0, 8, 3) });
+
+  const ordered = $derived(o.doRename ? sortFiles(queue.files, o.rename.sort) : queue.files);
   const names = $derived(
-    doRename ? buildNames(ordered, rename) : ordered.map((f) => (directory === null ? `${baseName(f.path)}${suffix}` : baseName(f.path))),
+    o.doRename ? buildNames(ordered, renameSpec) : ordered.map((f) => (o.directory === null ? `${baseName(f.path)}${o.suffix}` : baseName(f.path))),
   );
 
-  function setResizeKind(k: typeof resizeKind) {
-    resizeKind = k;
-    resizeValue = k === 'percent' ? 50 : 2048;
+  const other = $derived(busyElsewhere(queue));
+  const invalid = $derived(
+    o.doResize && !isNum(o.resizeValue)
+      ? `Enter a ${o.resizeKind === 'percent' ? 'percentage' : 'size'} to resize to.`
+      : o.doRename && (!isNum(o.rename.start) || !isNum(o.rename.padding))
+        ? 'Enter a start number and digits for the new names.'
+        : null,
+  );
+  const blocked = $derived(other ? `Another job is running in ${other.label}.` : invalid);
+
+  function setResizeKind(k: typeof o.resizeKind) {
+    o.resizeKind = k;
+    o.resizeValue = k === 'percent' ? 50 : 2048;
   }
 
   /* ----------------------------------------------------- watermark mark */
@@ -89,10 +73,10 @@
 
   $effect(() => {
     // Re-render the text watermark when its settings change (debounced).
-    const t = $state.snapshot(wmText) as TextWatermark;
-    const kind = wmKind;
-    const logo = wmLogo;
-    const on = doWatermark;
+    const t = $state.snapshot(o.wmText) as TextWatermark;
+    const kind = o.wmKind;
+    const logo = o.wmLogo;
+    const on = o.doWatermark;
     if (markTimer) clearTimeout(markTimer);
     markTimer = setTimeout(async () => {
       if (!on) return (mark = null);
@@ -114,7 +98,7 @@
       title: 'Choose a logo or signature',
       filters: [{ name: 'Images', extensions: ['png', 'webp', 'jpg', 'jpeg', 'avif', 'tif', 'tiff'] }],
     });
-    if (typeof res === 'string') wmLogo = res;
+    if (typeof res === 'string') o.wmLogo = res;
   }
 
   /* ------------------------------------------------------------ preview */
@@ -140,10 +124,10 @@
     const p = photo;
     const f = current;
     void mark;
-    void wmSize;
-    void wmOpacity;
-    void wmMargin;
-    void wmPosition;
+    void o.wmSize;
+    void o.wmOpacity;
+    void o.wmMargin;
+    void o.wmPosition;
     if (!c || !p || !f) return;
     const box = c.parentElement!.getBoundingClientRect();
     const scale = Math.min(box.width / p.bmp.width, box.height / p.bmp.height, 1);
@@ -157,13 +141,13 @@
     const ctx = c.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(p.bmp, 0, 0, cw, ch);
-    if (doWatermark && mark) {
+    if (o.doWatermark && mark) {
       // Compute in output pixels, then map to the preview.
       const [ow, oh] = resizedSize(f.width, f.height, resizeMode);
       const k = cw / ow;
-      const [mw, mh] = watermarkSize(ow, oh, mark.width, mark.height, wmSize);
-      ctx.globalAlpha = wmOpacity;
-      for (const [x, y] of placements(ow, oh, mw, mh, wmPosition, wmMargin)) ctx.drawImage(mark, x * k, y * k, mw * k, mh * k);
+      const [mw, mh] = watermarkSize(ow, oh, mark.width, mark.height, o.wmSize);
+      ctx.globalAlpha = o.wmOpacity;
+      for (const [x, y] of placements(ow, oh, mw, mh, o.wmPosition, o.wmMargin)) ctx.drawImage(mark, x * k, y * k, mw * k, mh * k);
       ctx.globalAlpha = 1;
     }
   });
@@ -171,8 +155,8 @@
   /* ---------------------------------------------------------------- run */
 
   async function run() {
-    if (!queue.files.length || queue.running) return;
-    if (doWatermark && wmKind === 'image' && !wmLogo) {
+    if (!queue.files.length || queue.running || blocked) return;
+    if (o.doWatermark && o.wmKind === 'image' && !o.wmLogo) {
       toasts.push({ kind: 'warning', title: 'Choose a logo first', message: 'Or switch the watermark to text.' });
       return;
     }
@@ -181,29 +165,24 @@
     queue.progress = { done: 0, total: queue.files.length, current: null };
     try {
       let watermark: WatermarkOptions | null = null;
-      if (doWatermark) {
-        const image = wmKind === 'image' ? wmLogo! : await api.saveTempImage(await canvasToPng(await renderTextWatermark($state.snapshot(wmText) as TextWatermark)));
-        watermark = { image, size: wmSize, opacity: wmOpacity, position: wmPosition, margin: wmMargin };
+      if (o.doWatermark) {
+        const image = o.wmKind === 'image' ? o.wmLogo! : await api.saveTempImage(await canvasToPng(await renderTextWatermark($state.snapshot(o.wmText) as TextWatermark)));
+        watermark = { image, size: o.wmSize, opacity: o.wmOpacity, position: o.wmPosition, margin: o.wmMargin };
       }
       const options: BatchOptions = {
         resize: resizeMode,
         watermark,
-        format: format === 'keep' ? { kind: 'keep' } : { kind: 'to', format },
-        quality,
-        metadata: $state.snapshot(metadata) as MetadataPolicy,
-        directory,
-        conflict,
-        transfer: canMove && moveOriginals ? 'move' : 'copy',
+        format: o.format === 'keep' ? { kind: 'keep' } : { kind: 'to', format: o.format },
+        quality: o.quality,
+        metadata: $state.snapshot(o.metadata) as MetadataPolicy,
+        directory: o.directory,
+        conflict: o.conflict,
+        transfer: canMove && o.moveOriginals ? 'move' : 'copy',
         background: [255, 255, 255],
       };
       const jobs = ordered.map((f, i) => ({ input: f.path, name: names[i] }));
       queue.results = await api.batchProcess(jobs, options);
-      const failed = queue.results.filter((r) => r.status === 'failed').length;
-      toasts.push({
-        kind: failed ? 'warning' : 'success',
-        title: failed ? `Finished with ${failed} error${failed > 1 ? 's' : ''}` : 'Batch finished',
-        message: `${queue.results.filter((r) => r.status === 'done').length} of ${queue.results.length} images processed.`,
-      });
+      reportResults(queue.results, { verb: 'processed', title: 'Batch finished', failTitle: 'Batch failed' });
     } catch (e) {
       toasts.push({ kind: 'error', title: 'Batch failed', message: String(e) });
     } finally {
@@ -234,7 +213,7 @@
         {#if current}
           <div class="stage"><canvas bind:this={canvas}></canvas></div>
           <div class="info">
-            {#if doResize}
+            {#if o.doResize}
               {@const out = resizedSize(current.width, current.height, resizeMode)}
               <span>{current.width}×{current.height} → <b>{out[0]}×{out[1]}</b></span>
             {:else}
@@ -248,7 +227,7 @@
         {/if}
       </div>
     </div>
-    {#if doRename && queue.files.length}
+    {#if o.doRename && queue.files.length}
       <div class="names card">
         <header><h3>New names</h3><span class="hint">{queue.files.length} files</span></header>
         <div class="list">
@@ -263,8 +242,8 @@
 
   <aside class="options card">
     <Section title="Resize">
-      <Toggle checked={doResize} label="Resize photos" hint="Photos are never enlarged." onchange={(v) => (doResize = v)} />
-      {#if doResize}
+      <Toggle checked={o.doResize} label="Resize photos" hint="Photos are never enlarged." onchange={(v) => (o.doResize = v)} />
+      {#if o.doResize}
         <Segmented
           options={[
             { value: 'longEdge', label: 'Long edge' },
@@ -272,17 +251,17 @@
             { value: 'height', label: 'Height' },
             { value: 'percent', label: '%' },
           ]}
-          value={resizeKind}
-          onchange={(v) => setResizeKind(v as typeof resizeKind)}
+          value={o.resizeKind}
+          onchange={(v) => setResizeKind(v as typeof o.resizeKind)}
         />
         <div class="row">
-          <input class="input grow" type="number" min="1" bind:value={resizeValue} />
-          <span class="hint">{resizeKind === 'percent' ? '%' : 'px'}</span>
+          <input class="input grow" type="number" min="1" bind:value={o.resizeValue} />
+          <span class="hint">{o.resizeKind === 'percent' ? '%' : 'px'}</span>
         </div>
-        {#if resizeKind !== 'percent'}
+        {#if o.resizeKind !== 'percent'}
           <div class="presets">
             {#each [1080, 1600, 2048, 3000, 4096] as p (p)}
-              <button class="btn small" class:active={resizeValue === p} onclick={() => (resizeValue = p)}>{p}</button>
+              <button class="btn small" class:active={o.resizeValue === p} onclick={() => (o.resizeValue = p)}>{p}</button>
             {/each}
           </div>
         {/if}
@@ -290,54 +269,54 @@
     </Section>
 
     <Section title="Watermark">
-      <Toggle checked={doWatermark} label="Add a watermark" onchange={(v) => (doWatermark = v)} />
-      {#if doWatermark}
-        <Segmented options={[{ value: 'text', label: 'Text' }, { value: 'image', label: 'Logo image' }]} value={wmKind} onchange={(v) => (wmKind = v as 'text' | 'image')} />
-        {#if wmKind === 'text'}
-          <input class="input" bind:value={wmText.text} placeholder="© Your Name" />
-          <select class="select" bind:value={wmText.font}>
+      <Toggle checked={o.doWatermark} label="Add a watermark" onchange={(v) => (o.doWatermark = v)} />
+      {#if o.doWatermark}
+        <Segmented options={[{ value: 'text', label: 'Text' }, { value: 'image', label: 'Logo image' }]} value={o.wmKind} onchange={(v) => (o.wmKind = v as 'text' | 'image')} />
+        {#if o.wmKind === 'text'}
+          <input class="input" bind:value={o.wmText.text} placeholder="© Your Name" />
+          <select class="select" bind:value={o.wmText.font}>
             {#each wmFonts as f (f.id)}<option value={f.id}>{f.family}</option>{/each}
           </select>
-          <ColorInput label="Colour" value={wmText.color} onchange={(c) => (wmText.color = c)} />
-          <Toggle checked={wmText.weight >= 600} label="Bold" onchange={(v) => (wmText.weight = v ? 700 : 400)} />
-          <Toggle checked={wmText.outline} label="Outline" onchange={(v) => (wmText.outline = v)} />
-          <Toggle checked={wmText.shadow} label="Shadow" onchange={(v) => (wmText.shadow = v)} />
+          <ColorInput label="Colour" value={o.wmText.color} onchange={(c) => (o.wmText.color = c)} />
+          <Toggle checked={o.wmText.weight >= 600} label="Bold" onchange={(v) => (o.wmText.weight = v ? 700 : 400)} />
+          <Toggle checked={o.wmText.outline} label="Outline" onchange={(v) => (o.wmText.outline = v)} />
+          <Toggle checked={o.wmText.shadow} label="Shadow" onchange={(v) => (o.wmText.shadow = v)} />
         {:else}
-          <button class="btn" onclick={chooseLogo}><ImagePlus size={15} /> {wmLogo ? wmLogo.split('/').pop() : 'Choose logo…'}</button>
+          <button class="btn" onclick={chooseLogo}><ImagePlus size={15} /> {o.wmLogo ? o.wmLogo.split('/').pop() : 'Choose logo…'}</button>
           <p class="hint">A PNG with a transparent background works best.</p>
         {/if}
         <span class="label">Position</span>
         <div class="pos-grid">
           {#each POSITIONS as p (p)}
-            <button class="pos" class:on={wmPosition === p} onclick={() => (wmPosition = p)} aria-label="Position {p}"><span></span></button>
+            <button class="pos" class:on={o.wmPosition === p} onclick={() => (o.wmPosition = p)} aria-label="Position {p}"><span></span></button>
           {/each}
         </div>
-        <Toggle checked={wmPosition === 'tile'} label="Repeat across the photo" onchange={(v) => (wmPosition = v ? 'tile' : 'br')} />
-        <Slider label="Size" value={wmSize} min={0.03} max={0.8} step={0.01} scale={100} unit="%" onchange={(v) => (wmSize = v)} />
-        <Slider label="Opacity" value={wmOpacity} min={0.05} max={1} step={0.01} scale={100} unit="%" onchange={(v) => (wmOpacity = v)} />
-        {#if wmPosition !== 'tile'}
-          <Slider label="Distance from edge" value={wmMargin} min={0} max={0.15} step={0.005} scale={100} decimals={1} unit="%" onchange={(v) => (wmMargin = v)} />
+        <Toggle checked={o.wmPosition === 'tile'} label="Repeat across the photo" onchange={(v) => (o.wmPosition = v ? 'tile' : 'br')} />
+        <Slider label="Size" value={o.wmSize} min={0.03} max={0.8} step={0.01} scale={100} unit="%" onchange={(v) => (o.wmSize = v)} />
+        <Slider label="Opacity" value={o.wmOpacity} min={0.05} max={1} step={0.01} scale={100} unit="%" onchange={(v) => (o.wmOpacity = v)} />
+        {#if o.wmPosition !== 'tile'}
+          <Slider label="Distance from edge" value={o.wmMargin} min={0} max={0.15} step={0.005} scale={100} decimals={1} unit="%" onchange={(v) => (o.wmMargin = v)} />
         {/if}
       {/if}
     </Section>
 
     <Section title="Rename">
-      <Toggle checked={doRename} label="Rename files" onchange={(v) => (doRename = v)} />
-      {#if doRename}
-        <input class="input" bind:value={rename.pattern} />
+      <Toggle checked={o.doRename} label="Rename files" onchange={(v) => (o.doRename = v)} />
+      {#if o.doRename}
+        <input class="input" bind:value={o.rename.pattern} />
         <div class="tokens">
           {#each RENAME_TOKENS as t (t.token)}
-            <button class="chip" title={t.help} onclick={() => (rename.pattern += (rename.pattern.endsWith(' ') || !rename.pattern ? '' : ' ') + t.token)}>{t.token}</button>
+            <button class="chip" title={t.help} onclick={() => (o.rename.pattern += (o.rename.pattern.endsWith(' ') || !o.rename.pattern ? '' : ' ') + t.token)}>{t.token}</button>
           {/each}
         </div>
         <div class="grid2">
-          <label><span class="label">Start at</span><input class="input" type="number" min="0" bind:value={rename.start} /></label>
-          <label><span class="label">Digits</span><input class="input" type="number" min="0" max="8" bind:value={rename.padding} /></label>
+          <label><span class="label">Start at</span><input class="input" type="number" min="0" bind:value={o.rename.start} /></label>
+          <label><span class="label">Digits</span><input class="input" type="number" min="0" max="8" bind:value={o.rename.padding} /></label>
         </div>
         <div class="grid2">
           <label>
             <span class="label">Order</span>
-            <select class="select" bind:value={rename.sort}>
+            <select class="select" bind:value={o.rename.sort}>
               <option value="added">As added</option>
               <option value="name">By file name</option>
               <option value="date">By date taken</option>
@@ -345,7 +324,7 @@
           </label>
           <label>
             <span class="label">Letters</span>
-            <select class="select" bind:value={rename.letterCase}>
+            <select class="select" bind:value={o.rename.letterCase}>
               <option value="keep">As typed</option>
               <option value="lower">lowercase</option>
               <option value="upper">UPPERCASE</option>
@@ -355,9 +334,9 @@
         <label class="row">
           <span class="label">Spaces</span>
           <span class="spacer"></span>
-          <select class="select" value={rename.spaces ?? 'keep'} onchange={(e) => {
+          <select class="select" value={o.rename.spaces ?? 'keep'} onchange={(e) => {
             const v = (e.target as HTMLSelectElement).value;
-            rename.spaces = v === 'keep' ? null : v;
+            o.rename.spaces = v === 'keep' ? null : v;
           }}>
             <option value="keep">Keep spaces</option>
             <option value="_">Use _</option>
@@ -365,11 +344,11 @@
             <option value="">Remove</option>
           </select>
         </label>
-      {:else if directory === null}
+      {:else if o.directory === null}
         <div class="row">
           <span class="label">Add to file names</span>
           <span class="spacer"></span>
-          <input class="input suffix" bind:value={suffix} />
+          <input class="input suffix" bind:value={o.suffix} />
         </div>
       {/if}
     </Section>
@@ -378,7 +357,7 @@
       <div class="row">
         <span class="label">Format</span>
         <span class="spacer"></span>
-        <select class="select" bind:value={format}>
+        <select class="select" bind:value={o.format}>
           <option value="keep">Same as original</option>
           <option value="jpeg">JPEG</option>
           <option value="png">PNG</option>
@@ -388,7 +367,7 @@
         </select>
       </div>
       {#if !pureRename}
-        <Slider label="Quality" value={quality} min={40} max={100} unit="%" onchange={(v) => (quality = Math.round(v))} />
+        <Slider label="Quality" value={o.quality} min={40} max={100} unit="%" onchange={(v) => (o.quality = Math.round(v))} />
       {/if}
       <Segmented
         options={[
@@ -396,33 +375,33 @@
           { value: 'save', label: 'Save folder' },
           { value: 'pick', label: 'Choose…' },
         ]}
-        value={directory === null ? 'same' : directory === app.settings.saveDirectory ? 'save' : 'pick'}
+        value={o.directory === null ? 'same' : o.directory === app.settings.saveDirectory ? 'save' : 'pick'}
         onchange={async (v) => {
-          if (v === 'same') directory = null;
-          else if (v === 'save') directory = app.settings.saveDirectory || null;
+          if (v === 'same') o.directory = null;
+          else if (v === 'save') o.directory = app.settings.saveDirectory || null;
           else {
-            const d = await pickFolder('Save processed photos to', directory ?? app.settings.saveDirectory);
-            if (d) directory = d;
+            const d = await pickFolder('Save processed photos to', o.directory ?? app.settings.saveDirectory);
+            if (d) o.directory = d;
           }
         }}
       />
-      {#if directory}<div class="dir"><FolderOpen size={14} /><span class="truncate">{directory}</span></div>{/if}
+      {#if o.directory}<div class="dir"><FolderOpen size={14} /><span class="truncate">{o.directory}</span></div>{/if}
       <div class="row">
         <span class="label">If a file exists</span>
         <span class="spacer"></span>
-        <select class="select" bind:value={conflict}>
+        <select class="select" bind:value={o.conflict}>
           <option value="rename">Keep both</option>
           <option value="skip">Skip</option>
           <option value="overwrite">Replace</option>
         </select>
       </div>
       {#if canMove}
-        <Toggle checked={moveOriginals} label="Rename the originals instead of copying" hint="Nothing else changes, so this is safe and instant." onchange={(v) => (moveOriginals = v)} />
+        <Toggle checked={o.moveOriginals} label="Rename the originals instead of copying" hint="Nothing else changes, so this is safe and instant." onchange={(v) => (o.moveOriginals = v)} />
       {/if}
     </Section>
 
     <Section title="Metadata" open={false}>
-      <MetadataOptions value={metadata} onchange={(v) => (metadata = v)} />
+      <MetadataOptions value={o.metadata} onchange={(v) => (o.metadata = v)} />
     </Section>
 
     <div class="go">
@@ -431,7 +410,12 @@
         <span class="hint truncate">{queue.progress.done}/{queue.progress.total} {queue.progress.current?.split('/').pop() ?? ''}</span>
         <button class="btn block" onclick={() => void api.cancelBatch()}>Cancel</button>
       {:else}
-        <button class="btn primary large block" disabled={!queue.files.length || (!doResize && !doWatermark && !doRename && format === 'keep')} onclick={run}>
+        {#if blocked && queue.files.length}<p class="hint">{blocked}</p>{/if}
+        <button
+          class="btn primary large block"
+          disabled={!queue.files.length || queue.running || !!blocked || (!o.doResize && !o.doWatermark && !o.doRename && o.format === 'keep')}
+          onclick={run}
+        >
           {#if queue.running}<LoaderCircle size={16} class="spin" />{:else}<Wand size={16} />{/if}
           Process {queue.files.length || ''} image{queue.files.length === 1 ? '' : 's'}
         </button>
@@ -623,6 +607,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .go p {
+    margin: 0;
   }
   .bar {
     height: 6px;
