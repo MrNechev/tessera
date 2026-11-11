@@ -5117,6 +5117,7 @@ dependencies = [
  "blake3",
  "dirs",
  "env_logger",
+ "filetime",
  "image",
  "log",
  "rayon",

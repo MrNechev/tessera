@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeftRight, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2 } from '@lucide/svelte';
+  import { ArrowLeftRight, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl, isTauri } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
@@ -85,6 +85,7 @@
     <div class="tools">
       <button class="tool" onclick={() => (app.view = 'convert')}><ArrowLeftRight size={18} /> <span><b>Convert</b> images between formats</span></button>
       <button class="tool" onclick={() => (app.view = 'compress')}><Minimize2 size={18} /> <span><b>Compress</b> images without visible loss</span></button>
+      <button class="tool" onclick={() => (app.view = 'batch')}><Wand size={18} /> <span><b>Resize, watermark & rename</b> in bulk</span></button>
       <button class="tool" onclick={() => void openProjectDialog()}><FolderOpen size={18} /> <span><b>Open</b> a project file</span></button>
     </div>
   </section>
