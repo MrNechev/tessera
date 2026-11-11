@@ -12,6 +12,7 @@ use tauri::ipc::Response;
 use tauri::AppHandle;
 use tessera_imaging::{ImageFormat, MetadataSummary, ProbeInfo};
 
+use crate::batch::pool;
 use crate::{emit_progress, err, paths, CmdResult};
 
 /// Long edge of the editor proxy and the library thumbnail.
@@ -105,7 +106,7 @@ pub fn expand_paths(paths: &[String]) -> Vec<PathBuf> {
 }
 
 /// Stable id for a file version: changes when the file is modified.
-fn asset_id(path: &Path) -> String {
+pub(crate) fn asset_id(path: &Path) -> String {
     let meta = fs::metadata(path).ok();
     let mut h = blake3::Hasher::new();
     h.update(path.to_string_lossy().as_bytes());
@@ -120,11 +121,13 @@ fn asset_id(path: &Path) -> String {
     h.finalize().to_hex()[..16].to_string()
 }
 
+/// An existing cache entry. Entries are written atomically, so any non-empty
+/// file is complete.
 fn cached(dir: &Path, id: &str) -> Option<PathBuf> {
     ["jpg", "png"]
         .iter()
         .map(|e| dir.join(format!("{id}.{e}")))
-        .find(|p| p.exists())
+        .find(|p| fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() > 0))
 }
 
 fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
@@ -181,21 +184,25 @@ pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Impo
         let total = files.len();
         let done = AtomicUsize::new(0);
         emit_progress(&app, "import", 0, total, None);
-        let results: Vec<(PathBuf, Result<ImportedImage, String>)> = files
-            .par_iter()
-            .map(|p| {
-                let r = import_one(&app, p);
-                let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                emit_progress(
-                    &app,
-                    "import",
-                    n,
-                    total,
-                    Some(p.to_string_lossy().into_owned()),
-                );
-                (p.clone(), r)
-            })
-            .collect();
+        // Full decodes of large PNG/TIFF/RAW files need hundreds of MB each:
+        // use the bounded batch pool rather than one thread per core.
+        let results: Vec<(PathBuf, Result<ImportedImage, String>)> = pool().install(|| {
+            files
+                .par_iter()
+                .map(|p| {
+                    let r = import_one(&app, p);
+                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    emit_progress(
+                        &app,
+                        "import",
+                        n,
+                        total,
+                        Some(p.to_string_lossy().into_owned()),
+                    );
+                    (p.clone(), r)
+                })
+                .collect()
+        });
         let mut out = ImportResult {
             images: Vec::new(),
             failed: Vec::new(),

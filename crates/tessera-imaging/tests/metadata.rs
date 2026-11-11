@@ -340,3 +340,75 @@ fn file_times_are_copied() {
     let m = std::fs::metadata(&out).unwrap();
     assert_ne!(filetime::FileTime::from_last_modification_time(&m), t);
 }
+
+fn icc_with_space(space: &[u8; 4]) -> Vec<u8> {
+    let mut icc = fake_icc("Profile");
+    icc[16..20].copy_from_slice(space);
+    icc
+}
+
+#[test]
+fn icc_for_other_colour_models_is_not_planned() {
+    let policy = MetadataPolicy::keep_all();
+    for (space, kept) in [
+        (b"RGB ", true),
+        (b"GRAY", true),
+        (b"CMYK", false),
+        (b"Lab ", false),
+    ] {
+        let md = RawMetadata {
+            exif: None,
+            icc: Some(icc_with_space(space)),
+            xmp: Some(XMP.as_bytes().to_vec()),
+        };
+        let p = plan_metadata(&md, &policy, (10, 10));
+        assert_eq!(p.icc.is_some(), kept, "{:?}", std::str::from_utf8(space));
+        // XMP orientation is reset for upright pixels.
+        let xmp = String::from_utf8(p.xmp.unwrap()).unwrap();
+        assert!(xmp.contains("tiff:Orientation=\"1\""), "{xmp}");
+    }
+    let md = RawMetadata {
+        exif: None,
+        icc: Some(vec![0u8; 10]),
+        xmp: None,
+    };
+    assert!(plan_metadata(&md, &policy, (1, 1)).icc.is_none());
+}
+
+#[test]
+fn embed_drops_icc_that_does_not_match_the_output() {
+    let rgb = DynamicImage::ImageRgb8(photo_like(40, 30, 3));
+    let gray = DynamicImage::ImageLuma8(rgb.to_luma8());
+    let rgb_icc = icc_with_space(b"RGB ");
+    let gray_icc = icc_with_space(b"GRAY");
+    let cmyk_icc = icc_with_space(b"CMYK");
+    let keep = LoadOptions {
+        color: ColorMode::Keep,
+    };
+    for f in [ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Tiff] {
+        let q = if f == ImageFormat::Png { 100 } else { 90 };
+        let back = |img: &DynamicImage, icc: &[u8]| {
+            let bytes = encode_with(img, f, q, None, Some(icc), None);
+            load_bytes_with(&bytes, Some(f), &keep)
+                .unwrap()
+                .metadata
+                .icc
+        };
+        assert_eq!(back(&rgb, &rgb_icc), Some(rgb_icc.clone()), "{f:?} rgb/rgb");
+        assert_eq!(
+            back(&gray, &gray_icc),
+            Some(gray_icc.clone()),
+            "{f:?} gray/gray"
+        );
+        assert_eq!(back(&rgb, &gray_icc), None, "{f:?} rgb/gray");
+        assert_eq!(back(&gray, &rgb_icc), None, "{f:?} gray/rgb");
+        assert_eq!(back(&rgb, &cmyk_icc), None, "{f:?} rgb/cmyk");
+    }
+    // WebP always stores RGB.
+    let bytes = encode_with(&gray, ImageFormat::Webp, 90, None, Some(&gray_icc), None);
+    assert!(load_bytes_with(&bytes, Some(ImageFormat::Webp), &keep)
+        .unwrap()
+        .metadata
+        .icc
+        .is_none());
+}

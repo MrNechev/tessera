@@ -869,7 +869,9 @@ pub fn make_preview(
             std::fs::create_dir_all(parent).map_err(|e| Error::file(parent, e))?;
         }
     }
-    std::fs::write(&path, data).map_err(|e| Error::file(&path, e))?;
+    // Temp file + rename: a crash mid-write must not leave a truncated
+    // proxy that later runs would trust as a cache hit.
+    crate::jobs::atomic_write(&path, &data)?;
     Ok(PreviewInfo {
         width,
         height,

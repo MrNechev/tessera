@@ -130,3 +130,29 @@ fn reencode_resets_orientation_and_rotates_pixels() {
         }
     }
 }
+
+#[test]
+fn preview_is_written_atomically() {
+    let dir = tmpdir("preview-atomic");
+    let img = DynamicImage::ImageRgb8(quadrants());
+    let p = write(
+        &dir,
+        "src.jpg",
+        &encode_with(&img, ImageFormat::Jpeg, 90, None, None, None),
+    );
+    let out = dir.join("out");
+    // Concurrent writers of the same proxy must not clash.
+    std::thread::scope(|s| {
+        for _ in 0..4 {
+            s.spawn(|| make_preview(&p, &out.join("proxy.jpg"), 32, 80).unwrap());
+        }
+    });
+    let names: Vec<String> = std::fs::read_dir(&out)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, vec!["proxy.jpg".to_string()]);
+    let back = load(&out.join("proxy.jpg")).unwrap();
+    assert_eq!(back.image.width(), 32);
+}

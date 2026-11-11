@@ -37,8 +37,9 @@ pub use jobs::{
     ConflictPolicy, ConvertOptions, JobResult, JobStatus, OutputSpec, QualityMode, TargetFormat,
 };
 pub use metadata::{
-    embed, filter_exif, filter_exif_sized, icc_description, read_summary, summarize_exif,
-    MetadataField, MetadataMode, MetadataPolicy, MetadataSummary,
+    embed, filter_exif, filter_exif_sized, icc_description, plan as plan_metadata, read_summary,
+    summarize_exif, MetadataField, MetadataMode, MetadataPolicy, MetadataSummary,
+    Planned as PlannedMetadata,
 };
 pub use quality::ssim;
 pub use resize::{apply_resize, fit_dimensions, target_dimensions, ResizeMode};

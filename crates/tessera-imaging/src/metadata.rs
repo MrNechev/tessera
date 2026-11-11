@@ -187,14 +187,60 @@ pub(crate) fn minimal_orientation_exif(orientation: u16) -> Option<Vec<u8>> {
 
 /// EXIF/ICC/XMP to write for an output, given a policy.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Planned {
+pub struct Planned {
     pub exif: Option<Vec<u8>>,
     pub icc: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
 }
 
-/// Plan metadata for re-encoded (upright) pixels of size `dims`.
-pub(crate) fn plan(
+/// Data colour space of an ICC profile (header bytes 16..20, e.g. `RGB `,
+/// `GRAY`, `CMYK`, `Lab `).
+fn icc_color_space(icc: &[u8]) -> Option<&[u8]> {
+    icc.get(16..20)
+}
+
+/// Profiles that can describe the RGB or grayscale pixels we write. CMYK,
+/// Lab, … profiles (kept in `metadata.icc` when the decoder converted the
+/// pixels without them) would make viewers misinterpret the output.
+pub(crate) fn icc_fits_output(icc: &[u8]) -> bool {
+    matches!(icc_color_space(icc), Some(b"RGB ") | Some(b"GRAY"))
+}
+
+/// Whether already-encoded `bytes` store grayscale samples (false when
+/// unknown).
+fn encoded_is_gray(bytes: &[u8], format: ImageFormat) -> bool {
+    match format {
+        ImageFormat::Jpeg => jpeg::parse(bytes)
+            .map(|j| j.info().components == 1)
+            .unwrap_or(false),
+        // IHDR colour type: 0 = gray, 4 = gray + alpha.
+        ImageFormat::Png => {
+            bytes.get(12..16) == Some(b"IHDR") && matches!(bytes.get(25), Some(0) | Some(4))
+        }
+        ImageFormat::Tiff => exif_util::parse(bytes)
+            .and_then(|e| {
+                e.get_field(Tag::PhotometricInterpretation, In::PRIMARY)
+                    .and_then(|f| f.value.get_uint(0))
+            })
+            .is_some_and(|p| p <= 1),
+        _ => false,
+    }
+}
+
+/// Whether `icc` matches the colour model of the encoded output.
+fn icc_matches_encoded(icc: &[u8], bytes: &[u8], format: ImageFormat) -> bool {
+    match icc_color_space(icc) {
+        Some(b"RGB ") => !encoded_is_gray(bytes, format),
+        Some(b"GRAY") => encoded_is_gray(bytes, format),
+        _ => false,
+    }
+}
+
+/// Plan metadata for re-encoded (upright) pixels of size `dims`: EXIF
+/// filtered by `policy` with Orientation reset to 1 and the new pixel size,
+/// the ICC profile when kept and applicable to RGB/gray output, and XMP
+/// (KeepAll only) with `tiff:Orientation` reset to 1.
+pub fn plan(
     src: &crate::decode::RawMetadata,
     policy: &MetadataPolicy,
     dims: (u32, u32),
@@ -204,7 +250,10 @@ pub(crate) fn plan(
             .exif
             .as_deref()
             .and_then(|e| filter_exif_inner(e, policy, 1, Some(dims))),
-        icc: src.icc.clone().filter(|_| policy.keeps_icc()),
+        icc: src
+            .icc
+            .clone()
+            .filter(|i| policy.keeps_icc() && icc_fits_output(i)),
         xmp: src
             .xmp
             .as_deref()
@@ -230,6 +279,9 @@ pub fn embed(
 ) -> Result<(Vec<u8>, Vec<String>)> {
     let mut warnings = Vec::new();
     let exif = exif.filter(|e| e.starts_with(b"II*\0") || e.starts_with(b"MM\0*"));
+    // A profile for another colour model (CMYK, Lab, gray on RGB, …) would
+    // make viewers misinterpret the pixels; such outputs are better untagged.
+    let icc = icc.filter(|i| icc_matches_encoded(i, &encoded, format));
     let any = exif.is_some() || icc.is_some() || xmp.is_some();
     let out = match format {
         ImageFormat::Jpeg => {

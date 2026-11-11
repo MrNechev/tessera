@@ -49,12 +49,16 @@ pub fn install_kind() -> &'static str {
     }
 }
 
+// Synchronous commands run on the main (UI) thread in Tauri 2, so anything
+// touching the disk or spawning processes is async + spawn_blocking.
+
 #[tauri::command]
-pub fn app_info(app: AppHandle) -> AppInfo {
-    AppInfo {
+pub async fn app_info(app: AppHandle) -> CmdResult<AppInfo> {
+    tauri::async_runtime::spawn_blocking(move || AppInfo {
         version: env!("CARGO_PKG_VERSION").into(),
         channel: CHANNEL.into(),
         platform: std::env::consts::OS.into(),
+        // May run `rpm -q`.
         install_kind: install_kind().into(),
         heif: cfg!(feature = "heif"),
         formats: tessera_imaging::capabilities(),
@@ -64,7 +68,9 @@ pub fn app_info(app: AppHandle) -> AppInfo {
             .collect(),
         data_dir: paths::data_dir(&app).to_string_lossy().into_owned(),
         cache_dir: paths::cache_dir(&app).to_string_lossy().into_owned(),
-    }
+    })
+    .await
+    .map_err(err)
 }
 
 #[tauri::command]
@@ -90,29 +96,39 @@ pub fn open_url(app: AppHandle, url: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
-pub fn ensure_dir(path: String) -> CmdResult<String> {
-    let p = paths::expand(&path);
-    fs::create_dir_all(&p).map_err(|e| format!("{}: {e}", p.display()))?;
-    Ok(p.to_string_lossy().into_owned())
+pub async fn ensure_dir(path: String) -> CmdResult<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = paths::expand(&path);
+        fs::create_dir_all(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+        Ok(p.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(err)?
 }
 
 #[tauri::command]
-pub fn cache_size(app: AppHandle) -> u64 {
-    paths::dir_size(&paths::cache_dir(&app))
+pub async fn cache_size(app: AppHandle) -> CmdResult<u64> {
+    tauri::async_runtime::spawn_blocking(move || paths::dir_size(&paths::cache_dir(&app)))
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
-pub fn clear_cache(app: AppHandle) -> u64 {
-    let mut freed = 0;
-    for dir in [
-        paths::proxies(&app),
-        paths::thumbs(&app),
-        paths::previews(&app),
-    ] {
-        freed += paths::dir_size(&dir);
-        let _ = fs::remove_dir_all(&dir);
-    }
-    freed
+pub async fn clear_cache(app: AppHandle) -> CmdResult<u64> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut freed = 0;
+        for dir in [
+            paths::proxies(&app),
+            paths::thumbs(&app),
+            paths::previews(&app),
+        ] {
+            freed += paths::dir_size(&dir);
+            let _ = fs::remove_dir_all(&dir);
+        }
+        freed
+    })
+    .await
+    .map_err(err)
 }
 
 /// Development hook: when TESSERA_AUTOTEST points at a JSON script, the UI
