@@ -11,7 +11,16 @@
     "core:window:allow-close",
     "core:window:allow-destroy",
     "dialog:default",
-    "window-state:default"
+    "window-state:default",
+    "allow-reveal-path",
+    "allow-open-path",
+    "allow-open-url",
+    "allow-startup-files",
+    "allow-autotest-script",
+    "allow-autotest-log",
+    "allow-print-native",
+    "core:webview:default",
+    "core:event:default"
   ],
   "remote": {
     "urls": [

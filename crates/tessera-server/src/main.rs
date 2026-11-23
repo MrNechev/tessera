@@ -59,6 +59,8 @@ async fn run() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(level)),
         )
         .with_target(false)
+        // `docker logs` shows raw escape codes: colours only on a terminal.
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stdout()))
         .init();
     // Outputs and Inbox are libraries too (writable): results and kept uploads
     // show up in the Library and can be used in documents.

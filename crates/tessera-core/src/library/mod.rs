@@ -161,7 +161,8 @@ fn make_lib(l: &Library) -> Lib {
     };
     if l.writable && !writable_on_disk {
         tracing::warn!(library = %l.id, root = %l.root.display(), "library is marked writable but its folder is not writable");
-    } else if !l.writable && writable_on_disk {
+    } else if !l.writable && writable_on_disk && std::env::var_os("TESSERA_DOCKER").is_some() {
+        // Only useful advice for containers; desktop folders are naturally writable.
         tracing::warn!(library = %l.id, root = %l.root.display(), "library is writable — Tessera never writes to read-only libraries; mount it read-only (:ro) to be safe");
     }
     Lib {

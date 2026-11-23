@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-autotest-log"
+description = "Enables the autotest_log command without any pre-configured scope."
+commands.allow = ["autotest_log"]
+
+[[permission]]
+identifier = "deny-autotest-log"
+description = "Denies the autotest_log command without any pre-configured scope."
+commands.deny = ["autotest_log"]
