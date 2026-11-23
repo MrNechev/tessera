@@ -157,6 +157,15 @@ impl Manager {
 
     /// ffprobe: format, streams, rotation, HDR and container metadata.
     pub(crate) fn probe_ff(&self, cancel: &CancellationToken, abs: &Path) -> Result<Probe, FfErr> {
+        if !self.has_ffprobe {
+            return Err(FfErr {
+                msg: format!(
+                    "ffprobe: {} (ffprobe not found; install it or set TESSERA_FFPROBE)",
+                    super::cmd::TOOL_MISSING
+                ),
+                partial: None,
+            });
+        }
         let ex = self.exec(cancel, Duration::from_secs(60), false);
         let args: Vec<String> = [
             "-v",

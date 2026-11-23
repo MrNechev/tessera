@@ -16,8 +16,26 @@ use tokio_util::sync::CancellationToken;
 use crate::util::first_line;
 
 /// Execution context for one external command.
+/// Where the external tools live (configurable so the desktop app can bundle ffmpeg).
+#[derive(Debug, Clone)]
+pub struct Tools {
+    pub ffmpeg: String,
+    pub ffprobe: String,
+}
+
+impl Tools {
+    fn resolve<'a>(&'a self, name: &'a str) -> &'a str {
+        match name {
+            "ffmpeg" => &self.ffmpeg,
+            "ffprobe" => &self.ffprobe,
+            n => n,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Exec {
+    pub tools: std::sync::Arc<Tools>,
     pub rt: Handle,
     pub cancel: CancellationToken,
     /// The whole job's deadline (Go: a context with timeout shared by its commands).
@@ -78,7 +96,8 @@ pub fn exit_string(st: &ExitStatus) -> String {
     "exit status unknown".into()
 }
 
-fn command(nice: bool, name: &str, args: &[String]) -> tokio::process::Command {
+fn command(tools: &Tools, nice: bool, name: &str, args: &[String]) -> tokio::process::Command {
+    let name = tools.resolve(name);
     let mut c = if nice && crate::util::look_path("nice").is_some() {
         let mut c = tokio::process::Command::new("nice");
         c.arg("-n").arg("10").arg(name);
@@ -93,8 +112,15 @@ fn command(nice: bool, name: &str, args: &[String]) -> tokio::process::Command {
 }
 
 impl Exec {
-    pub fn new(rt: Handle, cancel: CancellationToken, timeout: Duration, nice: bool) -> Exec {
+    pub fn new(
+        tools: std::sync::Arc<Tools>,
+        rt: Handle,
+        cancel: CancellationToken,
+        timeout: Duration,
+        nice: bool,
+    ) -> Exec {
         Exec {
+            tools,
             rt,
             cancel,
             deadline: Instant::now() + timeout,
@@ -107,7 +133,7 @@ impl Exec {
         if self.cancel.is_cancelled() {
             return Err(CmdError::Cancelled);
         }
-        let mut cmd = command(self.nice, name, args);
+        let mut cmd = command(&self.tools, self.nice, name, args);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
         let cancel = self.cancel.clone();
         let deadline = tokio::time::Instant::from_std(self.deadline);
@@ -147,7 +173,7 @@ impl Exec {
                 ))
             }
             Err(e @ (CmdError::Cancelled | CmdError::Timeout)) => Err(anyhow!(e)),
-            Err(CmdError::Start(e)) => Err(anyhow!("{name}: {e}: ")),
+            Err(CmdError::Start(e)) => Err(start_error(name, &e)),
         }
     }
 
@@ -162,7 +188,7 @@ impl Exec {
         if self.cancel.is_cancelled() {
             return Err(anyhow!(CmdError::Cancelled));
         }
-        let mut cmd = command(self.nice, name, args);
+        let mut cmd = command(&self.tools, self.nice, name, args);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
         let cancel = self.cancel.clone();
         let deadline = tokio::time::Instant::from_std(self.deadline);
@@ -220,10 +246,22 @@ impl Exec {
                 exit_string(&status),
                 first_line(&String::from_utf8_lossy(&stderr))
             )),
+            Err(CmdError::Start(e)) => Err(start_error(name, &e)),
             Err(e) => Err(anyhow!(e)),
         }
     }
 }
+
+fn start_error(name: &str, e: &std::io::Error) -> anyhow::Error {
+    if e.kind() == std::io::ErrorKind::NotFound {
+        return anyhow!("{name}: {TOOL_MISSING} ({name} not found; install it or set TESSERA_{})", name.to_uppercase());
+    }
+    anyhow!("{name}: {e}")
+}
+
+/// Marker in probe errors caused by a missing tool: such rows are re-probed once the tool
+/// is available.
+pub const TOOL_MISSING: &str = "tool missing";
 
 /// Whether an error came from cancellation (pool shutdown) or a timeout.
 pub fn is_cancelled(e: &anyhow::Error) -> bool {

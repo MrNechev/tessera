@@ -6086,6 +6086,7 @@ dependencies = [
  "tempfile",
  "tessera-imaging",
  "thiserror 2.0.21",
+ "time",
  "tokio",
  "tokio-rustls",
  "tokio-util",

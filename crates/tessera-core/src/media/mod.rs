@@ -91,6 +91,9 @@ pub struct Manager {
     cfg: Arc<Config>,
     cache_dir: PathBuf,
     rt: Handle,
+    tools: Arc<cmd::Tools>,
+    has_ffmpeg: bool,
+    has_ffprobe: bool,
     has_vips: bool,
     /// "vaapi" | "none"
     hw: String,
@@ -116,12 +119,18 @@ impl Manager {
         for d in CACHE_DIRS {
             std::fs::create_dir_all(cache_dir.join(d))?;
         }
-        if look_path("ffmpeg").is_none() {
-            bail!("ffmpeg not found in PATH");
+        let has_ffmpeg = look_path(&cfg.ffmpeg).is_some();
+        let has_ffprobe = look_path(&cfg.ffprobe).is_some();
+        if !has_ffmpeg {
+            tracing::warn!(ffmpeg = %cfg.ffmpeg, "ffmpeg not found: videos, GIFs and audio get no thumbnails or conversions (set TESSERA_FFMPEG)");
         }
-        if look_path("ffprobe").is_none() {
-            bail!("ffprobe not found in PATH");
+        if !has_ffprobe {
+            tracing::warn!(ffprobe = %cfg.ffprobe, "ffprobe not found: videos and audio can't be probed (set TESSERA_FFPROBE)");
         }
+        let tools = Arc::new(cmd::Tools {
+            ffmpeg: cfg.ffmpeg.clone(),
+            ffprobe: cfg.ffprobe.clone(),
+        });
         let has_vips = look_path("vipsthumbnail").is_some() && look_path("vipsheader").is_some();
         if !has_vips {
             tracing::warn!(
@@ -136,6 +145,9 @@ impl Manager {
             cfg,
             cache_dir,
             rt,
+            tools,
+            has_ffmpeg,
+            has_ffprobe,
             has_vips,
             hw: "none".into(),
             hw_note: String::new(),
@@ -165,12 +177,26 @@ impl Manager {
         self.has_vips
     }
 
+    pub fn has_ffmpeg(&self) -> bool {
+        self.has_ffmpeg
+    }
+
+    pub fn has_ffprobe(&self) -> bool {
+        self.has_ffprobe
+    }
+
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
 
     pub(crate) fn exec(&self, cancel: &CancellationToken, timeout: Duration, bg: bool) -> Exec {
-        Exec::new(self.rt.clone(), cancel.clone(), timeout, bg && self.cfg.nice)
+        Exec::new(
+            self.tools.clone(),
+            self.rt.clone(),
+            cancel.clone(),
+            timeout,
+            bg && self.cfg.nice,
+        )
     }
 
     /// Checks whether VAAPI H.264 encoding actually works by encoding a tiny clip.
@@ -181,6 +207,10 @@ impl Manager {
             return;
         }
         let dev = self.cfg.vaapi_device.clone();
+        if !self.has_ffmpeg {
+            self.hw_note = "ffmpeg not available".into();
+            return;
+        }
         if std::fs::metadata(&dev).is_err() {
             self.hw_note = format!(
                 "no {dev} (pass /dev/dri into the container for GPU transcoding)"

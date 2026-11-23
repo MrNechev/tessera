@@ -562,6 +562,20 @@ impl Store {
         Ok(())
     }
 
+    /// Marks rows whose probe failed only because a tool (ffprobe) was missing as unprobed,
+    /// so they are probed again now that it is available.
+    pub fn reset_tool_missing_probes(&self) -> anyhow::Result<usize> {
+        let c = self.pool.get()?;
+        let n = c.execute(
+            "UPDATE files SET probed=0, meta_ver=0, probe_error='' WHERE probe_error LIKE ?",
+            params![format!("%{}%", crate::media::cmd::TOOL_MISSING)],
+        )?;
+        if n > 0 {
+            self.changed();
+        }
+        Ok(n)
+    }
+
     /// Stores a perceptual hash (computed from the thumbnail).
     pub fn set_phash(&self, id: i64, h: &str) -> anyhow::Result<()> {
         let c = self.pool.get()?;

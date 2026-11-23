@@ -140,6 +140,11 @@ pub struct Config {
     /// Run background jobs under `nice -n 10`.
     pub nice: bool,
 
+    /// ffmpeg binary (name looked up in `$PATH`, or a path). Missing tools are reported in
+    /// `/api/status` and make only the affected files fail.
+    pub ffmpeg: String,
+    /// ffprobe binary (name or path).
+    pub ffprobe: String,
     /// auto | vaapi | none
     pub hw_accel: String,
     pub vaapi_device: String,
@@ -300,6 +305,8 @@ impl Config {
             background_gen: env_bool("BACKGROUND_THUMBS", true),
             exclude: split_list(&env_or("EXCLUDE", "")),
             nice: env_bool("NICE", true),
+            ffmpeg: env_or("FFMPEG", "ffmpeg"),
+            ffprobe: env_or("FFPROBE", "ffprobe"),
             hw_accel: env_or("HWACCEL", "auto").to_lowercase(),
             vaapi_device: env_or("VAAPI_DEVICE", "/dev/dri/renderD128"),
             playable_vcodecs: env_list("PLAYABLE_VIDEO_CODECS", "h264,vp8,vp9,av1"),
@@ -356,6 +363,8 @@ impl Config {
             background_gen: true,
             exclude: Vec::new(),
             nice: true,
+            ffmpeg: "ffmpeg".into(),
+            ffprobe: "ffprobe".into(),
             hw_accel: "auto".into(),
             vaapi_device: "/dev/dri/renderD128".into(),
             playable_vcodecs: ["h264", "vp8", "vp9", "av1"].map(String::from).to_vec(),
