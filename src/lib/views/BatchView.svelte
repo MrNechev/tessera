@@ -1,7 +1,7 @@
 <script lang="ts">
   import { FolderOpen, ImagePlus, LoaderCircle, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
-  import { open as openDialog } from '@tauri-apps/plugin-dialog';
+  import { platform } from '../platform';
   import { api, onProgress, pickFolder } from '../api/backend';
   import type { BatchOptions, MetadataPolicy, ProbeInfo, ResizeMode, WatermarkOptions } from '../api/types';
   import { FONTS } from '../assets/fonts';
@@ -93,12 +93,12 @@
   });
 
   async function chooseLogo() {
-    const res = await openDialog({
+    const res = await platform.pickFiles({
       multiple: false,
       title: 'Choose a logo or signature',
       filters: [{ name: 'Images', extensions: ['png', 'webp', 'jpg', 'jpeg', 'avif', 'tif', 'tiff'] }],
     });
-    if (typeof res === 'string') o.wmLogo = res;
+    if (res[0]) o.wmLogo = res[0];
   }
 
   /* ------------------------------------------------------------ preview */
@@ -380,7 +380,7 @@
           if (v === 'same') o.directory = null;
           else if (v === 'save') o.directory = app.settings.saveDirectory || null;
           else {
-            const d = await pickFolder('Save processed photos to', o.directory ?? app.settings.saveDirectory);
+            const d = await pickFolder('Save processed photos to', o.directory ?? app.settings.saveDirectory, true);
             if (d) o.directory = d;
           }
         }}

@@ -1,6 +1,6 @@
 /** File queues and options for the converter, the compressor and the batch
  *  tools (kept while switching views for the rest of the session). */
-import { api, isTauri } from '../api/backend';
+import { api } from '../api/backend';
 import {
   defaultMetadataPolicy,
   type ColorMode,
@@ -30,7 +30,7 @@ export class BatchQueue {
   }
 
   async add(paths: string[]): Promise<void> {
-    if (!paths.length || !isTauri) return;
+    if (!paths.length) return;
     this.adding = true;
     try {
       const res = await api.probeFiles(paths);

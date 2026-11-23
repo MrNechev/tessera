@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/tessera-imaging"]
+members = ["src-tauri", "crates/tessera-imaging", "crates/tessera-core", "crates/tessera-server"]
 
 [workspace.package]
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/MrNechev/tessera"

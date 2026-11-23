@@ -1,5 +1,5 @@
 /** Imported photos and the bitmaps the canvas renders them with. */
-import { api, fileUrl, isTauri, onProgress } from '../api/backend';
+import { api, fileUrl, onProgress } from '../api/backend';
 import type { ImportedImage } from '../api/types';
 import type { AssetRef } from '../model/types';
 import type { ImageEntry } from '../render/renderer';
@@ -53,7 +53,7 @@ class Library {
 
   /** Import files and/or folders. Returns every successfully imported image (new or existing). */
   async import(paths: string[]): Promise<ImportedImage[]> {
-    if (!paths.length || !isTauri) return [];
+    if (!paths.length) return [];
     this.importing = { done: 0, total: paths.length };
     // Folders expand to many files in the backend; it reports the real count.
     const unlisten = await onProgress((e) => {

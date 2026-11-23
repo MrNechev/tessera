@@ -13,39 +13,9 @@
   },
   "app": {
     "withGlobalTauri": false,
-    "windows": [
-      {
-        "label": "main",
-        "title": "Tessera",
-        "width": 1440,
-        "height": 900,
-        "minWidth": 1100,
-        "minHeight": 700,
-        "center": true,
-        "dragDropEnabled": true,
-        "backgroundColor": "#16141d"
-      }
-    ],
+    "windows": [],
     "security": {
-      "csp": {
-        "default-src": "'self'",
-        "img-src": "'self' asset: http://asset.localhost blob: data:",
-        "style-src": "'self' 'unsafe-inline'",
-        "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost asset: http://asset.localhost",
-        "script-src": "'self'",
-        "worker-src": "'self' blob:"
-      },
-      "assetProtocol": {
-        "enable": true,
-        "scope": {
-          "allow": [
-            "$APPCACHE/**",
-            "$APPDATA/projects/**"
-          ],
-          "deny": []
-        }
-      }
+      "csp": null
     }
   },
   "bundle": {
@@ -59,7 +29,7 @@
     "shortDescription": "Photo collage studio and image toolkit",
     "longDescription": "Tessera is a creative photo collage studio and image Swiss Army knife. Build quick automatic collages or hand-crafted designs with templates, text, stickers, shapes and borders, then convert and compress images while keeping the metadata you care about.",
     "publisher": "Tessera contributors",
-    "copyright": "Copyright \u00a9 2026 Tessera contributors",
+    "copyright": "Copyright © 2026 Tessera contributors",
     "license": "GPL-3.0-or-later",
     "homepage": "https://github.com/MrNechev/tessera",
     "icon": [
@@ -79,7 +49,12 @@
           "libdav1d7"
         ],
         "recommends": [
-          "libheif-plugin-libde265"
+          "libheif-plugin-libde265",
+          "ffmpeg",
+          "libvips-tools",
+          "gstreamer1.0-libav",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad"
         ],
         "desktopTemplate": "../packaging/linux/tessera.desktop.hbs",
         "files": {
@@ -96,7 +71,14 @@
         "files": {
           "/usr/share/metainfo/io.github.mrnechev.Tessera.metainfo.xml": "gen/linux/io.github.mrnechev.Tessera.metainfo.xml",
           "/usr/share/mime/packages/io.github.mrnechev.Tessera.xml": "../packaging/linux/io.github.mrnechev.Tessera.mime.xml"
-        }
+        },
+        "recommends": [
+          "ffmpeg-free",
+          "vips-tools",
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugins-bad-free",
+          "gstreamer1-plugin-openh264"
+        ]
       },
       "appimage": {
         "bundleMediaFramework": false

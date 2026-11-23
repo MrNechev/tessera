@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-print-native"
+description = "Enables the print_native command without any pre-configured scope."
+commands.allow = ["print_native"]
+
+[[permission]]
+identifier = "deny-print-native"
+description = "Denies the print_native command without any pre-configured scope."
+commands.deny = ["print_native"]

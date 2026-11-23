@@ -1,5 +1,6 @@
 /** High-level document actions: new, open, autosave, save image, save as. */
-import { api, isTauri, pickImages, pickProjectFile, pickSavePath } from '../api/backend';
+import { api, deliver, isTauri, pickImages, pickProjectFile, pickSavePath } from '../api/backend';
+import { picker } from '../platform/picker.svelte';
 import type { ExportFormat } from '../api/types';
 import { relayout } from '../collage/layout';
 import { createDoc, defaultLayout, createPhoto } from '../model/factory';
@@ -111,7 +112,7 @@ let autosaveWarned = false;
  * writes the old document to the old place; saves run one at a time, in order.
  */
 export function autosave(): Promise<void> {
-  if (!isTauri || !editor.open) return autosaveChain;
+  if (!editor.open) return autosaveChain;
   const doc = editor.doc;
   const path = editor.projectPath;
   // The thumbnail shows the active page only.
@@ -269,13 +270,24 @@ async function runExport(
         results.length > 1
           ? `${first.path.split('/').pop()} … · ${mb} MB`
           : `${first.path.split('/').pop()} · ${first.width}×${first.height} · ${mb} MB`,
-      action: { label: 'Show in folder', run: () => void api.revealPath(first.path) },
+      action: isTauri
+        ? { label: 'Show in folder', run: () => void api.revealPath(first.path) }
+        : { label: 'Download', run: () => deliverNow(results.map((r) => r.path)) },
     });
+    deliver(results.map((r) => r.path));
   } catch (e) {
     toasts.push({ kind: 'error', title: 'Saving failed', message: String(e) });
   } finally {
     saveState.busy = false;
   }
+}
+
+/** Download results now, even when automatic downloads are off. */
+function deliverNow(paths: string[]): void {
+  const auto = picker.downloadResults;
+  picker.downloadResults = true;
+  deliver(paths);
+  picker.downloadResults = auto;
 }
 
 /** One-click Save: writes a copy into the default save folder (every page of a multi-page project). */

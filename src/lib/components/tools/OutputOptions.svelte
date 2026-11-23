@@ -15,7 +15,7 @@
   const where = $derived<Where>(value.directory === null ? 'same' : value.directory === app.settings.saveDirectory ? 'save' : 'custom');
 
   async function choose() {
-    const dir = await pickFolder('Choose output folder', value.directory ?? app.settings.saveDirectory);
+    const dir = await pickFolder('Choose output folder', value.directory ?? app.settings.saveDirectory, true);
     if (dir) onchange({ ...value, directory: dir });
   }
 

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presentation</title>
+<style>
+  :root { color-scheme: dark; --fs: clamp(15px, 2.35vmin, 44px); --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0a0f; color: #f2eff7; font: 16px/1.5 system-ui, sans-serif; overflow: hidden; }
+  .slide { position: absolute; inset: 0; display: grid; gap: 2.4vmin; padding: 4.5vmin 5vmin; grid-template-rows: auto minmax(0,1fr) auto; grid-template-areas: 'title' 'media' 'text'; opacity: 0; transition: opacity .45s; pointer-events: none; }
+  .slide.cur { opacity: 1; pointer-events: auto; }
+  h1 { grid-area: title; margin: 0; font: 650 calc(var(--fs)*2)/1.15 var(--serif); }
+  .media { grid-area: media; display: grid; gap: 1.4vmin; min-height: 0; }
+  .media figure { margin: 0; min-height: 0; display: flex; flex-direction: column; }
+  .media img, .media video { flex: 1; min-height: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  figcaption { text-align: center; font-style: italic; color: #cfcbdb; font-size: calc(var(--fs)*.8); padding-top: .6vmin; }
+  .text { grid-area: text; max-height: 32vh; overflow: hidden; font-family: var(--serif); font-size: var(--fs); }
+  .text p { margin: 0 0 .6em; } .text h1, .text h2, .text h3 { font-family: var(--serif); margin: .3em 0; }
+  .text iframe { display: none; }
+  .L-text-only, .L-chapter { grid-template-rows: auto auto; grid-template-areas: 'title' 'text'; align-content: center; justify-items: center; text-align: center; }
+  .L-text-only h1 { font-size: calc(var(--fs)*2.6); } .L-chapter h1 { font-size: calc(var(--fs)*3.2); }
+  .L-text-only .text, .L-chapter .text { max-height: none; max-width: 62ch; font-size: calc(var(--fs)*1.25); }
+  .L-media-left, .L-media-right { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); grid-template-areas: 'title title' 'media text'; }
+  .L-media-right { grid-template-columns: minmax(0,1fr) minmax(0,1.35fr); grid-template-areas: 'title title' 'text media'; }
+  .L-media-left .text, .L-media-right .text { max-height: none; align-self: center; }
+  .L-media-full { padding: 0; grid-template-rows: minmax(0,1fr); grid-template-areas: 'media'; }
+  .L-media-full h1 { position: absolute; left: 6vmin; bottom: 5vmin; z-index: 2; text-shadow: 0 2px 8px #000; }
+  .L-media-full .text { display: none; }
+  .bar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 5px 10px; background: #1b1a22e6; border: 1px solid #ffffff1a; border-radius: 12px; font: 12px ui-monospace, monospace; transition: opacity .3s; z-index: 9; }
+  .bar button { background: none; border: none; color: #ddd; font-size: 18px; cursor: pointer; padding: 2px 8px; }
+  body.idle .bar { opacity: 0; } body.idle { cursor: none; }
+  .progress { position: fixed; left: 0; right: 0; bottom: 0; height: 3px; background: #e8b04b; transform-origin: left; transition: transform .4s; opacity: .7; }
+  .notice { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #bbb; background: #0008; padding: 4px 12px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="bar"><button id="prev" title="Previous (←)">‹</button><span id="count"></span><button id="next" title="Next (→ / Space)">›</button><button id="fs" title="Full screen (F)">⛶</button></div>
+<div class="progress" id="progress"></div>
+<div class="notice" id="notice">← → or click to navigate · F for full screen</div>
+<script src="data.js"></script>
+<script>
+(function () {
+  var D = window.LETOPIS, root = document.getElementById('root');
+  document.title = D.title;
+  var slides = D.slides, cur = 0, els = [];
+  function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  slides.forEach(function (s, i) {
+    var el = document.createElement('section');
+    var layout = s.chapter ? 'chapter' : (s.media.length ? s.layout : 'text-only');
+    el.className = 'slide L-' + layout;
+    var h = '';
+    if (s.title) h += '<h1>' + esc(s.title) + '</h1>';
+    if (s.media.length && layout !== 'text-only' && layout !== 'chapter') {
+      var cols = layout === 'gallery' ? (s.columns || Math.ceil(Math.sqrt(s.media.length))) : Math.min(s.media.length, 2);
+      h += '<div class="media" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">';
+      s.media.forEach(function (m) {
+        h += '<figure>';
+        if (m.kind === 'video') h += '<video src="' + esc(m.src) + '" poster="' + esc(m.poster || '') + '" controls playsinline preload="metadata"' + (m.muted ? ' muted' : '') + (m.loop ? ' loop' : '') + ' data-start="' + (m.startAt || 0) + '"></video>';
+        else if (m.kind === 'gif') h += '<video src="' + esc(m.src) + '" loop muted playsinline preload="auto"></video>';
+        else h += '<img src="' + esc(m.src) + '" alt="' + esc(m.caption) + '" style="object-fit:' + (m.fit || 'contain') + '">';
+        if (m.caption) h += '<figcaption>' + esc(m.caption) + '</figcaption>';
+        h += '</figure>';
+      });
+      h += '</div>';
+    }
+    if (s.html) h += '<div class="text">' + s.html + '</div>';
+    el.innerHTML = h;
+    root.appendChild(el);
+    els.push(el);
+  });
+  function show(i) {
+    if (!els.length) return;
+    cur = Math.max(0, Math.min(els.length - 1, i));
+    els.forEach(function (el, j) {
+      el.classList.toggle('cur', j === cur);
+      el.querySelectorAll('video').forEach(function (v) {
+        if (j === cur) { try { v.currentTime = +v.dataset.start || 0; } catch (e) {} var p = v.play(); if (p) p.catch(function () { v.muted = true; v.play().catch(function () {}); }); }
+        else v.pause();
+      });
+    });
+    document.getElementById('count').textContent = (cur + 1) + ' / ' + els.length;
+    document.getElementById('progress').style.transform = 'scaleX(' + (els.length > 1 ? cur / (els.length - 1) : 1) + ')';
+    history.replaceState(null, '', '#' + (cur + 1));
+  }
+  function fs() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); }
+  document.getElementById('prev').onclick = function (e) { e.stopPropagation(); show(cur - 1); };
+  document.getElementById('next').onclick = function (e) { e.stopPropagation(); show(cur + 1); };
+  document.getElementById('fs').onclick = function (e) { e.stopPropagation(); fs(); };
+  addEventListener('keydown', function (e) {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].indexOf(e.key) >= 0) { e.preventDefault(); show(cur + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].indexOf(e.key) >= 0) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === 'Home') show(0); else if (e.key === 'End') show(els.length - 1);
+    else if (e.key === 'f' || e.key === 'F') fs();
+  });
+  root.addEventListener('click', function (e) { if (e.target.closest('video')) return; if (e.clientX < innerWidth * .25) show(cur - 1); else show(cur + 1); });
+  var t; function wake() { document.body.classList.remove('idle'); clearTimeout(t); t = setTimeout(function () { document.body.classList.add('idle'); document.getElementById('notice').style.display = 'none'; }, 2500); }
+  addEventListener('mousemove', wake); wake();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+})();
+</script>
+</body>
+</html>

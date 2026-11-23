@@ -18,6 +18,14 @@ export default defineConfig({
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
     watch: { ignored: ['**/src-tauri/**', '**/crates/**', '**/target/**'] },
+    // The engine (desktop: started by `tauri dev` on 1430; or a dev server via
+    // TESSERA_DEV_ENGINE) serves the API, media and derived files.
+    proxy: Object.fromEntries(
+      ['/api', '/media', '/d', '/remote', '/ca.crt', '/healthz'].map((p) => [
+        p,
+        { target: process.env.TESSERA_DEV_ENGINE ?? 'http://127.0.0.1:1430', changeOrigin: true, ws: false },
+      ]),
+    ),
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   build: {

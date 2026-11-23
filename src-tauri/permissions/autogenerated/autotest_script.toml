@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-autotest-script"
+description = "Enables the autotest_script command without any pre-configured scope."
+commands.allow = ["autotest_script"]
+
+[[permission]]
+identifier = "deny-autotest-script"
+description = "Denies the autotest_script command without any pre-configured scope."
+commands.deny = ["autotest_script"]
