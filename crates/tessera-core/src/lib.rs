@@ -8,5 +8,6 @@
 
 pub mod config;
 pub mod jobs;
+pub mod media;
 pub mod store;
 pub mod util;
