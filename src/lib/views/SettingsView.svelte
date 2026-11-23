@@ -26,7 +26,7 @@
   }
 
   async function chooseDir() {
-    const dir = await pickFolder('Choose where Save puts your collages', s.saveDirectory);
+    const dir = await pickFolder('Choose where Save puts your collages', s.saveDirectory, true);
     if (dir) await app.saveSettings({ saveDirectory: dir });
   }
 

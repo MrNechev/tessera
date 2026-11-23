@@ -1,65 +1,17 @@
-//! Tessera desktop application: Tauri shell and command layer.
+//! Tessera desktop app: a thin shell around `tessera-core`.
 //!
-//! All pixel work lives in the `tessera-imaging` crate; this crate wires it to
-//! the UI (commands, progress events, file locations, settings, projects).
+//! At start-up it runs Tessera's engine as a private web server on
+//! `127.0.0.1:<random port>` (protected by a per-launch secret token) and
+//! opens the window on it. The UI and its media then load exactly as they do
+//! in a browser talking to the Docker server. Only things a browser can't do
+//! stay native, over Tauri IPC: file dialogs, OS drag-and-drop paths, GTK
+//! printing, opening files/folders/links, window state.
 
-mod batch;
-mod batch_tools;
-mod export;
-mod images;
-mod paths;
+mod desktop;
 mod print;
-mod projects;
-mod settings;
-mod system;
+mod server;
 
-use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
-
-use serde::Serialize;
-use tauri::{AppHandle, Emitter};
-
-/// Progress notification sent to the UI on `tessera://progress`.
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Progress {
-    pub task: &'static str,
-    pub done: usize,
-    pub total: usize,
-    pub current: Option<String>,
-}
-
-pub fn emit_progress(
-    app: &AppHandle,
-    task: &'static str,
-    done: usize,
-    total: usize,
-    current: Option<String>,
-) {
-    let _ = app.emit(
-        "tessera://progress",
-        Progress {
-            task,
-            done,
-            total,
-            current,
-        },
-    );
-}
-
-/// Shared, mutable application state.
-#[derive(Default)]
-pub struct AppState {
-    pub exports: Mutex<export::Jobs>,
-    pub cancel_batch: AtomicBool,
-}
-
-/// Errors cross the IPC boundary as user-presentable strings.
-pub type CmdResult<T> = Result<T, String>;
-
-pub fn err<E: std::fmt::Display>(e: E) -> String {
-    e.to_string()
-}
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// AppImages bundle libheif's HEVC decoder plugin (for HEIC photos) inside
 /// the image; tell libheif where to find it. Must run before any thread starts.
@@ -87,45 +39,28 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .manage(AppState::default())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let started = tauri::async_runtime::block_on(server::start(handle))?;
+            let url = started.window_url();
+            app.manage(started);
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+                .title("Tessera")
+                .inner_size(1440.0, 900.0)
+                .min_inner_size(1100.0, 700.0)
+                .center()
+                .background_color(tauri::window::Color(0x16, 0x14, 0x1d, 0xff))
+                .build()?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
-            system::app_info,
-            system::reveal_path,
-            system::open_path,
-            system::open_url,
-            system::ensure_dir,
-            system::check_updates,
-            system::cache_size,
-            system::clear_cache,
-            system::autotest_script,
-            system::autotest_log,
-            system::startup_files,
-            settings::load_settings,
-            settings::save_settings,
-            images::import_images,
-            images::probe_files,
-            images::load_image_rgba,
-            images::read_metadata,
-            export::export_begin,
-            export::export_tile,
-            export::export_finish,
-            export::export_cancel,
-            export::pdf_begin,
-            export::pdf_add_page,
-            export::pdf_finish,
-            export::pdf_cancel,
+            desktop::reveal_path,
+            desktop::open_path,
+            desktop::open_url,
+            desktop::startup_files,
+            desktop::autotest_script,
+            desktop::autotest_log,
             print::print_native,
-            batch::convert_images,
-            batch::compress_images,
-            batch::compress_preview,
-            batch::cancel_batch,
-            batch_tools::batch_process,
-            batch_tools::save_temp_image,
-            projects::list_projects,
-            projects::load_project,
-            projects::save_project,
-            projects::save_project_file,
-            projects::delete_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tessera");

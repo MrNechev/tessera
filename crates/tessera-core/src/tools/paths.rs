@@ -5,51 +5,41 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use tauri::{AppHandle, Manager};
+use super::Tools;
 
 fn ensure(p: PathBuf) -> PathBuf {
     let _ = fs::create_dir_all(&p);
     p
 }
 
-pub fn cache_dir(app: &AppHandle) -> PathBuf {
-    ensure(
-        app.path()
-            .app_cache_dir()
-            .unwrap_or_else(|_| std::env::temp_dir().join("tessera")),
-    )
-}
+impl Tools {
+    pub fn cache_dir(&self) -> PathBuf {
+        ensure(self.cfg.cache_dir.clone())
+    }
 
-pub fn data_dir(app: &AppHandle) -> PathBuf {
-    ensure(
-        app.path()
-            .app_data_dir()
-            .unwrap_or_else(|_| std::env::temp_dir().join("tessera-data")),
-    )
-}
+    pub fn data_dir(&self) -> PathBuf {
+        ensure(self.cfg.data_dir.clone())
+    }
 
-pub fn config_dir(app: &AppHandle) -> PathBuf {
-    ensure(
-        app.path()
-            .app_config_dir()
-            .unwrap_or_else(|_| data_dir(app)),
-    )
-}
+    pub fn config_dir(&self) -> PathBuf {
+        ensure(self.cfg.config_dir.clone())
+    }
 
-pub fn proxies(app: &AppHandle) -> PathBuf {
-    ensure(cache_dir(app).join("proxies"))
-}
+    pub fn proxies(&self) -> PathBuf {
+        ensure(self.cfg.cache_dir.join("proxies"))
+    }
 
-pub fn thumbs(app: &AppHandle) -> PathBuf {
-    ensure(cache_dir(app).join("thumbs"))
-}
+    pub fn thumbs(&self) -> PathBuf {
+        ensure(self.cfg.cache_dir.join("thumbs"))
+    }
 
-pub fn previews(app: &AppHandle) -> PathBuf {
-    ensure(cache_dir(app).join("previews"))
-}
+    pub fn previews(&self) -> PathBuf {
+        ensure(self.cfg.cache_dir.join("previews"))
+    }
 
-pub fn projects(app: &AppHandle) -> PathBuf {
-    ensure(data_dir(app).join("projects"))
+    pub fn projects(&self) -> PathBuf {
+        ensure(self.cfg.data_dir.join("projects"))
+    }
 }
 
 /// `~/Pictures/Tessera` (or `~/Tessera` when there is no pictures folder).

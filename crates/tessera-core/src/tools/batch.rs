@@ -7,11 +7,10 @@ use std::time::SystemTime;
 
 use rayon::prelude::*;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
 use tessera_imaging::{CompressOptions, ConvertOptions, ImageFormat, JobResult, JobStatus};
 
-use crate::images::{asset_id, expand_paths};
-use crate::{emit_progress, err, paths, AppState, CmdResult};
+use super::images::{asset_id, expand_checked};
+use super::{err, paths, CmdResult, Tools};
 
 /// Heavy codecs (AVIF, smart search) use a lot of memory per image; keep the
 /// pool modest so big batches don't exhaust RAM on small machines.
@@ -42,15 +41,15 @@ pub(crate) fn cancelled(input: &Path) -> JobResult {
     }
 }
 
-fn run_batch<F>(app: &AppHandle, task: &'static str, files: Vec<PathBuf>, job: F) -> Vec<JobResult>
+fn run_batch<F>(t: &Tools, task: &'static str, files: Vec<PathBuf>, job: F) -> Vec<JobResult>
 where
     F: Fn(&Path) -> JobResult + Sync,
 {
-    let state = app.state::<AppState>();
+    let state = t;
     state.cancel_batch.store(false, Ordering::SeqCst);
     let total = files.len();
     let done = AtomicUsize::new(0);
-    emit_progress(app, task, 0, total, None);
+    t.progress(task, 0, total, None);
     pool().install(|| {
         files
             .par_iter()
@@ -61,47 +60,48 @@ where
                     job(p)
                 };
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                emit_progress(app, task, n, total, Some(p.to_string_lossy().into_owned()));
+                t.progress(task, n, total, Some(p.to_string_lossy().into_owned()));
                 r
             })
             .collect()
     })
 }
 
-#[tauri::command]
-pub async fn convert_images(
-    app: AppHandle,
-    files: Vec<String>,
-    options: ConvertOptions,
-) -> CmdResult<Vec<JobResult>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let files = expand_paths(&files);
-        run_batch(&app, "convert", files, |p| {
-            tessera_imaging::convert_file(p, &options)
-        })
+/// Refuse a job whose output would land in a read-only place.
+fn output_allowed(t: &Tools, input: &Path, directory: Option<&str>) -> Result<(), Box<JobResult>> {
+    let check = match directory {
+        Some(d) => t.guard.writable(&paths::expand(d)),
+        None => t.guard.writable_next_to(input),
+    };
+    check.map(|_| ()).map_err(|e| {
+        let mut r = cancelled(input);
+        r.status = JobStatus::Failed;
+        r.message = Some(e);
+        Box::new(r)
     })
-    .await
-    .map_err(err)
 }
 
-#[tauri::command]
-pub async fn compress_images(
-    app: AppHandle,
-    files: Vec<String>,
-    options: CompressOptions,
-) -> CmdResult<Vec<JobResult>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let files = expand_paths(&files);
-        run_batch(&app, "compress", files, |p| {
-            tessera_imaging::compress_file(p, &options)
-        })
+pub fn convert_images(t: &Tools, files: Vec<String>, options: ConvertOptions) -> Vec<JobResult> {
+    let files = expand_checked(t, &files);
+    run_batch(t, "convert", files, |p| {
+        match output_allowed(t, p, options.output.directory.as_deref()) {
+            Ok(()) => tessera_imaging::convert_file(p, &options),
+            Err(r) => *r,
+        }
     })
-    .await
-    .map_err(err)
 }
 
-#[tauri::command]
-pub fn cancel_batch(state: State<'_, AppState>) {
+pub fn compress_images(t: &Tools, files: Vec<String>, options: CompressOptions) -> Vec<JobResult> {
+    let files = expand_checked(t, &files);
+    run_batch(t, "compress", files, |p| {
+        match output_allowed(t, p, options.output.directory.as_deref()) {
+            Ok(()) => tessera_imaging::compress_file(p, &options),
+            Err(r) => *r,
+        }
+    })
+}
+
+pub fn cancel_batch(state: &Tools) {
     state.cancel_batch.store(true, Ordering::SeqCst);
 }
 
@@ -193,23 +193,22 @@ fn original_preview(dir: &Path, src: &Path, max_side: u32) -> CmdResult<PathBuf>
     Ok(path)
 }
 
-#[tauri::command]
-pub async fn compress_preview(
-    app: AppHandle,
+pub fn compress_preview(
+    t: &Tools,
     path: String,
     options: CompressOptions,
 ) -> CmdResult<CompressPreviewInfo> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let src = Path::new(&path);
+    {
+        let src_path = t.guard.readable(&paths::expand(&path))?;
+        let src = src_path.as_path();
         let res = tessera_imaging::compress_preview(src, &options).map_err(err)?;
-        let dir = paths::previews(&app);
+        let dir = t.previews();
         let out = dir.join(result_name(&path, res.format.extension()));
         fs::write(&out, &res.bytes).map_err(err)?;
         prune(&dir, "result-", KEEP_RESULTS, &out);
         let probe = tessera_imaging::probe(src).map_err(err)?;
         let original = if displayable(probe.format) && probe.orientation <= 1 {
-            // Let the webview read the original file directly.
-            app.asset_protocol_scope().allow_file(src).map_err(err)?;
+            // The UI reads the original file directly (the file endpoint checks the guard).
             src.to_path_buf()
         } else {
             original_preview(&dir, src, probe.width.max(probe.height))?
@@ -225,9 +224,7 @@ pub async fn compress_preview(
             width: res.width,
             height: res.height,
         })
-    })
-    .await
-    .map_err(err)?
+    }
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
-/** Thin, typed wrappers around Tauri commands. */
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+/** Typed wrappers around the engine's tool API, plus platform-specific file pickers. */
+import { call, callBinary, fetchBytes, subscribe } from './http';
+import { platform } from '../platform';
 import type {
   AppInfo,
   CompressOptions,
@@ -20,73 +19,91 @@ import type {
   UpdateInfo,
 } from './types';
 
-export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+/** True inside the desktop app's window (native dialogs, drag-and-drop paths, printing). */
+export const isTauri = platform.desktop;
+export const isDesktop = platform.desktop;
 
-export function fileUrl(path: string): string {
-  return isTauri ? convertFileSrc(path) : path;
+/** URL of a file on the engine's machine (previews, thumbnails, results). */
+export function fileUrl(path: string, version?: string | number): string {
+  const v = version === undefined ? '' : `&v=${encodeURIComponent(String(version))}`;
+  return `/api/t/file?path=${encodeURIComponent(path)}${v}`;
+}
+
+/** URL that downloads a file (attachment). */
+export function downloadUrl(path: string, name?: string): string {
+  const n = name ? `&name=${encodeURIComponent(name)}` : '';
+  return `/api/t/download?path=${encodeURIComponent(path)}${n}`;
 }
 
 export const api = {
-  appInfo: () => invoke<AppInfo>('app_info'),
-  loadSettings: () => invoke<Settings>('load_settings'),
-  saveSettings: (settings: Settings) => invoke<void>('save_settings', { settings }),
+  appInfo: () => call<AppInfo>('app_info'),
+  loadSettings: () => call<Settings>('load_settings'),
+  saveSettings: (settings: Settings) => call<void>('save_settings', { settings }),
 
-  importImages: (paths: string[]) => invoke<ImportResult>('import_images', { paths }),
-  probeFiles: (paths: string[]) => invoke<ProbeResult>('probe_files', { paths }),
-  thumbnail: (path: string) => invoke<string>('thumbnail', { path }),
+  importImages: (paths: string[]) => call<ImportResult>('import_images', { paths }),
+  probeFiles: (paths: string[]) => call<ProbeResult>('probe_files', { paths }),
 
   /** Full-quality, upright pixels, fitted inside maxWidth × maxHeight. */
   async loadImagePixels(path: string, maxWidth: number, maxHeight: number): Promise<ImageData> {
-    const buf = await invoke<ArrayBuffer>('load_image_rgba', { path, maxWidth, maxHeight });
+    const buf = await fetchBytes('/api/t/load_image_rgba', { path, maxWidth, maxHeight });
     const view = new DataView(buf);
     const w = view.getUint32(0, true);
     const h = view.getUint32(4, true);
     return new ImageData(new Uint8ClampedArray(buf, 8, w * h * 4), w, h);
   },
 
-  exportBegin: (width: number, height: number) => invoke<number>('export_begin', { width, height }),
+  exportBegin: (width: number, height: number) => call<number>('export_begin', { width, height }),
   exportTile: (job: number, x: number, y: number, w: number, h: number, rgba: Uint8ClampedArray) =>
-    invoke<void>('export_tile', new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
-      headers: { 'x-job': String(job), 'x-rect': `${x},${y},${w},${h}` },
+    callBinary<void>('/api/t/export_tile', new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
+      'x-job': String(job),
+      'x-rect': `${x},${y},${w},${h}`,
     }),
   exportFinish: (job: number, path: string, format: string, quality: number, dpi: number, unique: boolean) =>
-    invoke<ExportResult>('export_finish', { job, path, format, quality, dpi, unique }),
-  exportCancel: (job: number) => invoke<void>('export_cancel', { job }),
-  pdfBegin: () => invoke<number>('pdf_begin'),
-  pdfAddPage: (pdf: number, job: number, quality: number, dpi: number) => invoke<void>('pdf_add_page', { pdf, job, quality, dpi }),
-  pdfFinish: (pdf: number, path: string, unique: boolean) => invoke<ExportResult>('pdf_finish', { pdf, path, unique }),
-  pdfCancel: (pdf: number) => invoke<void>('pdf_cancel', { pdf }),
+    call<ExportResult>('export_finish', { job, path, format, quality, dpi, unique }),
+  exportCancel: (job: number) => call<void>('export_cancel', { job }),
+  pdfBegin: () => call<number>('pdf_begin'),
+  pdfAddPage: (pdf: number, job: number, quality: number, dpi: number) => call<void>('pdf_add_page', { pdf, job, quality, dpi }),
+  pdfFinish: (pdf: number, path: string, unique: boolean) => call<ExportResult>('pdf_finish', { pdf, path, unique }),
+  pdfCancel: (pdf: number) => call<void>('pdf_cancel', { pdf }),
   /** Native print dialog sized to the page; 'unsupported' means use window.print(). */
   printNative: (widthMm: number, heightMm: number, name: string) =>
-    invoke<'printing' | 'cancelled' | 'unsupported'>('print_native', { widthMm, heightMm, name }),
+    platform.printNative(widthMm, heightMm, name),
 
-  convertImages: (files: string[], options: ConvertOptions) => invoke<JobResult[]>('convert_images', { files, options }),
-  compressImages: (files: string[], options: CompressOptions) => invoke<JobResult[]>('compress_images', { files, options }),
+  convertImages: (files: string[], options: ConvertOptions) => call<JobResult[]>('convert_images', { files, options }),
+  compressImages: (files: string[], options: CompressOptions) => call<JobResult[]>('compress_images', { files, options }),
   compressPreview: (path: string, options: CompressOptions) =>
-    invoke<CompressPreviewInfo>('compress_preview', { path, options }),
-  cancelBatch: () => invoke<void>('cancel_batch'),
-  batchProcess: (jobs: BatchJob[], options: BatchOptions) => invoke<JobResult[]>('batch_process', { jobs, options }),
-  saveTempImage: (png: Uint8Array) => invoke<string>('save_temp_image', png),
-  readMetadata: (path: string) => invoke<MetadataSummary>('read_metadata', { path }),
+    call<CompressPreviewInfo>('compress_preview', { path, options }),
+  cancelBatch: () => call<void>('cancel_batch'),
+  batchProcess: (jobs: BatchJob[], options: BatchOptions) => call<JobResult[]>('batch_process', { jobs, options }),
+  saveTempImage: (png: Uint8Array) => callBinary<string>('/api/t/save_temp_image', png),
+  readMetadata: (path: string) => call<MetadataSummary>('read_metadata', { path }),
 
-  listProjects: () => invoke<ProjectSummary[]>('list_projects'),
-  loadProject: (path: string) => invoke<string>('load_project', { path }),
+  listProjects: () => call<ProjectSummary[]>('list_projects'),
+  loadProject: (path: string) => call<string>('load_project', { path }),
   saveProject: (id: string, json: string, thumbnail: string | null) =>
-    invoke<ProjectSummary>('save_project', { id, json, thumbnail }),
-  saveProjectFile: (path: string, json: string) => invoke<void>('save_project_file', { path, json }),
-  deleteProject: (id: string) => invoke<void>('delete_project', { id }),
+    call<ProjectSummary>('save_project', { id, json, thumbnail }),
+  saveProjectFile: (path: string, json: string) => call<void>('save_project_file', { path, json }),
+  deleteProject: (id: string) => call<void>('delete_project', { id }),
 
-  revealPath: (path: string) => invoke<void>('reveal_path', { path }),
-  openPath: (path: string) => invoke<void>('open_path', { path }),
-  ensureDir: (path: string) => invoke<string>('ensure_dir', { path }),
-  checkUpdates: () => invoke<UpdateInfo>('check_updates'),
-  openUrl: (url: string) => invoke<void>('open_url', { url }),
-  clearCache: () => invoke<number>('clear_cache'),
-  cacheSize: () => invoke<number>('cache_size'),
+  /** Desktop: show in the file manager. Browser: download the file. */
+  revealPath: (path: string) => platform.revealPath(path),
+  /** Desktop: open with the default app. Browser: open in a new tab. */
+  openPath: (path: string) => platform.openPath(path),
+  ensureDir: (path: string) => call<string>('ensure_dir', { path }),
+  checkUpdates: () => call<UpdateInfo>('check_updates'),
+  openUrl: (url: string) => platform.openUrl(url),
+  clearCache: () => call<number>('clear_cache'),
+  cacheSize: () => call<number>('cache_size'),
+  /** Whether the engine may write to this path (write guard). */
+  writable: (path: string) => call<boolean>('writable', { path }),
 };
 
-export function onProgress(fn: (e: ProgressEvent) => void): Promise<UnlistenFn> {
-  return listen<ProgressEvent>('tessera://progress', (e) => fn(e.payload));
+export function onProgress(fn: (e: ProgressEvent) => void): Promise<() => void> {
+  return Promise.resolve(
+    subscribe((m) => {
+      if (m.type === 'progress') fn(m.data as ProgressEvent);
+    }),
+  );
 }
 
 const FALLBACK_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'heif', 'tif', 'tiff', 'bmp', 'gif', 'jxl', 'qoi', 'tga', 'ico', 'dng', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2', 'pef'];
@@ -97,27 +114,25 @@ let importExtensions: string[] = FALLBACK_EXTENSIONS;
 export function setImportExtensions(exts: string[]): void {
   if (exts.length) importExtensions = exts;
 }
+export function getImportExtensions(): string[] {
+  return importExtensions;
+}
 
-export async function pickImages(defaultPath?: string | null): Promise<string[]> {
+export async function pickImages(defaultPath?: string | null, title = 'Add photos'): Promise<string[]> {
   const raw = importExtensions.filter((e) => RAW_EXTENSIONS.has(e));
-  const res = await openDialog({
-    multiple: true,
-    directory: false,
+  return platform.pickFiles({
+    title,
     defaultPath: defaultPath ?? undefined,
-    title: 'Add photos',
     filters: [
       { name: 'Images', extensions: importExtensions },
       ...(raw.length ? [{ name: 'Camera RAW', extensions: raw }] : []),
       { name: 'All files', extensions: ['*'] },
     ],
   });
-  if (!res) return [];
-  return Array.isArray(res) ? res : [res];
 }
 
-export async function pickFolder(title = 'Choose a folder', defaultPath?: string | null): Promise<string | null> {
-  const res = await openDialog({ directory: true, multiple: false, title, defaultPath: defaultPath ?? undefined });
-  return typeof res === 'string' ? res : null;
+export async function pickFolder(title = 'Choose a folder', defaultPath?: string | null, forSaving = false): Promise<string | null> {
+  return platform.pickFolder({ title, defaultPath: defaultPath ?? undefined, forSaving });
 }
 
 export async function pickSavePath(
@@ -125,16 +140,19 @@ export async function pickSavePath(
   filters: { name: string; extensions: string[] }[],
   title = 'Save as',
 ): Promise<string | null> {
-  const res = await saveDialog({ defaultPath, filters, title });
-  return res ?? null;
+  return platform.pickSavePath({ defaultPath, filters, title });
 }
 
 export async function pickProjectFile(): Promise<string | null> {
-  const res = await openDialog({
-    multiple: false,
-    directory: false,
+  const files = await platform.pickFiles({
     title: 'Open project',
+    multiple: false,
     filters: [{ name: 'Tessera project', extensions: ['tessera'] }],
   });
-  return typeof res === 'string' ? res : null;
+  return files[0] ?? null;
+}
+
+/** After saving in the browser, offer the result as a download (setting-controlled). */
+export function deliver(paths: string[]): void {
+  platform.deliver(paths);
 }

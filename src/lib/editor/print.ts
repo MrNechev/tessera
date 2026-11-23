@@ -59,7 +59,7 @@ export async function printPages(
   const stamp = Date.now();
   const imgs = results.map((r) => {
     const img = document.createElement('img');
-    img.src = `${fileUrl(r.path)}?v=${stamp}`;
+    img.src = fileUrl(r.path, stamp);
     img.alt = '';
     root.appendChild(img);
     return img;
@@ -70,6 +70,7 @@ export async function printPages(
   onProgress?.(1, 'Printing');
 
   if (!isTauri) {
+    // Browser: Chromium honours the @page size above.
     window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
     return;

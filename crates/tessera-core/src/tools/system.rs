@@ -4,11 +4,9 @@ use std::fs;
 use std::path::Path;
 
 use serde::Serialize;
-use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
 use tessera_imaging::FormatCapabilities;
 
-use crate::{err, paths, CmdResult};
+use super::{err, paths, CmdResult, Mode, Tools};
 
 const REPO: &str = "MrNechev/tessera";
 pub const CHANNEL: &str = "alpha";
@@ -25,11 +23,18 @@ pub struct AppInfo {
     pub input_extensions: Vec<String>,
     pub data_dir: String,
     pub cache_dir: String,
+    /// "desktop" or "server".
+    pub mode: Mode,
+    /// Server mode: where results are saved by default.
+    pub outputs_dir: String,
+    pub has_inbox: bool,
 }
 
 /// How this copy of Tessera was installed (decides how updates are offered).
 pub fn install_kind() -> &'static str {
-    if std::env::var_os("APPIMAGE").is_some() {
+    if std::env::var_os("TESSERA_DOCKER").is_some() {
+        "docker"
+    } else if std::env::var_os("APPIMAGE").is_some() {
         "appimage"
     } else if Path::new("/.flatpak-info").exists() {
         "flatpak"
@@ -49,12 +54,8 @@ pub fn install_kind() -> &'static str {
     }
 }
 
-// Synchronous commands run on the main (UI) thread in Tauri 2, so anything
-// touching the disk or spawning processes is async + spawn_blocking.
-
-#[tauri::command]
-pub async fn app_info(app: AppHandle) -> CmdResult<AppInfo> {
-    tauri::async_runtime::spawn_blocking(move || AppInfo {
+pub fn app_info(t: &Tools) -> AppInfo {
+    AppInfo {
         version: env!("CARGO_PKG_VERSION").into(),
         channel: CHANNEL.into(),
         platform: std::env::consts::OS.into(),
@@ -66,97 +67,39 @@ pub async fn app_info(app: AppHandle) -> CmdResult<AppInfo> {
             .into_iter()
             .map(String::from)
             .collect(),
-        data_dir: paths::data_dir(&app).to_string_lossy().into_owned(),
-        cache_dir: paths::cache_dir(&app).to_string_lossy().into_owned(),
-    })
-    .await
-    .map_err(err)
-}
-
-#[tauri::command]
-pub fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
-    app.opener()
-        .reveal_item_in_dir(paths::expand(&path))
-        .map_err(err)
-}
-
-#[tauri::command]
-pub fn open_path(app: AppHandle, path: String) -> CmdResult<()> {
-    app.opener()
-        .open_path(paths::expand(&path).to_string_lossy(), None::<&str>)
-        .map_err(err)
-}
-
-#[tauri::command]
-pub fn open_url(app: AppHandle, url: String) -> CmdResult<()> {
-    if !url.starts_with("https://") {
-        return Err("only https links can be opened".into());
+        data_dir: t.data_dir().to_string_lossy().into_owned(),
+        cache_dir: t.cache_dir().to_string_lossy().into_owned(),
+        mode: t.cfg.mode,
+        outputs_dir: t.cfg.outputs_dir.to_string_lossy().into_owned(),
+        has_inbox: t.cfg.inbox_dir.is_some(),
     }
-    app.opener().open_url(url, None::<&str>).map_err(err)
 }
 
-#[tauri::command]
-pub async fn ensure_dir(path: String) -> CmdResult<String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let p = paths::expand(&path);
-        fs::create_dir_all(&p).map_err(|e| format!("{}: {e}", p.display()))?;
-        Ok(p.to_string_lossy().into_owned())
-    })
-    .await
-    .map_err(err)?
+pub fn ensure_dir(t: &Tools, path: String) -> CmdResult<String> {
+    let p = t.guard.writable(&paths::expand(&path))?;
+    fs::create_dir_all(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+    Ok(p.to_string_lossy().into_owned())
 }
 
-#[tauri::command]
-pub async fn cache_size(app: AppHandle) -> CmdResult<u64> {
-    tauri::async_runtime::spawn_blocking(move || paths::dir_size(&paths::cache_dir(&app)))
-        .await
-        .map_err(err)
+pub fn cache_size(t: &Tools) -> u64 {
+    [
+        t.proxies(),
+        t.thumbs(),
+        t.previews(),
+        t.cache_dir().join("watermarks"),
+    ]
+    .iter()
+    .map(|d| paths::dir_size(d))
+    .sum()
 }
 
-#[tauri::command]
-pub async fn clear_cache(app: AppHandle) -> CmdResult<u64> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut freed = 0;
-        for dir in [
-            paths::proxies(&app),
-            paths::thumbs(&app),
-            paths::previews(&app),
-        ] {
-            freed += paths::dir_size(&dir);
-            let _ = fs::remove_dir_all(&dir);
-        }
-        freed
-    })
-    .await
-    .map_err(err)
-}
-
-/// Development hook: when TESSERA_AUTOTEST points at a JSON script, the UI
-/// runs it on start-up (used for end-to-end smoke tests).
-#[tauri::command]
-pub fn autotest_script() -> Option<String> {
-    let path = std::env::var_os("TESSERA_AUTOTEST")?;
-    fs::read_to_string(path).ok()
-}
-
-/// Files given on the command line ("Open with Tessera").
-#[tauri::command]
-pub fn startup_files() -> Vec<String> {
-    std::env::args_os()
-        .skip(1)
-        .map(std::path::PathBuf::from)
-        .filter(|p| p.exists())
-        .filter_map(|p| p.canonicalize().ok())
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect()
-}
-
-/// Development hook: print a line from the smoke-test driver to stdout.
-#[tauri::command]
-pub fn autotest_log(msg: String) {
-    if std::env::var_os("TESSERA_AUTOTEST").is_some() {
-        println!("[autotest] {msg}");
+pub fn clear_cache(t: &Tools) -> u64 {
+    let mut freed = 0;
+    for dir in [t.proxies(), t.thumbs(), t.previews()] {
+        freed += paths::dir_size(&dir);
+        let _ = fs::remove_dir_all(&dir);
     }
+    freed
 }
 
 #[derive(Serialize)]
@@ -177,9 +120,8 @@ fn parse_version(tag: &str) -> Option<semver::Version> {
 
 /// Ask GitHub for the newest published release. Only the release list is
 /// requested; nothing about the user or the machine is sent.
-#[tauri::command]
-pub async fn check_updates() -> CmdResult<UpdateInfo> {
-    tauri::async_runtime::spawn_blocking(|| {
+pub fn check_updates() -> CmdResult<UpdateInfo> {
+    {
         let current = env!("CARGO_PKG_VERSION");
         let url = format!("https://api.github.com/repos/{REPO}/releases?per_page=20");
         let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -231,7 +173,5 @@ pub async fn check_updates() -> CmdResult<UpdateInfo> {
             published_at: published,
             install_kind: install_kind().into(),
         })
-    })
-    .await
-    .map_err(err)?
+    }
 }

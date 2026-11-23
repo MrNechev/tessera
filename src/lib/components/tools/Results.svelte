@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { CircleAlert, CircleCheck, FolderOpen, MinusCircle } from '@lucide/svelte';
-  import { api } from '../../api/backend';
+  import { CircleAlert, CircleCheck, Download, FolderOpen, MinusCircle } from '@lucide/svelte';
+  import { api, isTauri } from '../../api/backend';
+  import { platform } from '../../platform';
+  import { picker } from '../../platform/picker.svelte';
   import type { JobResult } from '../../api/types';
   import { formatBytes } from '../../stores/batch.svelte';
 
@@ -14,6 +16,14 @@
   const after = $derived(done.reduce((s, r) => s + r.outputBytes, 0));
   const saved = $derived(before > 0 ? 1 - after / before : 0);
   const firstOut = $derived(done.find((r) => r.output)?.output ?? null);
+  const outputs = $derived(done.flatMap((r) => (r.output ? [r.output] : [])));
+
+  function downloadAll() {
+    const auto = picker.downloadResults;
+    picker.downloadResults = true;
+    platform.deliver(outputs);
+    picker.downloadResults = auto;
+  }
 </script>
 
 {#if results.length}
@@ -28,8 +38,10 @@
         </span>
       </div>
       <span class="spacer"></span>
-      {#if firstOut}
+      {#if firstOut && isTauri}
         <button class="btn small" onclick={() => void api.revealPath(firstOut)}><FolderOpen size={14} /> Show files</button>
+      {:else if outputs.length}
+        <button class="btn small" onclick={downloadAll}><Download size={14} /> Download {outputs.length > 1 ? `all (${outputs.length})` : ''}</button>
       {/if}
     </header>
     <div class="list">

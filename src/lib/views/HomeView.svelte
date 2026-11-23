@@ -2,7 +2,7 @@
   import { ArrowLeftRight, BookOpen, CalendarDays, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
   import NewProjectDialog from '../components/NewProjectDialog.svelte';
   import { onMount } from 'svelte';
-  import { api, fileUrl, isTauri } from '../api/backend';
+  import { api, fileUrl } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
   import TemplatesPanel from '../components/editor/panels/TemplatesPanel.svelte';
   import TemplateThumb from '../components/editor/TemplateThumb.svelte';
@@ -28,7 +28,6 @@
     .filter((t): t is TemplateDef => !!t);
 
   async function refresh() {
-    if (!isTauri) return;
     try {
       projects = await api.listProjects();
     } catch (e) {

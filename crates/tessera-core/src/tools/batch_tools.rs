@@ -15,15 +15,13 @@ use std::sync::{Mutex, PoisonError};
 use image::{DynamicImage, GenericImageView, RgbaImage};
 use rayon::prelude::*;
 use serde::Deserialize;
-use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, Manager};
 use tessera_imaging::{
     Chroma, ConflictPolicy, EncodeOptions, ImageFormat, JobResult, JobStatus, MetadataMode,
     MetadataPolicy, ResizeMode, TargetFormat,
 };
 
-use crate::batch::{cancelled, pool};
-use crate::{emit_progress, err, paths, AppState, CmdResult};
+use super::batch::{cancelled, pool};
+use super::{err, paths, CmdResult, Tools};
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -583,64 +581,63 @@ fn process_guarded(
     })
 }
 
-#[tauri::command]
-pub async fn batch_process(
-    app: AppHandle,
+pub fn batch_process(
+    t: &Tools,
     jobs: Vec<BatchJob>,
     options: BatchOptions,
 ) -> CmdResult<Vec<JobResult>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mark = match &options.watermark {
-            Some(wm) => Some(
-                tessera_imaging::load(Path::new(&wm.image))
-                    .map_err(|e| format!("Watermark image: {e}"))?
-                    .image
-                    .into_rgba8(),
-            ),
-            None => None,
-        };
-        let state = app.state::<AppState>();
-        state.cancel_batch.store(false, Ordering::SeqCst);
-        let total = jobs.len();
-        let done = AtomicUsize::new(0);
-        let claims = Claims::new(&jobs);
-        emit_progress(&app, "batch", 0, total, None);
-        Ok(pool().install(|| {
-            jobs.par_iter()
-                .map(|job| {
-                    let r = if state.cancel_batch.load(Ordering::SeqCst) {
-                        cancelled(Path::new(&job.input))
-                    } else {
-                        process_guarded(job, &options, mark.as_ref(), &claims, &state.cancel_batch)
-                    };
-                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    emit_progress(&app, "batch", n, total, Some(job.input.clone()));
-                    r
-                })
-                .collect()
-        }))
-    })
-    .await
-    .map_err(err)?
+    let mark = match &options.watermark {
+        Some(wm) => Some(
+            tessera_imaging::load(&t.guard.readable(&paths::expand(&wm.image))?)
+                .map_err(|e| format!("Watermark image: {e}"))?
+                .image
+                .into_rgba8(),
+        ),
+        None => None,
+    };
+    let state = t;
+    state.cancel_batch.store(false, Ordering::SeqCst);
+    let total = jobs.len();
+    let done = AtomicUsize::new(0);
+    let claims = Claims::new(&jobs);
+    t.progress("batch", 0, total, None);
+    Ok(pool().install(|| {
+        jobs.par_iter()
+            .map(|job| {
+                let input = Path::new(&job.input);
+                let check = t.guard.readable(input).and_then(|_| {
+                    let moving = options.transfer == Transfer::Move;
+                    if moving {
+                        t.guard.writable_next_to(input)?;
+                    }
+                    match &options.directory {
+                        Some(d) => t.guard.writable(&paths::expand(d)).map(|_| ()),
+                        None => t.guard.writable_next_to(input).map(|_| ()),
+                    }
+                });
+                let r = if state.cancel_batch.load(Ordering::SeqCst) {
+                    cancelled(input)
+                } else if let Err(e) = check {
+                    result(input, JobStatus::Failed, Some(e))
+                } else {
+                    process_guarded(job, &options, mark.as_ref(), &claims, &state.cancel_batch)
+                };
+                let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                t.progress("batch", n, total, Some(job.input.clone()));
+                r
+            })
+            .collect()
+    }))
 }
 
 /// Store a PNG made by the UI (a text watermark) and return its path.
-#[tauri::command]
-pub async fn save_temp_image(app: AppHandle, request: Request<'_>) -> CmdResult<String> {
-    let InvokeBody::Raw(data) = request.body() else {
-        return Err("image must be sent as raw bytes".into());
-    };
-    let data = data.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::cache_dir(&app).join("watermarks");
-        fs::create_dir_all(&dir).map_err(err)?;
-        let name = blake3::hash(&data).to_hex()[..16].to_string();
-        let path = dir.join(format!("{name}.png"));
-        paths::write_atomic(&path, &data).map_err(err)?;
-        Ok(path.to_string_lossy().into_owned())
-    })
-    .await
-    .map_err(err)?
+pub fn save_temp_image(t: &Tools, data: &[u8]) -> CmdResult<String> {
+    let dir = t.cache_dir().join("watermarks");
+    fs::create_dir_all(&dir).map_err(err)?;
+    let name = blake3::hash(data).to_hex()[..16].to_string();
+    let path = dir.join(format!("{name}.png"));
+    paths::write_atomic(&path, data).map_err(err)?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]

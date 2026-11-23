@@ -1,5 +1,6 @@
 /** Global application state: active view, settings, app info, updates. */
-import { api, isTauri, setImportExtensions } from '../api/backend';
+import { api, setImportExtensions } from '../api/backend';
+import { picker } from '../platform/picker.svelte';
 import type { AppInfo, Settings, UpdateInfo } from '../api/types';
 import { stickers } from './stickers.svelte';
 import { toasts } from './toasts.svelte';
@@ -20,6 +21,7 @@ export function defaultSettings(): Settings {
     defaultOrientation: 'landscape',
     recentImportDir: null,
     showWelcome: true,
+    downloadResults: true,
   };
 }
 
@@ -34,15 +36,14 @@ class AppState {
 
   async init(): Promise<void> {
     void stickers.load();
-    if (isTauri) {
-      try {
-        const [info, settings] = await Promise.all([api.appInfo(), api.loadSettings()]);
-        this.info = info;
-        setImportExtensions(info.inputExtensions);
-        this.settings = { ...defaultSettings(), ...settings };
-      } catch (e) {
-        toasts.push({ kind: 'error', title: 'Could not load settings', message: String(e) });
-      }
+    try {
+      const [info, settings] = await Promise.all([api.appInfo(), api.loadSettings()]);
+      this.info = info;
+      setImportExtensions(info.inputExtensions);
+      this.settings = { ...defaultSettings(), ...settings };
+      picker.downloadResults = this.settings.downloadResults ?? true;
+    } catch (e) {
+      toasts.push({ kind: 'error', title: 'Could not load settings', message: String(e) });
     }
     this.applyTheme();
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.applyTheme());
@@ -53,12 +54,11 @@ class AppState {
   async saveSettings(patch: Partial<Settings>): Promise<void> {
     this.settings = { ...this.settings, ...patch };
     this.applyTheme();
-    if (isTauri) {
-      try {
-        await api.saveSettings($state.snapshot(this.settings) as Settings);
-      } catch (e) {
-        toasts.push({ kind: 'error', title: 'Could not save settings', message: String(e) });
-      }
+    picker.downloadResults = this.settings.downloadResults ?? true;
+    try {
+      await api.saveSettings($state.snapshot(this.settings) as Settings);
+    } catch (e) {
+      toasts.push({ kind: 'error', title: 'Could not save settings', message: String(e) });
     }
   }
 
@@ -68,12 +68,17 @@ class AppState {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   }
 
+  /** Running as the self-hosted web app (Docker), not the desktop app. */
+  get isServer(): boolean {
+    return this.info?.mode === 'server';
+  }
+
   get isFlatpak(): boolean {
     return this.info?.installKind === 'flatpak';
   }
 
   async checkUpdates(manual = false): Promise<UpdateInfo | null> {
-    if (!isTauri) return null;
+    if (this.isServer && !manual) return null;
     try {
       const info = await api.checkUpdates();
       this.update = info;

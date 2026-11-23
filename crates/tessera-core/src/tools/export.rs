@@ -6,11 +6,9 @@ use std::time::Instant;
 
 use image::{DynamicImage, RgbaImage};
 use serde::Serialize;
-use tauri::ipc::{InvokeBody, Request};
-use tauri::State;
 use tessera_imaging::{Chroma, EncodeOptions, ImageFormat};
 
-use crate::{err, paths, AppState, CmdResult};
+use super::{err, paths, CmdResult, Tools};
 
 /// Largest export we accept (≈ 200 MP, 800 MB of RGBA).
 const MAX_PIXELS: u64 = 200_000_000;
@@ -44,8 +42,7 @@ pub struct ExportResult {
     pub height: u32,
 }
 
-#[tauri::command]
-pub fn export_begin(state: State<'_, AppState>, width: u32, height: u32) -> CmdResult<u32> {
+pub fn export_begin(state: &Tools, width: u32, height: u32) -> CmdResult<u32> {
     if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_PIXELS {
         return Err(format!("Unsupported export size {width}×{height}"));
     }
@@ -65,32 +62,23 @@ pub fn export_begin(state: State<'_, AppState>, width: u32, height: u32) -> CmdR
     Ok(id)
 }
 
-fn header<'a>(req: &'a Request<'_>, name: &str) -> CmdResult<&'a str> {
-    req.headers()
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| format!("missing header {name}"))
-}
-
 /// Whether the tile `(x, y, w, h)` lies inside an `iw` × `ih` image (no
 /// overflow on malformed headers).
 fn tile_fits(x: u32, y: u32, w: u32, h: u32, iw: u32, ih: u32) -> bool {
     x.checked_add(w).is_some_and(|r| r <= iw) && y.checked_add(h).is_some_and(|b| b <= ih)
 }
 
-#[tauri::command]
-pub fn export_tile(state: State<'_, AppState>, request: Request<'_>) -> CmdResult<()> {
-    let job: u32 = header(&request, "x-job")?.parse().map_err(err)?;
-    let rect: Vec<u32> = header(&request, "x-rect")?
+/// One tile of raw RGBA pixels; `job` and `rect` ("x,y,w,h") come from the
+/// `x-job` / `x-rect` request headers.
+pub fn export_tile(state: &Tools, job: &str, rect: &str, data: &[u8]) -> CmdResult<()> {
+    let job: u32 = job.parse().map_err(err)?;
+    let rect: Vec<u32> = rect
         .split(',')
         .map(|v| v.trim().parse::<u32>())
         .collect::<Result<_, _>>()
         .map_err(err)?;
     let [x, y, w, h] = rect[..] else {
         return Err("bad tile rectangle".into());
-    };
-    let InvokeBody::Raw(data) = request.body() else {
-        return Err("tile must be sent as raw bytes".into());
     };
     let expected = u64::from(w) * u64::from(h) * 4;
     if data.len() as u64 != expected {
@@ -115,15 +103,13 @@ pub fn export_tile(state: State<'_, AppState>, request: Request<'_>) -> CmdResul
     Ok(())
 }
 
-#[tauri::command]
-pub fn export_cancel(state: State<'_, AppState>, job: u32) -> CmdResult<()> {
+pub fn export_cancel(state: &Tools, job: u32) -> CmdResult<()> {
     state.exports.lock().map_err(err)?.jobs.remove(&job);
     Ok(())
 }
 
-#[tauri::command]
-pub async fn export_finish(
-    state: State<'_, AppState>,
+pub fn export_finish(
+    state: &Tools,
     job: u32,
     path: String,
     format: String,
@@ -138,7 +124,7 @@ pub async fn export_finish(
         .jobs
         .remove(&job)
         .ok_or("unknown export job")?;
-    tauri::async_runtime::spawn_blocking(move || {
+    {
         let img = job.image;
         let (width, height) = img.dimensions();
         let bytes = if format == "pdf" {
@@ -163,7 +149,7 @@ pub async fn export_finish(
             };
             tessera_imaging::encode(&DynamicImage::ImageRgba8(img), &opts).map_err(err)?
         };
-        let mut target = paths::expand(&path);
+        let mut target = state.guard.writable(&paths::expand(&path))?;
         if unique {
             target = paths::unique_path(&target);
         }
@@ -175,15 +161,12 @@ pub async fn export_finish(
             width,
             height,
         })
-    })
-    .await
-    .map_err(err)?
+    }
 }
 
 /* ------------------------------------------------------------ multi-page PDF */
 
-#[tauri::command]
-pub fn pdf_begin(state: State<'_, AppState>) -> CmdResult<u32> {
+pub fn pdf_begin(state: &Tools) -> CmdResult<u32> {
     let mut jobs = state.exports.lock().map_err(err)?;
     jobs.next = jobs.next.wrapping_add(1);
     let id = jobs.next;
@@ -192,14 +175,7 @@ pub fn pdf_begin(state: State<'_, AppState>) -> CmdResult<u32> {
 }
 
 /// Move a finished export job (all tiles received) into a PDF as the next page.
-#[tauri::command]
-pub async fn pdf_add_page(
-    state: State<'_, AppState>,
-    pdf: u32,
-    job: u32,
-    quality: u8,
-    dpi: u32,
-) -> CmdResult<()> {
+pub fn pdf_add_page(state: &Tools, pdf: u32, job: u32, quality: u8, dpi: u32) -> CmdResult<()> {
     let job = state
         .exports
         .lock()
@@ -207,7 +183,7 @@ pub async fn pdf_add_page(
         .jobs
         .remove(&job)
         .ok_or("unknown export job")?;
-    let page = tauri::async_runtime::spawn_blocking(move || -> CmdResult<PdfPage> {
+    let page = (move || -> CmdResult<PdfPage> {
         let (width, height) = job.image.dimensions();
         let opts = EncodeOptions {
             format: ImageFormat::Jpeg,
@@ -227,9 +203,7 @@ pub async fn pdf_add_page(
             height,
             dpi: dpi.max(1),
         })
-    })
-    .await
-    .map_err(err)??;
+    })()?;
     state
         .exports
         .lock()
@@ -241,8 +215,7 @@ pub async fn pdf_add_page(
     Ok(())
 }
 
-#[tauri::command]
-pub fn pdf_cancel(state: State<'_, AppState>, pdf: u32) -> CmdResult<()> {
+pub fn pdf_cancel(state: &Tools, pdf: u32) -> CmdResult<()> {
     state.exports.lock().map_err(err)?.pdfs.remove(&pdf);
     Ok(())
 }
@@ -293,13 +266,7 @@ pub fn build_pdf(pages: &[PdfPage]) -> Vec<u8> {
     pdf.finish()
 }
 
-#[tauri::command]
-pub async fn pdf_finish(
-    state: State<'_, AppState>,
-    pdf: u32,
-    path: String,
-    unique: bool,
-) -> CmdResult<ExportResult> {
+pub fn pdf_finish(state: &Tools, pdf: u32, path: String, unique: bool) -> CmdResult<ExportResult> {
     let pages = state
         .exports
         .lock()
@@ -310,9 +277,9 @@ pub async fn pdf_finish(
     if pages.is_empty() {
         return Err("The PDF has no pages".into());
     }
-    tauri::async_runtime::spawn_blocking(move || {
+    {
         let bytes = build_pdf(&pages);
-        let mut target = paths::expand(&path);
+        let mut target = state.guard.writable(&paths::expand(&path))?;
         if unique {
             target = paths::unique_path(&target);
         }
@@ -324,9 +291,7 @@ pub async fn pdf_finish(
             width: pages[0].width,
             height: pages[0].height,
         })
-    })
-    .await
-    .map_err(err)?
+    }
 }
 
 #[cfg(test)]

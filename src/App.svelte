@@ -1,8 +1,11 @@
 <script lang="ts">
   import { ArrowLeftRight, House, LayoutDashboard, Minimize2, Settings, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { isTauri } from './lib/api/backend';
+  import ServerPicker from './lib/components/ServerPicker.svelte';
+  import { picker } from './lib/platform/picker.svelte';
+  import { sendFiles } from './lib/platform/upload';
+  import { toasts } from './lib/stores/toasts.svelte';
   import { maybeRunAutotest } from './lib/autotest';
   import Toasts from './lib/components/ui/Toasts.svelte';
   import { editor } from './lib/editor/editor.svelte';
@@ -58,14 +61,56 @@
     }
   }
 
+  /** Browser: files dropped from the user's computer are matched or uploaded first. */
+  async function handleWebDrop(e: DragEvent) {
+    e.preventDefault();
+    dropping = false;
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (!files.length) return;
+    const x = e.clientX;
+    const y = e.clientY;
+    const id = toasts.push({ kind: 'info', title: `Sending ${files.length} file${files.length === 1 ? '' : 's'} to Tessera…`, timeout: 0 });
+    try {
+      const paths = await sendFiles(files, 'temp');
+      toasts.dismiss(id);
+      await handleDrop(paths, x, y);
+    } catch (err) {
+      toasts.dismiss(id);
+      toasts.push({ kind: 'error', title: 'Upload failed', message: String(err instanceof Error ? err.message : err) });
+    }
+  }
+
   onMount(() => {
     void app.init().then(async () => {
       if (!isTauri) return;
+      const { invoke } = await import('@tauri-apps/api/core');
       const files = await invoke<string[]>('startup_files').catch(() => [] as string[]);
       if (files.length) await handleDrop(files, -1, -1);
       await maybeRunAutotest();
     });
-    if (!isTauri) return;
+    if (!isTauri) {
+      // Browser: save pending edits when the tab closes.
+      const flush = () => void flushAutosave();
+      const dragover = (e: DragEvent) => {
+        if (e.dataTransfer?.types.includes('Files')) {
+          e.preventDefault();
+          dropping = true;
+        }
+      };
+      const dragleave = (e: DragEvent) => {
+        if (!e.relatedTarget) dropping = false;
+      };
+      window.addEventListener('pagehide', flush);
+      window.addEventListener('dragover', dragover);
+      window.addEventListener('dragleave', dragleave);
+      window.addEventListener('drop', handleWebDrop);
+      return () => {
+        window.removeEventListener('pagehide', flush);
+        window.removeEventListener('dragover', dragover);
+        window.removeEventListener('dragleave', dragleave);
+        window.removeEventListener('drop', handleWebDrop);
+      };
+    }
     let unlisten: (() => void) | undefined;
     let unlistenClose: (() => void) | undefined;
     // Edits from the last moment before closing are still waiting for the
@@ -100,7 +145,7 @@
 <svelte:window
   onkeydown={(e) => {
     // A web-style reload would throw away the UI state of a desktop app.
-    if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r' && app.view !== 'editor')) e.preventDefault();
+    if (isTauri && (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r' && app.view !== 'editor'))) e.preventDefault();
   }}
 />
 
@@ -166,6 +211,7 @@
 {/if}
 
 <Toasts />
+{#if picker.current}<ServerPicker />{/if}
 
 <style>
   .app {

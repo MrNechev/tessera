@@ -8,11 +8,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use serde::Serialize;
-use tauri::ipc::Response;
-use tauri::AppHandle;
 use tessera_imaging::{ImageFormat, MetadataSummary, ProbeInfo};
 
-use crate::{emit_progress, err, paths, CmdResult};
+use super::{err, paths, CmdResult, Tools};
 
 /// Long edge of the editor proxy and the library thumbnail.
 const PROXY_SIDE: u32 = 2048;
@@ -84,6 +82,17 @@ fn walk(dir: &Path, depth: usize, exts: &HashSet<String>, out: &mut Vec<PathBuf>
     }
 }
 
+/// Expand folders into the image files they contain (files are kept as given),
+/// dropping paths the guard doesn't allow reading.
+pub fn expand_checked(t: &Tools, paths: &[String]) -> Vec<PathBuf> {
+    let allowed: Vec<String> = paths
+        .iter()
+        .filter(|p| t.guard.readable(&paths::expand(p)).is_ok())
+        .cloned()
+        .collect();
+    expand_paths(&allowed)
+}
+
 /// Expand folders into the image files they contain (files are kept as given).
 pub fn expand_paths(paths: &[String]) -> Vec<PathBuf> {
     let exts: HashSet<String> = tessera_imaging::input_extensions()
@@ -129,15 +138,15 @@ fn cached(dir: &Path, id: &str) -> Option<PathBuf> {
         .find(|p| fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() > 0))
 }
 
-fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
+fn import_one(t: &Tools, path: &Path) -> Result<ImportedImage, String> {
     let info = tessera_imaging::probe(path).map_err(err)?;
     let id = asset_id(path);
-    let proxy = match cached(&paths::proxies(app), &id) {
+    let proxy = match cached(&t.proxies(), &id) {
         Some(p) => p,
         None => {
             let res = tessera_imaging::make_preview(
                 path,
-                &paths::proxies(app).join(format!("{id}.jpg")),
+                &t.proxies().join(format!("{id}.jpg")),
                 PROXY_SIDE,
                 88,
             )
@@ -145,13 +154,13 @@ fn import_one(app: &AppHandle, path: &Path) -> Result<ImportedImage, String> {
             PathBuf::from(res.path)
         }
     };
-    let thumb = match cached(&paths::thumbs(app), &id) {
+    let thumb = match cached(&t.thumbs(), &id) {
         Some(p) => p,
         // Thumbnails come from the proxy: much faster than decoding the original twice.
         None => {
             let res = tessera_imaging::make_preview(
                 &proxy,
-                &paths::thumbs(app).join(format!("{id}.jpg")),
+                &t.thumbs().join(format!("{id}.jpg")),
                 THUMB_SIDE,
                 82,
             )
@@ -198,26 +207,19 @@ fn available_memory_gib() -> Option<u64> {
     Some(kib / (1024 * 1024))
 }
 
-#[tauri::command]
-pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<ImportResult> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let files = expand_paths(&paths);
+pub fn import_images(t: &Tools, paths: Vec<String>) -> ImportResult {
+    {
+        let files = expand_checked(t, &paths);
         let total = files.len();
         let done = AtomicUsize::new(0);
-        emit_progress(&app, "import", 0, total, None);
+        t.progress("import", 0, total, None);
         let results: Vec<(PathBuf, Result<ImportedImage, String>)> = import_pool().install(|| {
             files
                 .par_iter()
                 .map(|p| {
-                    let r = import_one(&app, p);
+                    let r = import_one(t, p);
                     let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    emit_progress(
-                        &app,
-                        "import",
-                        n,
-                        total,
-                        Some(p.to_string_lossy().into_owned()),
-                    );
+                    t.progress("import", n, total, Some(p.to_string_lossy().into_owned()));
                     (p.clone(), r)
                 })
                 .collect()
@@ -236,15 +238,12 @@ pub async fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Impo
             }
         }
         out
-    })
-    .await
-    .map_err(err)
+    }
 }
 
-#[tauri::command]
-pub async fn probe_files(paths: Vec<String>) -> CmdResult<ProbeResult> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let files = expand_paths(&paths);
+pub fn probe_files(t: &Tools, paths: Vec<String>) -> ProbeResult {
+    {
+        let files = expand_checked(t, &paths);
         let results: Vec<_> = files
             .par_iter()
             .map(|p| (p.clone(), tessera_imaging::probe(p)))
@@ -263,38 +262,29 @@ pub async fn probe_files(paths: Vec<String>) -> CmdResult<ProbeResult> {
             }
         }
         out
-    })
-    .await
-    .map_err(err)
+    }
 }
 
 /// Upright RGBA pixels fitted inside max_width × max_height, prefixed by
 /// width and height as little-endian u32s. Used by the exporter.
-#[tauri::command]
-pub async fn load_image_rgba(path: String, max_width: u32, max_height: u32) -> CmdResult<Response> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let img = tessera_imaging::load_scaled_rgba(
-            Path::new(&path),
-            max_width.max(1),
-            max_height.max(1),
-        )
-        .map_err(err)?;
-        let (w, h) = img.dimensions();
-        let mut buf = Vec::with_capacity(8 + (w as usize) * (h as usize) * 4);
-        buf.extend_from_slice(&w.to_le_bytes());
-        buf.extend_from_slice(&h.to_le_bytes());
-        buf.extend_from_slice(img.as_raw());
-        Ok(Response::new(buf))
-    })
-    .await
-    .map_err(err)?
+pub fn load_image_rgba(
+    t: &Tools,
+    path: String,
+    max_width: u32,
+    max_height: u32,
+) -> CmdResult<Vec<u8>> {
+    let p = t.guard.readable(&paths::expand(&path))?;
+    let img =
+        tessera_imaging::load_scaled_rgba(&p, max_width.max(1), max_height.max(1)).map_err(err)?;
+    let (w, h) = img.dimensions();
+    let mut buf = Vec::with_capacity(8 + (w as usize) * (h as usize) * 4);
+    buf.extend_from_slice(&w.to_le_bytes());
+    buf.extend_from_slice(&h.to_le_bytes());
+    buf.extend_from_slice(img.as_raw());
+    Ok(buf)
 }
 
-#[tauri::command]
-pub async fn read_metadata(path: String) -> CmdResult<MetadataSummary> {
-    tauri::async_runtime::spawn_blocking(move || {
-        tessera_imaging::read_summary(Path::new(&path)).map_err(err)
-    })
-    .await
-    .map_err(err)?
+pub fn read_metadata(t: &Tools, path: String) -> CmdResult<MetadataSummary> {
+    let p = t.guard.readable(&paths::expand(&path))?;
+    tessera_imaging::read_summary(&p).map_err(err)
 }
