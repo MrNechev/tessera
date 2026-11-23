@@ -22,6 +22,9 @@ IGNORE_KEYS = {"id", "createdAt", "updatedAt", "savedAt", "docId", "sectionId", 
                "uptime", "exported"}
 # Rust-only additions that are allowed
 EXTRA_OK = {("libraries", "writable")}
+# differences that are expected: JSON parser error texts differ between Go and serde (and
+# the product name is renamed)
+ALLOWED = [("POST /api/documents/import", ".error")]
 
 
 class Client:
@@ -246,7 +249,10 @@ def main():
         if sg != sr:
             DIFFS.append((where, "status", sg, sr))
         if not kw.get("status_only"):
-            diff(norm(jg), norm(jr), where)
+            a, b = norm(jg), norm(jr)
+            if kw.get("tf"):
+                a, b = kw["tf"](a), kw["tf"](b)
+            diff(a, b, where)
         return jg, jr
 
     doc = {"title": "Trip to Iceland", "tags": [" iceland ", "Iceland", "roadtrip"],
@@ -272,7 +278,8 @@ def main():
     gd, rd = both("GET", "/api/documents/{}")
     both("POST", "/api/documents/{}/snapshot")
     both("PUT", "/api/documents/{}", {"baseVersion": 2, "document": {**doc, "title": "Trip v3"}})
-    both("GET", "/api/documents/{}/history")
+    # sizes of history snapshots differ by the digits of their (different) timestamps
+    both("GET", "/api/documents/{}/history", tf=lambda j: [dict(e, bytes=e["bytes"] > 0) for e in j])
     both("GET", "/api/documents/{}/history/2")
     both("GET", "/api/documents/{}/history/99")
     both("POST", "/api/documents/{}/history/2/restore")
@@ -410,6 +417,19 @@ def main():
               f"asset-cache={hdrs(c, assets[0])[1].get('cache-control') if assets else None}")
         if not ok or any(x != 200 for x in astat):
             DIFFS.append(("web " + c.name, "index/assets", "ok", f"{s} {astat}"))
+    def shape(j):
+        if isinstance(j, dict):
+            return {k: shape(v) for k, v in j.items() if k not in ("ffmpeg", "tools")}
+        if isinstance(j, list):
+            return [shape(j[0])] if j else []
+        if isinstance(j, bool):
+            return "bool"
+        if isinstance(j, (int, float)):
+            return "number"
+        return type(j).__name__
+    compare(go, rs, "GET", "/api/status", transform=shape)
+    _, st = rs.get("/api/status")
+    print("rust status tools:", st.get("tools"), "hw:", st.get("hw"))
     compare(go, rs, "GET", "/api/nope")
     compare(go, rs, "GET", "/healthz", status_only=True)
     compare(go, rs, "POST", "/api/logout", {})
@@ -417,6 +437,10 @@ def main():
 
     # ---------- report ----------
     print()
+    allowed = [d for d in DIFFS if any(d[0].startswith(w) and d[1] == p for w, p in ALLOWED)]
+    for d in allowed:
+        print(f"allowed difference: {d[0]} {d[1]}: go={d[2]!r} rs={d[3]!r}")
+        DIFFS.remove(d)
     if not DIFFS:
         print("NO DIFFERENCES")
         return 0

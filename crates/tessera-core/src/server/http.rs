@@ -401,7 +401,16 @@ fn parse_range(s: &str, size: u64) -> Result<Vec<Range>, RangeErr> {
 /// the content type, drops the length.
 fn error_with(mut headers: HeaderMap, status: u16, msg: &str) -> Response {
     let mut r = text_err(status, msg);
-    headers.remove(header::CONTENT_LENGTH);
+    // Go 1.23+: errors from ServeContent drop the caching and encoding headers
+    for h in [
+        header::CONTENT_LENGTH,
+        header::CACHE_CONTROL,
+        header::CONTENT_ENCODING,
+        header::ETAG,
+        header::LAST_MODIFIED,
+    ] {
+        headers.remove(h);
+    }
     for (k, v) in r.headers() {
         headers.insert(k.clone(), v.clone());
     }
