@@ -342,14 +342,11 @@ struct FileQuery {
 }
 
 async fn serve_path(path: &Path, req: Request, cache: &'static str) -> Response {
-    match ServeFile::new(path).oneshot(req).await {
-        Ok(mut res) => {
-            res.headers_mut()
-                .insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
-            res.into_response()
-        }
-        Err(e) => error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    }
+    // ServeFile never fails (its error type is Infallible); I/O errors become responses.
+    let Ok(mut res) = ServeFile::new(path).oneshot(req).await;
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
+    res.into_response()
 }
 
 /// Previews, thumbnails and originals for the UI (replaces Tauri's asset protocol).
