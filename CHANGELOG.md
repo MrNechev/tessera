@@ -4,6 +4,64 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-11-24
+
+**Letopis joins Tessera.** Tessera gains a media library, long documents, a
+canvas and presentations (everything the separate app Letopis did), and it now
+runs both as a desktop app and as a self-hosted web app in Docker.
+
+### Added — library, documents and presentations
+- **Library**: every photo and video in your library folders, indexed in the
+  background (SQLite) and kept up to date by a file watcher: folder tree,
+  virtualised grid, search, filters (date taken, camera, resolution,
+  orientation, duration, GPS), favourites and recents, duplicates and
+  look-alikes, video hover-scrubbing, live/motion photos, full-screen viewer.
+  Pick photos to start a collage or send them to Convert, Compress or Batch.
+- **Documents**: chaptered documents of rich text, photos and videos (seven
+  layouts, captions, crop, before/after compare, clip ranges, embeds,
+  templates, tags, find & replace, version history, conflict detection).
+- **Canvas**: the same document as a whiteboard (cards, notes, shapes, arrows,
+  frames, pen, groups, minimap, auto-arrange).
+- **Presentations**: transitions, overview, speaker-notes window, timed and
+  looping slideshows, laser and drawing, music, rehearsal, phone remote (web app).
+- **Exports**: PDF, PPTX, Markdown, offline package, backup of every document.
+- **Video**: thumbnails, posters and hover sprites; proxies for formats the
+  viewer can't play and for very large files, made on the GPU (VAAPI) where
+  possible; GIFs become small looping videos.
+- **System** page (queues, cache, GPU, stress test) and a <kbd>Ctrl</kbd>+<kbd>K</kbd>
+  command palette.
+
+### Added — Tessera as a web app (Docker)
+- `ghcr.io/mrnechev/tessera` image with `docker-compose.yml` and `.env.example`
+  attached to every release; guide in `docs/DOCKER.md`.
+- HTTPS with HTTP/2 and a private certificate authority, single-password login.
+- Collages and all image tools work in the browser: pick files from the
+  server's libraries, Outputs and Inbox, or drop/upload them from your computer
+  (files already on the server are found by name and size and not uploaded;
+  big files upload in resumable chunks). Results are saved to Outputs and
+  downloaded (many files as one zip).
+- Reads Letopis's data and settings as they are (`LETOPIS_*` variables still work).
+
+### Added — desktop
+- First start asks which folders hold your photos and videos and where to
+  save results; **Settings → Libraries** to change them.
+- Libraries are **read-only** by default; switch a folder to read-write if the
+  image tools should save into it. One write guard checks every file the tools
+  write, in the desktop app and on servers.
+- Files dropped from the file manager into a document are found in your libraries.
+
+### Changed
+- The desktop app is now a thin shell around Tessera's engine
+  (`crates/tessera-core`), which it runs privately on your computer; the
+  window talks to it like a browser talks to the web app.
+- The Flatpak has audio access (needed for video playback); the deb and rpm
+  recommend ffmpeg, libvips and GStreamer codecs.
+
+### Known limitations
+- In the desktop app about four 1080p videos play smoothly at the same time
+  (documents limit autoplay to four); the web app in a Chromium-based browser
+  has no such limit. No ffmpeg in the Flatpak yet. See the README.
+
 ## [0.5.1] — 2026-11-12
 
 A bug-fix and performance release.

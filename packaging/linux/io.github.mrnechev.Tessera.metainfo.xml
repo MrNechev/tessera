@@ -81,6 +81,11 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.6.0" date="2026-11-24" type="development">
+      <description>
+        <p>Letopis joins Tessera: a media library with search, filters and duplicates; long documents mixing text, photos and videos; a canvas; presentations with speaker notes; PDF/PPTX exports. Tessera also runs as a self-hosted web app in Docker. Library folders are read-only unless you allow writing.</p>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-12" type="development">
       <description>
         <p>Bug fixes and speed: autosave can no longer overwrite a project you just opened and saves your last edits when the window closes; layout sliders no longer reshuffle the collage and react instantly; faster imports and exports; batch outputs with the same name no longer overwrite each other; IPTC captions survive lossless compression.</p>
