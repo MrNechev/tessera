@@ -1,32 +1,82 @@
 # Architecture
 
-Tessera is a [Tauri 2](https://tauri.app) application: a Svelte 5 + TypeScript
-user interface running in the system WebView (WebKitGTK on Linux), and a Rust
-backend that does all file and pixel work.
+Tessera is one program with two front doors:
+
+- the **desktop app** (`src-tauri`, a thin [Tauri 2](https://tauri.app) shell), and
+- the **web app** (`crates/tessera-server`, the Docker image).
+
+Both run the same engine, **`crates/tessera-core`**, which serves one HTTP API,
+and the same Svelte 5 + TypeScript user interface (`src/`).
 
 ```
-┌──────────────────────────── src/ (Svelte + TS) ────────────────────────────┐
-│ views/        Home · Editor · Convert · Compress · Settings                │
-│ components/   editor canvas, panels, inspector, UI kit                      │
-│ editor/       editor state + undo history, session (new/open/save), export  │
-│ collage/      auto-layout engines (pure functions, unit tested)            │
-│ render/       THE renderer: document → Canvas2D (preview and export)       │
-│ model/        document types, factories, page presets                       │
-│ templates/    template DSL + catalogue                                      │
-└───────────────▲───────────────────────────────────────────┬────────────────┘
-                │ invoke() / events                          │ raw RGBA tiles
-┌───────────────┴──────────── src-tauri/ (Rust) ────────────▼────────────────┐
-│ images.rs   import: folder walk, probe, cached proxies & thumbnails         │
-│ export.rs   assemble tiles → encode (JPEG/PNG/WebP/AVIF/TIFF/PDF)           │
-│ batch.rs    convert / compress jobs (rayon), progress, cancel, previews     │
-│ projects.rs settings.rs system.rs (updates, cache, file manager)           │
-└───────────────┬───────────────────────────────────────────────────────────┘
-                │
-┌───────────────▼──── crates/tessera-imaging (Rust library) ─────────────────┐
-│ decode (EXIF orientation, HEIC/JXL/AVIF), encode (mozjpeg, libwebp, rav1e,  │
-│ oxipng, imagequant), metadata policies, SSIM, smart compression, PDF        │
-└────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────── src/ (Svelte + TS) ─────────────────────────────────┐
+│ views/       Home · Library · Documents · Collage · Convert · Compress · Batch ·      │
+│              System · Settings                                                        │
+│ documents/   library panel, document editor, canvas, presentations, exports          │
+│              (ported from Letopis; styles scoped to .lt)                              │
+│ editor/ collage/ render/ model/ templates/   the collage editor (see below)          │
+│ api/         fetch client: /api/t/<command>, SSE /api/events                          │
+│ platform/    desktop (Tauri dialogs, OS drops, GTK print) vs browser (server file     │
+│              picker, uploads, downloads)                                              │
+└──────────────────────▲──────────────────────────────────────┬────────────────────────┘
+                       │ HTTP: JSON · Range media · SSE        │ raw RGBA export tiles
+┌──────────────────────┴────── crates/tessera-core (Rust) ────▼────────────────────────┐
+│ Library & documents (ported from Letopis): config · store (SQLite index) · library  │
+│   (scanner, watcher) · jobs (priority pools) · media (ffmpeg/ffprobe/libvips, VAAPI) │
+│   · docs (JSON documents, history, search) · prefs · auth · tls · server (routes)    │
+│ tools/ (formerly the Tauri commands): images · export · batch · batch_tools ·        │
+│   projects · settings · system · transfer (uploads, downloads, zips, browse) ·       │
+│   guard (the write guard) · events (SSE) · api (/api/t/…)                            │
+└──────────────┬──────────────────────────────────────────────┬────────────────────────┘
+               │ uses                                          │ started by
+┌──────────────▼──────────── crates/tessera-imaging ─┐   ┌─────▼──────────────────────────┐
+│ decode (EXIF orientation, HEIC/JXL/AVIF, RAW),     │   │ src-tauri: 127.0.0.1:<random>, │
+│ encode (mozjpeg, libwebp, rav1e, oxipng,           │   │ per-launch token, window +     │
+│ imagequant), metadata, ICC, SSIM, smart compress   │   │ native extras over IPC          │
+└────────────────────────────────────────────────────┘   │ tessera-server: :8470 HTTP,    │
+                                                         │ :8471 HTTPS+HTTP/2, password    │
+                                                         └────────────────────────────────┘
 ```
+
+## Desktop vs web
+
+The desktop shell starts the engine on `127.0.0.1` with a random port and a
+per-launch secret. The window opens `http://127.0.0.1:<port>/?token=…`; the
+engine turns the token into an `HttpOnly; SameSite=Strict` cookie and checks
+the `Host` header (against DNS rebinding). The UI, its API and all media are
+then one origin, exactly as in a browser talking to the Docker server. A Tauri
+capability with `remote.urls` keeps IPC available to that origin for the few
+native things: file dialogs, drag-and-drop paths, GTK printing, "show in
+folder", pop-out windows (speaker notes, print layouts).
+
+`src/lib/platform` hides the differences: on the desktop, pickers return real
+paths; in a browser they open an in-app browser of the server's libraries,
+Outputs and Inbox, with uploads from the user's computer (matched against the
+libraries first, then sent in resumable chunks), and results are downloaded
+after they are saved on the server.
+
+## Libraries and the write guard
+
+Every folder Tessera knows is an *area*: a media library, Outputs, or Inbox.
+`tools/guard.rs` is the single check for every disk access of the tools:
+writing into a read-only library is refused in both modes; in server mode,
+paths outside all areas are refused entirely. Libraries are read-only unless
+the desktop user switches them to read-write (Settings → Libraries), or the
+server's `.env` both mounts them writable and lists them in
+`WRITABLE_LIBRARIES`. Documents never write media: they reference files as
+`{libraryId, path}`.
+
+## Video in the desktop window
+
+Measured on 2026-11-23 (WebKitGTK 2.54.3 from the GNOME 51 runtime, AMD RX 9070 XT,
+VA-API decoders available): single videos of every common format (H.264, HEVC
+incl. iPhone MOV with timescale 600, VP9, AV1, up to 4K) play at full speed;
+with 8 simultaneous 1080p streams only about half keep up; without an audio
+output (no PulseAudio socket) every video runs at 0.3–0.6× speed even when
+muted, because WebKit's media clock follows the audio sink. GStreamer alone
+decodes the same clips 8–12× faster than real time, so the limit is WebKit's
+media pipeline. Hence: the Flatpak has `--socket=pulseaudio`, and the desktop
+app limits documents to 4 autoplaying videos (`documents/lib/playback.ts`).
 
 ## The collage document
 
@@ -63,9 +113,8 @@ tile by tile (2048 px), with full-quality photos loaded through
 file. Text, patterns, shadows and frames are therefore identical on screen and
 in the saved image.
 
-Canvas tainting is avoided by loading proxies through Tauri's asset protocol
-(which sends CORS headers) with `crossOrigin = "anonymous"`, and export pixels
-over IPC.
+Canvas tainting can't happen: proxies, thumbnails and export pixels all come
+from the engine's own origin (`/api/t/file`, `/api/t/load_image_rgba`).
 
 ## Layout engines
 
@@ -87,7 +136,7 @@ placements`, tested in `collage/layout.test.ts`:
 **Regenerate** just changes the seed (and the order).
 
 Multi-page PDFs are assembled in Rust (`pdf_begin` / `pdf_add_page` /
-`pdf_finish` in `src-tauri/src/export.rs`, using pdf-writer): each page is
+`pdf_finish` in `crates/tessera-core/src/tools/export.rs`, using pdf-writer): each page is
 rendered and JPEG-encoded as it arrives, so memory use stays at one page.
 
 Printing renders the pages at up to 300 DPI into a hidden print-only element
@@ -99,7 +148,7 @@ setup that matches the project's paper size and has no margins.
 
 `crates/tessera-imaging` has its own [README](../crates/tessera-imaging/README.md)
 with the format/metadata support matrix and the smart-compression calibration.
-It has no Tauri dependency and can be reused by other tools.
+It has no Tauri or HTTP dependency and can be reused by other tools.
 
 ## Packaging
 
@@ -107,7 +156,10 @@ It has no Tauri dependency and can be reused by other tools.
   `scripts/prepare-bundle.mjs` adjusts the AppStream file for these packages.
 - `packaging/flatpak/` → Flatpak on the GNOME runtime, bundling libheif with
   the HEVC decoder.
-- `.github/workflows/release.yml` builds everything when a `v*` tag is pushed.
+- `packaging/docker/` → the web app image (Dockerfile, compose file, `.env.example`);
+  see [DOCKER.md](DOCKER.md).
+- `.github/workflows/release.yml` builds everything when a `v*` tag is pushed,
+  including the Docker image (pushed to `ghcr.io/mrnechev/tessera`).
 
 ## End-to-end smoke tests
 

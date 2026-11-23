@@ -4,10 +4,13 @@
 
 # Tessera
 
-**A creative photo collage studio and an image Swiss Army knife.**
+**A creative photo collage studio, an image Swiss Army knife, and a home for your photo and video library.**
 
-Quick automatic collages, hand-crafted designs and templates for every occasion —
-plus a converter and a smart compressor that keep the metadata you care about.
+Quick automatic collages, hand-crafted designs and templates for every occasion;
+a converter and a smart compressor that keep the metadata you care about; and a
+media library with long documents, a canvas and presentations made from the
+photos and videos already in your folders.
+Install it as a **desktop app**, or run it on a server as a **web app in Docker**.
 Free and open source. No accounts, no watermarks, no paywall.
 
 [![CI](https://github.com/MrNechev/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/MrNechev/tessera/actions/workflows/ci.yml)
@@ -25,7 +28,50 @@ Free and open source. No accounts, no watermarks, no paywall.
 > edges, and keep your original photos (Tessera never modifies them unless you
 > explicitly choose “Replace” in the converter).
 
+## Two ways to run it
+
+| | Desktop app | Web app (Docker) |
+| --- | --- | --- |
+| For | your own computer | a home server, a NAS: use it from any browser on your network |
+| Install | deb, rpm, Flatpak or AppImage ([below](#install)) | `docker compose up -d` ([Docker guide](docs/DOCKER.md)) |
+| Your photos | folders you choose on first start | folders mounted into the container |
+| Everything below | ✅ | ✅ |
+
+Both are the same program: the desktop app runs Tessera's engine privately on
+your computer and shows it in a window, the web app serves it to browsers.
+
 ## What it does
+
+### Library, documents and presentations
+
+*(Formerly the separate app Letopis, now part of Tessera.)*
+
+- **Library** — every photo and video in your library folders, indexed in the
+  background: a folder tree, a fast virtualised grid, search, filters (date
+  taken, camera, resolution, orientation, duration, places with GPS),
+  favourites and recently used, duplicates and look-alikes, hover-scrubbing of
+  videos, live/motion photos and a full-screen viewer. Pick photos to start a
+  collage or send them to the image tools.
+- **Your files stay where they are.** Libraries are **read-only** by default:
+  documents only reference the files, and the image tools save to your
+  Outputs folder unless you make a library read-write.
+- **Documents** — long, chaptered documents that mix rich text with photos and
+  videos: seven section layouts, captions, cropping, before/after comparisons,
+  video clip ranges, embeds (YouTube, maps), templates, tags, find & replace,
+  full version history and conflict detection.
+- **Canvas** — the same document as an infinite whiteboard: cards, notes,
+  shapes, arrows, frames, pen drawings, groups, a minimap and auto-arrange.
+- **Presentations** — any document or canvas becomes a slideshow with
+  transitions, an overview, a speaker-notes window, timed or looping playback,
+  a laser pointer and drawing, background music, rehearsal timing and a phone
+  remote (web app).
+- **Exports** — PDF, PowerPoint (PPTX), Markdown, an offline package, and a
+  backup of every document.
+- **Video** — every common format plays; videos the viewer can't play (HEVC
+  phone clips in some browsers, MKV, AVI…) and very large ones get proxies,
+  made on the GPU where possible (VAAPI). GIFs become small looping videos.
+- **System** page — indexing queues, cache, GPU status and a stress test;
+  <kbd>Ctrl</kbd>+<kbd>K</kbd> opens a command palette everywhere.
 
 ### Collages
 
@@ -139,6 +185,8 @@ Free and open source. No accounts, no watermarks, no paywall.
 
 ## Install
 
+### Desktop
+
 Download the latest file for your system from the
 [**Releases** page](https://github.com/MrNechev/tessera/releases).
 
@@ -161,12 +209,49 @@ Debian 13, Fedora 40 or newer). The Flatpak runs everywhere Flatpak does.
 - **AppImage** — can't open HEIC yet in 0.1.0 (the decoder plugin isn't bundled);
   use the Flatpak, or convert HEIC photos first. This is fixed in the next release.
 
+**Video in the library and documents** uses `ffmpeg` (thumbnails, posters,
+proxies, GIF → video) and `libvips` (fast thumbnails) when they are installed:
+the deb and rpm recommend them; for the AppImage install them with your package
+manager. See [Known limitations](#known-limitations-of-the-desktop-app).
+
+On first start Tessera asks which folders hold your photos and videos (each
+read-only or read-write) and where to save what it makes. Change them later in
+**Settings → Libraries**.
+
+### Web app (Docker)
+
+```bash
+curl -LO https://github.com/MrNechev/tessera/releases/latest/download/docker-compose.yml
+curl -L -o .env https://github.com/MrNechev/tessera/releases/latest/download/env.example
+nano .env            # password and library folders
+docker compose up -d # then open http://<server>:8470
+```
+
+The full guide — folders, read-write libraries, uploads and downloads, HTTPS,
+GPU, moving from Letopis — is in [docs/DOCKER.md](docs/DOCKER.md).
+
 ### Updates
 
 Tessera checks GitHub for new releases once a day (you can turn this off in
 Settings; nothing about you or your computer is sent). The Flatpak is updated by
 your software centre instead. In-place automatic updates for the AppImage are
 planned.
+
+## Known limitations of the desktop app
+
+The desktop window draws Tessera with **WebKitGTK** (the web engine of GNOME),
+while the web app runs in your browser. We measured video playback in the
+desktop window on an AMD RX 9070 XT with the GNOME 51 runtime (WebKitGTK
+2.54, see `docs/ARCHITECTURE.md`):
+
+| Limitation | Details | Workaround / plans |
+| --- | --- | --- |
+| **Many videos at once** | One or a few videos play perfectly in every common format (H.264, HEVC incl. iPhone MOV, VP9, AV1, up to 4K). With **about 8 videos playing at the same time** only about half keep full speed. | In documents the desktop app plays at most **4** muted/looping videos at once; the others start when you scroll to them. For video-heavy documents and presentations, the web app in a Chromium-based browser has no such limit. A Chromium-based desktop window (Tauri's CEF runtime, when it becomes stable) would remove it. |
+| **Codecs depend on your system** (deb, rpm, AppImage) | The window plays what the system's GStreamer plugins can decode: install `gstreamer1.0-libav` (Debian/Ubuntu) or, on Fedora, `gstreamer1-plugin-openh264` / RPM Fusion's codecs for H.264 and HEVC. The Flatpak includes them. | Videos the window can't play get a proxy, if ffmpeg is installed. |
+| **No ffmpeg in the Flatpak yet** | Without ffmpeg, library videos have no thumbnails or hover previews and unplayable formats can't be converted (they still play when the window supports them). deb/rpm recommend ffmpeg; AppImage users install it themselves. | Bundling ffmpeg in the Flatpak is planned. |
+| **Audio access is required for video** | WebKit's media clock needs an audio output, even for muted videos; without it videos crawl. The packages have it; if you sandbox Tessera yourself, keep PulseAudio/PipeWire access. | — |
+| **Phone remote and HTTP/2** | The desktop app only listens on your own computer (127.0.0.1), so the phone remote for presentations isn't available, and pages load over HTTP/1.1. | Use the web app for remote-controlled presentations. A "share on my network" option is planned. |
+| **Printing documents** | Collages print through the native print dialog with the exact paper size. Document print layouts use the generic print dialog; WebKitGTK ignores CSS page sizes, so choose the paper size in the dialog. | Export to PDF and print that. |
 
 ## Using Tessera
 
@@ -221,8 +306,14 @@ Priorities for the next releases, in order:
 4. ✅ **Printing and multi-page projects** (photo books, calendars) (0.5.0).
 5. Bug fixing, polish and performance across all of the above — ongoing;
    the first round shipped in 0.5.1.
+6. ✅ **Letopis joins Tessera**: media library, documents, canvas and
+   presentations, and Tessera as a self-hosted web app in Docker (0.6.0).
+7. **Build once, use everywhere** — collages from library selections inside
+   documents, a collage page as a slide or canvas card, one set of photo
+   adjustments (crop, filters) for collages and documents.
 
-Planned for later: in-app updates for the AppImage, a Flathub listing,
+Planned for later: ffmpeg in the Flatpak, a "share on my network" option for
+the desktop app, in-app updates for the AppImage, a Flathub listing,
 translations, and Windows and macOS builds.
 
 Ideas and bug reports are very welcome — [open an issue](https://github.com/MrNechev/tessera/issues).
@@ -243,7 +334,9 @@ later version.
   (GPL-2.0-or-later), which inspired this project.
 - Sample photos in the screenshots are from [Unsplash](https://unsplash.com)
   via [Lorem Picsum](https://picsum.photos).
-- Built with [Tauri](https://tauri.app), [Svelte](https://svelte.dev),
+- Built with [Tauri](https://tauri.app), [Svelte](https://svelte.dev), [axum](https://github.com/tokio-rs/axum),
+  [SQLite](https://sqlite.org), [FFmpeg](https://ffmpeg.org), [libvips](https://www.libvips.org),
+  [TipTap](https://tiptap.dev), [PptxGenJS](https://gitbrent.github.io/PptxGenJS/),
   [mozjpeg](https://github.com/mozilla/mozjpeg), [libwebp](https://chromium.googlesource.com/webm/libwebp),
   [rav1e](https://github.com/xiph/rav1e), [oxipng](https://github.com/shssoichiro/oxipng),
   [libimagequant](https://pngquant.org/lib/), [libheif](https://github.com/strukturag/libheif),
