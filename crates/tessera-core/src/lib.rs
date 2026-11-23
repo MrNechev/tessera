@@ -9,12 +9,17 @@
 pub mod auth;
 pub mod config;
 pub mod docs;
+mod engine;
 pub mod geo;
 pub mod jobs;
 pub mod library;
 pub mod media;
 pub mod prefs;
+pub mod server;
 pub mod store;
 pub mod tls;
 pub mod util;
 pub mod zipstream;
+
+pub use config::{AuthMode, Config, Library, WebAssets};
+pub use engine::Core;

@@ -6130,8 +6130,6 @@ name = "tessera-server"
 version = "0.5.1"
 dependencies = [
  "anyhow",
- "hyper",
- "hyper-util",
  "rustls",
  "tessera-core",
  "tokio",
