@@ -196,13 +196,18 @@
         const p = event.payload;
         const dpr = window.devicePixelRatio || 1;
         if (p.type === 'enter' || p.type === 'over') {
-          dropping = true;
+          dropping = !['documents', 'library', 'system'].includes(app.view);
           if (app.view === 'editor') editorView?.dragOverFiles(p.position.x / dpr, p.position.y / dpr);
         } else if (p.type === 'leave') {
           dropping = false;
         } else if (p.type === 'drop') {
           dropping = false;
-          void handleDrop(p.paths, p.position.x / dpr, p.position.y / dpr);
+          if (app.view === 'documents') {
+            // The document editor matches the paths against the libraries.
+            window.dispatchEvent(new CustomEvent('tessera:paths-drop', { detail: { paths: p.paths, x: p.position.x / dpr, y: p.position.y / dpr } }));
+          } else if (app.view !== 'library' && app.view !== 'system') {
+            void handleDrop(p.paths, p.position.x / dpr, p.position.y / dpr);
+          }
         }
       });
     });

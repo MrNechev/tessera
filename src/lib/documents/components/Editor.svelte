@@ -3,7 +3,8 @@
   import { onMount, tick } from 'svelte';
   import { DocState } from '../lib/docstate.svelte';
   import { dnd, hasMedia, readDrop } from '../lib/dnd.svelte';
-  import { describe as describeExternal, hasFiles, matchFiles, matchText, type ExternalResult } from '../lib/external';
+  import { describe as describeExternal, hasFiles, matchFiles, matchPaths, matchText, uploadToInbox, type ExternalResult } from '../lib/external';
+  import { app as tesseraApp } from '../../stores/app.svelte';
   import { palette, type Command } from '../lib/palette.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
   import { CLIP_PREFIX, parseClip, remapClip } from '../lib/canvas';
@@ -116,8 +117,34 @@
     if (!hasFiles(e) || hasMedia(e) || !e.dataTransfer?.files.length) return;
     e.preventDefault();
     const target = (e.target as HTMLElement).closest('[data-section-id]') as HTMLElement | null;
+    const sectionId = view === 'doc' ? (target?.dataset.sectionId ?? null) : null;
+    const files = [...e.dataTransfer.files];
     try {
-      await insertExternal(await matchFiles(e.dataTransfer.files), view === 'doc' ? (target?.dataset.sectionId ?? null) : null);
+      const r = await matchFiles(files);
+      // Web app with an Inbox: offer to upload what isn't on the server yet.
+      if (r.missing.length && tesseraApp.info?.hasInbox) {
+        const missing = files.filter((f) => r.missing.includes(f.name));
+        r.missing = [];
+        toasts.show(`${missing.length} file${missing.length === 1 ? ' is' : 's are'} not on the server yet`, 'info', 12000, {
+          label: 'Upload to Inbox',
+          run: () =>
+            void uploadToInbox(missing)
+              .then((refs) => insertExternal({ refs, missing: [], ambiguous: [] }, sectionId))
+              .catch((err) => toasts.error((err as Error).message)),
+        });
+      }
+      await insertExternal(r, sectionId);
+    } catch (err) {
+      toasts.error((err as Error).message);
+    }
+  }
+
+  /** Desktop app: files dropped from the file manager arrive as paths. */
+  async function onPathsDrop(e: Event) {
+    const { paths, x, y } = (e as CustomEvent<{ paths: string[]; x: number; y: number }>).detail;
+    const target = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-section-id]') as HTMLElement | null;
+    try {
+      await insertExternal(await matchPaths(paths), view === 'doc' ? (target?.dataset.sectionId ?? null) : null);
     } catch (err) {
       toasts.error((err as Error).message);
     }
@@ -194,6 +221,8 @@
   });
 
   onMount(() => {
+    window.addEventListener('tessera:paths-drop', onPathsDrop);
+    const offPaths = () => window.removeEventListener('tessera:paths-drop', onPathsDrop);
     ds.load(id).then(async () => {
       if (ds.doc) {
         document.title = `${ds.doc.title} · Tessera`;
@@ -220,6 +249,7 @@
     addEventListener('beforeunload', beforeUnload);
     document.addEventListener('visibilitychange', onHide);
     return () => {
+      offPaths();
       unregister();
       clearTimeout(posTimer);
       ds.flush();

@@ -20,6 +20,28 @@ export async function matchFiles(files: FileList | File[]): Promise<ExternalResu
   return collect(res, list.map((f) => f.name));
 }
 
+/** Match files on this computer by their full path (desktop app drops). */
+export async function matchPaths(paths: string[]): Promise<ExternalResult> {
+  const list = paths.slice(0, 200);
+  const res = await api.match(list.map((path) => ({ path })));
+  return collect(res, list.map((p) => p.split('/').pop() ?? p));
+}
+
+/**
+ * Web app: upload files that aren't in any library to the server's Inbox and
+ * return references to them (the Inbox is a library too).
+ */
+export async function uploadToInbox(files: File[]): Promise<MediaRef[]> {
+  const { call } = await import('../../api/http');
+  const { sendFiles } = await import('../../platform/upload');
+  const areas = await call<{ id: string; root: string; kind: string }[]>('areas');
+  const inbox = areas.find((a) => a.kind === 'inbox');
+  if (!inbox) throw new Error('This server has no Inbox folder');
+  const paths = await sendFiles(files, 'inbox');
+  const root = inbox.root.replace(/\/$/, '') + '/';
+  return paths.filter((p) => p.startsWith(root)).map((p) => ({ libraryId: inbox.id, path: p.slice(root.length) }));
+}
+
 /** Match pasted text: one path or /media/… link per line. */
 export async function matchText(text: string): Promise<ExternalResult | null> {
   const lines = text
@@ -47,7 +69,7 @@ export function describe(r: ExternalResult) {
   const parts: string[] = [];
   if (r.missing.length)
     parts.push(
-      `${r.missing.length === 1 ? `"${r.missing[0]}" is` : `${r.missing.length} files are`} not in a library folder yet — add ${r.missing.length === 1 ? 'it' : 'them'} to your library (e.g. Nextcloud) first`,
+      `${r.missing.length === 1 ? `"${r.missing[0]}" is` : `${r.missing.length} files are`} not in a library folder yet — add ${r.missing.length === 1 ? 'it' : 'them'} to one of your libraries first`,
     );
   if (r.ambiguous.length) parts.push(`${r.ambiguous.length} matched by name only (picked the closest size)`);
   return parts.join('. ');

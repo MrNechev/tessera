@@ -10,6 +10,7 @@
   import { resolver } from '../lib/resolver.svelte';
   import type { MediaRef, Resolved } from '../lib/types';
   import { viewport } from '../lib/viewport';
+  import { autoplay, stopped } from '../lib/playback';
   import Icon from './Icon.svelte';
 
   let {
@@ -102,9 +103,11 @@
     if (!v || mode === 'present') return;
     if (!playVisible) {
       if (!v.paused) v.pause();
+      stopped(v);
     } else if (f?.kind === 'gif' || ref.autoplay) {
-      v.play().catch(() => {});
+      autoplay(v).catch(() => {});
     }
+    return () => stopped(v);
   });
 
   // Presentation: play on enter (with sound unless muted), pause and rewind on leave.

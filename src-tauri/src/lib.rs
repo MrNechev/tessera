@@ -11,7 +11,44 @@ mod desktop;
 mod print;
 mod server;
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use tauri::webview::NewWindowResponse;
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
+
+static WINDOWS: AtomicU32 = AtomicU32::new(0);
+
+/// `window.open` from the UI: our own pages (speaker notes, print layouts,
+/// presentations) open as Tessera windows; web links open in the browser.
+fn new_window(
+    app: &AppHandle,
+    url: url::Url,
+    features: tauri::webview::NewWindowFeatures,
+) -> NewWindowResponse<tauri::Wry> {
+    let local = matches!(url.host_str(), Some("127.0.0.1") | Some("localhost"));
+    if !local {
+        if url.scheme() == "https" || url.scheme() == "http" {
+            let _ = app.opener().open_url(url.as_str(), None::<&str>);
+        }
+        return NewWindowResponse::Deny;
+    }
+    let label = format!("w{}", WINDOWS.fetch_add(1, Ordering::Relaxed) + 1);
+    let built = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
+        .window_features(features)
+        .title("Tessera")
+        .on_document_title_changed(|w, title| {
+            let _ = w.set_title(&title);
+        })
+        .build();
+    match built {
+        Ok(window) => NewWindowResponse::Create { window },
+        Err(e) => {
+            log::error!("could not open a window: {e}");
+            NewWindowResponse::Deny
+        }
+    }
+}
 
 /// AppImages bundle libheif's HEVC decoder plugin (for HEIC photos) inside
 /// the image; tell libheif where to find it. Must run before any thread starts.
@@ -44,7 +81,9 @@ pub fn run() {
             let started = tauri::async_runtime::block_on(server::start(handle))?;
             let url = started.window_url();
             app.manage(started);
+            let h = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+                .on_new_window(move |url, features| new_window(&h, url, features))
                 .title("Tessera")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(1100.0, 700.0)
