@@ -252,6 +252,15 @@ pub fn upload_chunk(t: &Tools, p: &UploadParams, data: &[u8]) -> CmdResult<Uploa
     f.write_all(data).map_err(err)?;
     drop(f);
     let received = p.offset + data.len() as u64;
+    if let Some(max) = t.cfg.max_upload {
+        if received > max {
+            let _ = fs::remove_file(&part);
+            return Err(format!(
+                "{name} is larger than this server allows ({} MB)",
+                max / (1024 * 1024)
+            ));
+        }
+    }
     if !p.done {
         return Ok(UploadResult {
             path: String::new(),

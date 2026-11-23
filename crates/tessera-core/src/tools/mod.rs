@@ -52,6 +52,8 @@ pub struct ToolsConfig {
     pub uploads_dir: PathBuf,
     /// Uploads the user chose to keep (server mode).
     pub inbox_dir: Option<PathBuf>,
+    /// Largest single upload in bytes (None = unlimited).
+    pub max_upload: Option<u64>,
 }
 
 /// Shared state of the tools.
@@ -99,7 +101,12 @@ impl Tools {
     }
 
     fn settings_saved(&self, s: &settings::Settings) {
-        if let Some(h) = self.on_settings.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        if let Some(h) = self
+            .on_settings
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
             h(s);
         }
     }

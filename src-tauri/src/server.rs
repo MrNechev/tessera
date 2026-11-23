@@ -60,6 +60,7 @@ pub fn tools_config(app: &AppHandle) -> ToolsConfig {
         uploads_dir: cache.join("uploads"),
         outputs_dir: tools::paths::default_save_dir(),
         inbox_dir: None,
+        max_upload: None,
         data_dir: data,
         config_dir: config,
         cache_dir: cache,

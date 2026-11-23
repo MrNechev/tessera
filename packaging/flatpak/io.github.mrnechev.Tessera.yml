@@ -26,6 +26,8 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  # Audio output: videos (and WebKit's media clock, even for muted videos) need it.
+  - --socket=pulseaudio
   # Photos live everywhere: home, removable drives and mounted disks.
   - --filesystem=home
   - --filesystem=/media
