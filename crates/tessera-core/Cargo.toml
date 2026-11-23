@@ -1,0 +1,22 @@
+[package]
+name = "tessera-core"
+description = "Tessera's engine: libraries, media, documents, tools and the HTTP API (shared by the desktop app and the server)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["heif"]
+heif = ["tessera-imaging/heif"]
+
+[dependencies]
+tessera-imaging = { path = "../tessera-imaging" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["macros"] }
+tracing = "0.1"
