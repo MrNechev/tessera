@@ -322,7 +322,8 @@ impl Pool {
         self.lock().closed = true;
         self.shared.cancel.cancel();
         self.shared.cond.notify_all();
-        let threads: Vec<_> = std::mem::take(&mut *self.threads.lock().unwrap_or_else(|e| e.into_inner()));
+        let threads: Vec<_> =
+            std::mem::take(&mut *self.threads.lock().unwrap_or_else(|e| e.into_inner()));
         for t in threads {
             let _ = t.join();
         }
@@ -591,9 +592,7 @@ fn worker(s: Arc<Shared>) {
             };
             js.st = St::Running;
             js.started = Instant::now();
-            js.job
-                .bg
-                .store(js.prio == Priority::Low, Ordering::SeqCst);
+            js.job.bg.store(js.prio == Priority::Low, Ordering::SeqCst);
             (js.job.clone(), js.run.take())
         };
         g.running += 1;
@@ -616,8 +615,7 @@ fn worker(s: Arc<Shared>) {
 
         let mut g = s.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.running -= 1;
-        if g
-            .jobs
+        if g.jobs
             .get(&key)
             .map(|js| Arc::ptr_eq(&js.job, &job))
             .unwrap_or(false)
@@ -696,8 +694,10 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         p.submit("low1", Priority::Low, false, rec("low1")).unwrap();
         p.submit("low2", Priority::Low, false, rec("low2")).unwrap();
-        p.submit("high1", Priority::High, false, rec("high1")).unwrap();
-        p.submit("high2", Priority::High, false, rec("high2")).unwrap();
+        p.submit("high1", Priority::High, false, rec("high1"))
+            .unwrap();
+        p.submit("high2", Priority::High, false, rec("high2"))
+            .unwrap();
         let j = p.submit("last", Priority::Low, false, rec("last")).unwrap();
         drop(tx);
         j.wait_blocking().unwrap();

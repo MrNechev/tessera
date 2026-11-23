@@ -105,9 +105,7 @@ fn command(tools: &Tools, nice: bool, name: &str, args: &[String]) -> tokio::pro
     } else {
         tokio::process::Command::new(name)
     };
-    c.args(args)
-        .stdin(Stdio::null())
-        .kill_on_drop(true);
+    c.args(args).stdin(Stdio::null()).kill_on_drop(true);
     c
 }
 
@@ -254,7 +252,10 @@ impl Exec {
 
 fn start_error(name: &str, e: &std::io::Error) -> anyhow::Error {
     if e.kind() == std::io::ErrorKind::NotFound {
-        return anyhow!("{name}: {TOOL_MISSING} ({name} not found; install it or set TESSERA_{})", name.to_uppercase());
+        return anyhow!(
+            "{name}: {TOOL_MISSING} ({name} not found; install it or set TESSERA_{})",
+            name.to_uppercase()
+        );
     }
     anyhow!("{name}: {e}")
 }

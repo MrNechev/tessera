@@ -66,7 +66,9 @@ impl Core {
             tracing::info!(id = %l.id, name = %l.name, root = %l.root.display(), writable = l.writable, "library");
         }
         if cfg.libraries.is_empty() {
-            tracing::warn!("no libraries configured: set TESSERA_LIBRARIES or mount folders under /libraries");
+            tracing::warn!(
+                "no libraries configured: set TESSERA_LIBRARIES or mount folders under /libraries"
+            );
         }
         if matches!(cfg.auth, crate::config::AuthMode::None) {
             tracing::warn!("TESSERA_PASSWORD is empty: no login required");
@@ -84,8 +86,17 @@ impl Core {
             let db = Arc::new(store::Store::open(&cfg.db_path())?);
             let mm = Arc::new(media::Manager::new(cfg.clone(), rt)?);
             mm.clean_temp();
-            let lib = Arc::new(library::Manager::new(cfg.clone(), db.clone(), mm.clone(), c2));
-            let ds = Arc::new(docs::Store::new(&cfg.data_dir, db.clone(), cfg.history_keep)?);
+            let lib = Arc::new(library::Manager::new(
+                cfg.clone(),
+                db.clone(),
+                mm.clone(),
+                c2,
+            ));
+            let ds = Arc::new(docs::Store::new(
+                &cfg.data_dir,
+                db.clone(),
+                cfg.history_keep,
+            )?);
             ds.reindex()?;
             let a = Arc::new(auth::Auth::new(
                 &cfg.data_dir,

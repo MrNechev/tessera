@@ -145,7 +145,10 @@ pub async fn file(State(c): St, Path(id): Path<String>) -> Response {
 
 pub async fn scan(State(c): St) -> Response {
     let started = c.lib.trigger_scan();
-    json(202, &serde_json::json!({"started": started, "state": c.lib.state()}))
+    json(
+        202,
+        &serde_json::json!({"started": started, "state": c.lib.state()}),
+    )
 }
 
 // ---------- resolve: document references → playable sources ----------
@@ -202,7 +205,9 @@ impl Core {
             path: r.path.clone(),
             ..Default::default()
         };
-        let Ok(clean) = clean_rel(&r.path) else { return res };
+        let Ok(clean) = clean_rel(&r.path) else {
+            return res;
+        };
         let Ok(Some(mut f)) = self.db.by_path(&r.library_id, &clean) else {
             return res;
         };
@@ -290,7 +295,9 @@ impl Core {
                     Err(_) => continue,
                 }
             }
-            let Ok(abs) = self.lib.resolve(&f.library, &f.path) else { continue };
+            let Ok(abs) = self.lib.resolve(&f.library, &f.path) else {
+                continue;
+            };
             for v in [self.media.doc_variant(&f), self.media.present_variant(&f)] {
                 if !v.is_empty() {
                     self.media.request_proxy(&f, &abs, v, Priority::Low, false);
@@ -341,7 +348,11 @@ pub async fn proxy(State(c): St, body: Body) -> Response {
         let Ok(abs) = c.lib.resolve(&f.library, &f.path) else {
             return err(404, "file not readable");
         };
-        json(200, &c.media.request_proxy(&f, &abs, &b.variant, Priority::High, b.retry))
+        json(
+            200,
+            &c.media
+                .request_proxy(&f, &abs, &b.variant, Priority::High, b.retry),
+        )
     })
     .await
 }
@@ -350,6 +361,7 @@ pub async fn proxy(State(c): St, body: Body) -> Response {
 
 /// Streams an original file with Range support (seeking in multi-GB videos without
 /// loading them) and ETag/Last-Modified revalidation. Only indexed media is served.
+#[allow(clippy::result_large_err)]
 pub async fn original(
     State(c): St,
     Path((lib, rel)): Path<(String, String)>,
@@ -360,22 +372,24 @@ pub async fn original(
     let c2 = c.clone();
     let lib2 = lib.clone();
     let rel2 = rel.clone();
-    let found = blocking(move || -> Result<(std::path::PathBuf, std::fs::Metadata), Response> {
-        let clean = clean_rel(&rel2).map_err(|_| err(403, "forbidden"))?;
-        match c2.db.by_path(&lib2, &clean) {
-            Ok(Some(_)) => {}
-            _ => return Err(err(404, "not found")),
-        }
-        let abs = c2.lib.resolve(&lib2, &rel2).map_err(|e| match e {
-            ResolveError::BadPath => err(403, "forbidden"),
-            _ => err(404, "not found"),
-        })?;
-        let md = std::fs::metadata(&abs).map_err(|_| err(404, "not found"))?;
-        if !md.is_file() {
-            return Err(err(404, "not found"));
-        }
-        Ok((abs, md))
-    })
+    let found = blocking(
+        move || -> Result<(std::path::PathBuf, std::fs::Metadata), Response> {
+            let clean = clean_rel(&rel2).map_err(|_| err(403, "forbidden"))?;
+            match c2.db.by_path(&lib2, &clean) {
+                Ok(Some(_)) => {}
+                _ => return Err(err(404, "not found")),
+            }
+            let abs = c2.lib.resolve(&lib2, &rel2).map_err(|e| match e {
+                ResolveError::BadPath => err(403, "forbidden"),
+                _ => err(404, "not found"),
+            })?;
+            let md = std::fs::metadata(&abs).map_err(|_| err(404, "not found"))?;
+            if !md.is_file() {
+                return Err(err(404, "not found"));
+            }
+            Ok((abs, md))
+        },
+    )
     .await;
     let (abs, md) = match found {
         Ok(v) => v,
@@ -384,7 +398,11 @@ pub async fn original(
     let (_, ext) = media::kind_of(&abs.to_string_lossy());
     let mut h = HeaderMap::new();
     set(&mut h, header::CONTENT_TYPE, media::mime(&ext));
-    set(&mut h, header::ETAG, &format!("\"{:x}-{:x}\"", md.len(), mtime_ns(&md)));
+    set(
+        &mut h,
+        header::ETAG,
+        &format!("\"{:x}-{:x}\"", md.len(), mtime_ns(&md)),
+    );
     set(&mut h, header::CACHE_CONTROL, "private, no-cache");
     set(&mut h, header::ACCEPT_RANGES, "bytes");
     if q.get("download") == "1" {
@@ -398,7 +416,15 @@ pub async fn original(
             &format!("attachment; filename*=UTF-8''{}", path_escape(&name)),
         );
     }
-    serve_content(&method, &req_headers, h, "", md.modified().ok(), Source::File(abs)).await
+    serve_content(
+        &method,
+        &req_headers,
+        h,
+        "",
+        md.modified().ok(),
+        Source::File(abs),
+    )
+    .await
 }
 
 fn base36(mut n: u64) -> String {
@@ -415,13 +441,21 @@ fn base36(mut n: u64) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-pub(crate) async fn serve_immutable(req: &(Method, HeaderMap), p: std::path::PathBuf, ctype: &str) -> Response {
+pub(crate) async fn serve_immutable(
+    req: &(Method, HeaderMap),
+    p: std::path::PathBuf,
+    ctype: &str,
+) -> Response {
     let Ok(md) = tokio::fs::metadata(&p).await else {
         return err(404, "not found");
     };
     let mut h = HeaderMap::new();
     set(&mut h, header::CONTENT_TYPE, ctype);
-    set(&mut h, header::CACHE_CONTROL, "private, max-age=31536000, immutable");
+    set(
+        &mut h,
+        header::CACHE_CONTROL,
+        "private, max-age=31536000, immutable",
+    );
     set(&mut h, header::ETAG, &format!("\"{}\"", base36(md.len())));
     serve_content(&req.0, &req.1, h, "", md.modified().ok(), Source::File(p)).await
 }
@@ -438,6 +472,7 @@ fn abandoned() -> Response {
 
 /// Serves `/d/<key>/t320.webp`, `gif.mp4`, `preview.mp4`, `full.mp4`, `sprite.jpg`,
 /// `motion.mp4`. Thumbnails and GIF videos are generated on demand at high priority.
+#[allow(clippy::result_large_err)]
 pub async fn derived(
     State(c): St,
     Path((key, name)): Path<(String, String)>,
@@ -465,7 +500,10 @@ pub async fn derived(
             Ok(Some(f)) => f,
             _ => return Err(no_store(err(404, "unknown file"))),
         };
-        let abs = c2.lib.resolve(&f.library, &f.path).map_err(|_| err(404, "not found"))?;
+        let abs = c2
+            .lib
+            .resolve(&f.library, &f.path)
+            .map_err(|_| err(404, "not found"))?;
         Ok((f, abs))
     })
     .await;
@@ -475,10 +513,7 @@ pub async fn derived(
     };
     let limit = Duration::from_secs(120);
     let m = c.media.clone();
-    if let Some(size) = name
-        .strip_prefix('t')
-        .and_then(|s| s.strip_suffix(".webp"))
-    {
+    if let Some(size) = name.strip_prefix('t').and_then(|s| s.strip_suffix(".webp")) {
         let size: i64 = size.parse().unwrap_or(0);
         if !valid_thumb_size(size) {
             return err(404, "not found");
@@ -517,7 +552,8 @@ pub async fn derived(
                 _ => no_store(err(500, "clip failed")),
             }
         }
-        "gif.mp4" if f.kind == KIND_GIF => match tokio::time::timeout(limit, m.gif(&f, &abs)).await {
+        "gif.mp4" if f.kind == KIND_GIF => match tokio::time::timeout(limit, m.gif(&f, &abs)).await
+        {
             Ok(Ok(p)) => serve_immutable(&req, p, "video/mp4").await,
             _ => no_store(err(500, "conversion failed")),
         },

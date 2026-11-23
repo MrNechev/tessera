@@ -27,7 +27,9 @@ pub fn raw_preview(path: &Path) -> anyhow::Result<(Vec<u8>, Meta)> {
     };
     let jpg = b[start..end].to_vec();
     // the preview's own EXIF (if any) can fill in what the RAW header lacks
-    let inner = jpeg_exif(&jpg[..]).map(|t| parse_tiff(&t)).unwrap_or_default();
+    let inner = jpeg_exif(&jpg[..])
+        .map(|t| parse_tiff(&t))
+        .unwrap_or_default();
     if !inner.camera.is_empty() || inner.taken.is_some() {
         if meta.camera.is_empty() {
             meta.camera = inner.camera.clone();
@@ -232,7 +234,12 @@ mod tests {
         let p = dir.path().join("x.nef");
         std::fs::write(&p, &raw).unwrap();
         let (jpg, meta) = raw_preview(&p).unwrap();
-        assert!(jpg == big, "preview: got {} bytes, want the 640×480 one ({})", jpg.len(), big.len());
+        assert!(
+            jpg == big,
+            "preview: got {} bytes, want the 640×480 one ({})",
+            jpg.len(),
+            big.len()
+        );
         assert_eq!(meta.camera, "Apple iPhone 15 Pro");
         let pr = crate::media::probe::probe_raw(&p);
         assert_eq!((pr.width, pr.height, pr.rotation), (480, 640, 90), "{pr:?}");

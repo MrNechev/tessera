@@ -90,7 +90,8 @@ impl Manager {
         let ex = self.exec(&ctx.cancel, Duration::from_secs(300), ctx.background());
         let (n, th) = sprite_layout(f);
         let rows = (n + SPRITE_COLS - 1) / SPRITE_COLS;
-        let mut sheet = image::RgbImage::new((SPRITE_COLS * SPRITE_TILE_W) as u32, (rows * th) as u32);
+        let mut sheet =
+            image::RgbImage::new((SPRITE_COLS * SPRITE_TILE_W) as u32, (rows * th) as u32);
         let dir = tempdir_in(parent, ".sprite-")?;
         let _g = RemoveDirOnDrop(dir.clone());
         let vf = format!(
@@ -130,7 +131,11 @@ impl Manager {
             let (x, y) = ((i % SPRITE_COLS) * SPRITE_TILE_W, (i / SPRITE_COLS) * th);
             for (px, py, c) in img.enumerate_pixels() {
                 let (dx, dy) = (x as u32 + px, y as u32 + py);
-                if (px as i64) < SPRITE_TILE_W && (py as i64) < th && dx < sheet.width() && dy < sheet.height() {
+                if (px as i64) < SPRITE_TILE_W
+                    && (py as i64) < th
+                    && dx < sheet.width()
+                    && dy < sheet.height()
+                {
                     sheet.put_pixel(dx, dy, *c);
                 }
             }

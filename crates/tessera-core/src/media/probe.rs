@@ -12,8 +12,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::cmd::CmdError;
 use super::exif::{
-    camera_name, jpeg_exif, parse_exif_time, parse_iso6709, parse_tiff, parse_vips_gps,
-    valid_gps, vips_string, Meta,
+    camera_name, jpeg_exif, parse_exif_time, parse_iso6709, parse_tiff, parse_vips_gps, valid_gps,
+    vips_string, Meta,
 };
 use super::kinds::{is_raw, KIND_AUDIO, KIND_GIF, KIND_IMAGE};
 use super::motion::embedded_motion;
@@ -75,7 +75,7 @@ impl Manager {
                 Err(FfErr { msg, partial }) => match partial {
                     Some(mut p) if !p.acodec.is_empty() => {
                         p.error.clear();
-                        p
+                        *p
                     }
                     _ => Probe::error(msg),
                 },
@@ -208,7 +208,7 @@ impl Manager {
         if p.vcodec.is_empty() {
             return Err(FfErr {
                 msg: "no video stream".into(),
-                partial: Some(p),
+                partial: Some(Box::new(p)),
             });
         }
         Ok(p)
@@ -220,7 +220,7 @@ impl Manager {
 #[derive(Debug)]
 pub(crate) struct FfErr {
     pub msg: String,
-    pub partial: Option<Probe>,
+    pub partial: Option<Box<Probe>>,
 }
 
 impl std::fmt::Display for FfErr {
@@ -315,7 +315,11 @@ fn decode_config(path: &Path) -> Option<(&'static str, i64, i64)> {
         "jpeg"
     } else if head.starts_with(b"\x89PNG\r\n\x1a\n") {
         "png"
-    } else if head.len() >= 6 && &head[..4] == b"GIF8" && (head[4] == b'7' || head[4] == b'9') && head[5] == b'a' {
+    } else if head.len() >= 6
+        && &head[..4] == b"GIF8"
+        && (head[4] == b'7' || head[4] == b'9')
+        && head[5] == b'a'
+    {
         "gif"
     } else if head.len() >= 15 && &head[..4] == b"RIFF" && &head[8..15] == b"WEBPVP8" {
         "webp"
@@ -348,7 +352,10 @@ fn decode_config(path: &Path) -> Option<(&'static str, i64, i64)> {
 
 /// Native image probe (no process spawn). `None` if the format isn't handled natively.
 pub fn probe_image_native(abs: &Path, ext: &str) -> Option<Probe> {
-    if !matches!(ext, "jpg" | "jpeg" | "jpe" | "jfif" | "png" | "gif" | "webp" | "bmp") {
+    if !matches!(
+        ext,
+        "jpg" | "jpeg" | "jpe" | "jfif" | "png" | "gif" | "webp" | "bmp"
+    ) {
         return None;
     }
     if let Err(e) = std::fs::File::open(abs) {
@@ -489,10 +496,8 @@ fn parse_ffprobe(fo: &FfprobeOut) -> Probe {
                     p.duration = s.duration.parse().unwrap_or(0.0);
                 }
             }
-            "audio" => {
-                if p.acodec.is_empty() {
-                    p.acodec = s.codec_name.clone();
-                }
+            "audio" if p.acodec.is_empty() => {
+                p.acodec = s.codec_name.clone();
             }
             _ => {}
         }
@@ -543,7 +548,11 @@ fn video_meta(p: &mut Probe, tags: &HashMap<String, String>) {
             }
         }
     }
-    let s = get(&["com.apple.quicktime.location.ISO6709", "location", "location-eng"]);
+    let s = get(&[
+        "com.apple.quicktime.location.ISO6709",
+        "location",
+        "location-eng",
+    ]);
     if !s.is_empty() {
         if let Some((la, lo)) = parse_iso6709(&s) {
             mt.lat = la;
@@ -552,7 +561,11 @@ fn video_meta(p: &mut Probe, tags: &HashMap<String, String>) {
         }
     }
     mt.camera = camera_name(
-        &get(&["com.apple.quicktime.make", "make", "com.android.manufacturer"]),
+        &get(&[
+            "com.apple.quicktime.make",
+            "make",
+            "com.android.manufacturer",
+        ]),
         &get(&["com.apple.quicktime.model", "model", "com.android.model"]),
     );
     apply_meta(p, &mt);

@@ -77,8 +77,22 @@ pub fn mime(ext: &str) -> &'static str {
 pub fn is_raw(ext: &str) -> bool {
     matches!(
         ext,
-        "cr2" | "cr3" | "nef" | "nrw" | "arw" | "srf" | "sr2" | "dng" | "orf" | "rw2" | "raf"
-            | "pef" | "srw" | "x3f" | "3fr" | "iiq"
+        "cr2"
+            | "cr3"
+            | "nef"
+            | "nrw"
+            | "arw"
+            | "srf"
+            | "sr2"
+            | "dng"
+            | "orf"
+            | "rw2"
+            | "raf"
+            | "pef"
+            | "srw"
+            | "x3f"
+            | "3fr"
+            | "iiq"
     )
 }
 

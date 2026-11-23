@@ -290,10 +290,7 @@ impl Config {
                 AuthMode::Password(password)
             },
             session_secret: env_or("SESSION_SECRET", ""),
-            session_max_age: env_duration(
-                "SESSION_MAX_AGE",
-                Duration::from_secs(365 * 24 * 3600),
-            ),
+            session_max_age: env_duration("SESSION_MAX_AGE", Duration::from_secs(365 * 24 * 3600)),
             libraries,
             scan_interval: env_duration("SCAN_INTERVAL", Duration::from_secs(30 * 60)),
             watch: env_bool("WATCH", true),
@@ -481,7 +478,10 @@ pub fn load_libraries() -> anyhow::Result<Vec<Library>> {
                 continue;
             }
             let full = root.join(&name);
-            if !std::fs::metadata(&full).map(|m| m.is_dir()).unwrap_or(false) {
+            if !std::fs::metadata(&full)
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
+            {
                 continue;
             }
             let display = names

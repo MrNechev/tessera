@@ -57,7 +57,11 @@ impl Watcher {
         }
         {
             let g = st.lock().unwrap_or_else(|e| e.into_inner());
-            tracing::info!(dirs = g.count, limit_reached = g.full, "filesystem watcher started");
+            tracing::info!(
+                dirs = g.count,
+                limit_reached = g.full,
+                "filesystem watcher started"
+            );
         }
         let weak: Weak<Manager> = Arc::downgrade(m);
         let stop = watcher.stop.clone();
@@ -122,7 +126,9 @@ fn add_tree(st: &Mutex<State>, max: usize, lib_id: &str, root: &Path) {
         if !add(st, max, lib_id, dir) {
             return false;
         }
-        let Ok(rd) = std::fs::read_dir(dir) else { return true };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return true;
+        };
         let mut subdirs: Vec<PathBuf> = rd
             .flatten()
             .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
@@ -172,17 +178,29 @@ fn lib_for(m: &Manager, abs: &Path) -> Option<(String, String)> {
 }
 
 fn handle(m: &Manager, st: &Mutex<State>, max: usize, ev: notify::Event) {
-    if matches!(ev.kind, EventKind::Access(notify::event::AccessKind::Open(_)) | EventKind::Access(notify::event::AccessKind::Read)) {
+    if matches!(
+        ev.kind,
+        EventKind::Access(notify::event::AccessKind::Open(_))
+            | EventKind::Access(notify::event::AccessKind::Read)
+    ) {
         return;
     }
     for path in &ev.paths {
-        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         if name.starts_with('.') {
             continue;
         }
         let mut dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
         let created = matches!(ev.kind, EventKind::Create(_))
-            || matches!(ev.kind, EventKind::Modify(notify::event::ModifyKind::Name(notify::event::RenameMode::To)));
+            || matches!(
+                ev.kind,
+                EventKind::Modify(notify::event::ModifyKind::Name(
+                    notify::event::RenameMode::To
+                ))
+            );
         if created {
             if let Ok(md) = std::fs::metadata(path) {
                 if md.is_dir() && !skip_dir(&name) {
@@ -194,14 +212,21 @@ fn handle(m: &Manager, st: &Mutex<State>, max: usize, ev: notify::Event) {
             }
         }
         let removed = matches!(ev.kind, EventKind::Remove(_))
-            || matches!(ev.kind, EventKind::Modify(notify::event::ModifyKind::Name(notify::event::RenameMode::From)));
+            || matches!(
+                ev.kind,
+                EventKind::Modify(notify::event::ModifyKind::Name(
+                    notify::event::RenameMode::From
+                ))
+            );
         if removed {
             let mut g = st.lock().unwrap_or_else(|e| e.into_inner());
             if g.by_watch.remove(path).is_some() {
                 g.count = g.count.saturating_sub(1);
             }
         }
-        let Some((id, rel)) = lib_for(m, &dir) else { continue };
+        let Some((id, rel)) = lib_for(m, &dir) else {
+            continue;
+        };
         st.lock()
             .unwrap_or_else(|e| e.into_inner())
             .dirty

@@ -62,7 +62,12 @@ pub fn cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
 impl Auth {
     /// Loads (or creates) the signing secret in `<data>/session.secret`. The key also mixes
     /// in the password, so changing the password logs every browser out.
-    pub fn new(data_dir: &Path, mode: AuthMode, secret: &str, max_age: Duration) -> anyhow::Result<Auth> {
+    pub fn new(
+        data_dir: &Path,
+        mode: AuthMode,
+        secret: &str,
+        max_age: Duration,
+    ) -> anyhow::Result<Auth> {
         let mut secret = secret.to_string();
         if secret.is_empty() {
             let p = data_dir.join("session.secret");
@@ -186,7 +191,13 @@ impl Auth {
         }
         let payload = chrono::Utc::now().timestamp().to_string();
         let value = format!("{payload}.{}", self.sign(&payload));
-        Ok(cookie(COOKIE_NAME, &value, self.max_age.as_secs() as i64, secure, "Lax"))
+        Ok(cookie(
+            COOKIE_NAME,
+            &value,
+            self.max_age.as_secs() as i64,
+            secure,
+            "Lax",
+        ))
     }
 
     /// The `Set-Cookie` value that logs out.
@@ -198,7 +209,11 @@ impl Auth {
     pub fn remote_cookie(&self, doc_id: &str, ttl: Duration, secure: bool) -> String {
         let exp = chrono::Utc::now().timestamp() + ttl.as_secs() as i64;
         let payload = format!("r|{doc_id}|{exp}");
-        let value = format!("{}.{}", URL_SAFE_NO_PAD.encode(&payload), self.sign(&payload));
+        let value = format!(
+            "{}.{}",
+            URL_SAFE_NO_PAD.encode(&payload),
+            self.sign(&payload)
+        );
         cookie(REMOTE_COOKIE, &value, ttl.as_secs() as i64, secure, "Lax")
     }
 
@@ -247,17 +262,33 @@ mod tests {
     #[tokio::test]
     async fn password_session_and_remote() {
         let dir = tempfile::tempdir().unwrap();
-        let a = Auth::new(dir.path(), AuthMode::Password("pw".into()), "", Duration::from_secs(3600)).unwrap();
+        let a = Auth::new(
+            dir.path(),
+            AuthMode::Password("pw".into()),
+            "",
+            Duration::from_secs(3600),
+        )
+        .unwrap();
         assert!(dir.path().join("session.secret").exists());
         assert!(!a.valid("", None));
         assert!(a.login("1.2.3.4", "nope", false).await.is_err());
         let c = a.login("1.2.3.4", "pw", true).await.unwrap();
-        assert!(c.starts_with("tessera_session=") && c.contains("; Max-Age=3600; HttpOnly; Secure; SameSite=Lax"), "{c}");
+        assert!(
+            c.starts_with("tessera_session=")
+                && c.contains("; Max-Age=3600; HttpOnly; Secure; SameSite=Lax"),
+            "{c}"
+        );
         let v = c.split(';').next().unwrap();
         assert!(a.valid(v, None));
         assert!(!a.valid(&v.replace('.', ".x"), None));
         // same secret file, different password → old cookies invalid
-        let b = Auth::new(dir.path(), AuthMode::Password("other".into()), "", Duration::from_secs(3600)).unwrap();
+        let b = Auth::new(
+            dir.path(),
+            AuthMode::Password("other".into()),
+            "",
+            Duration::from_secs(3600),
+        )
+        .unwrap();
         assert!(!b.valid(v, None));
         let rc = a.remote_cookie("doc1", Duration::from_secs(60), false);
         let rv = rc.split(';').next().unwrap();
@@ -268,7 +299,13 @@ mod tests {
     #[test]
     fn token_mode() {
         let dir = tempfile::tempdir().unwrap();
-        let a = Auth::new(dir.path(), AuthMode::Token("t0k".into()), "", Duration::from_secs(60)).unwrap();
+        let a = Auth::new(
+            dir.path(),
+            AuthMode::Token("t0k".into()),
+            "",
+            Duration::from_secs(60),
+        )
+        .unwrap();
         assert!(a.valid("", Some("t0k")));
         assert!(a.valid("a=b; tessera_token=t0k", None));
         assert!(!a.valid("tessera_token=bad", Some("bad")));

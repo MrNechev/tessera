@@ -316,7 +316,11 @@ impl Manager {
             ),
         ));
 
-        let ex = self.exec(&ctx.cancel, Duration::from_secs(7 * 24 * 3600), ctx.background());
+        let ex = self.exec(
+            &ctx.cancel,
+            Duration::from_secs(7 * 24 * 3600),
+            ctx.background(),
+        );
         let mut last_err = anyhow::anyhow!("no attempts");
         for (name, mut args) in attempts {
             let tmp = tmp_for(out);

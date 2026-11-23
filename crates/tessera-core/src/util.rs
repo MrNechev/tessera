@@ -100,7 +100,7 @@ fn frac(v: u64, div: u64) -> String {
         return whole.to_string();
     }
     let mut digits = div.to_string().len() - 1;
-    while f % 10 == 0 {
+    while f.is_multiple_of(10) {
         f /= 10;
         digits -= 1;
     }
@@ -442,7 +442,10 @@ pub fn path_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &c in s.as_bytes() {
         let keep = c.is_ascii_alphanumeric()
-            || matches!(c, b'-' | b'_' | b'.' | b'~' | b'$' | b'&' | b'+' | b':' | b'=' | b'@');
+            || matches!(
+                c,
+                b'-' | b'_' | b'.' | b'~' | b'$' | b'&' | b'+' | b':' | b'=' | b'@'
+            );
         if keep {
             out.push(c as char);
         } else {

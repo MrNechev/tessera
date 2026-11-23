@@ -31,7 +31,8 @@ fn safe_file_name(s: &str) -> String {
     let mut out = String::new();
     let mut in_run = false;
     for ch in s.chars() {
-        let bad = matches!(ch, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || (ch as u32) < 0x20;
+        let bad = matches!(ch, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+            || (ch as u32) < 0x20;
         if bad {
             if !in_run {
                 out.push('_');
@@ -101,7 +102,12 @@ struct SlideOut {
 
 /// Picks a file the browser can play: the original when it is playable (and either asked
 /// for or light enough), otherwise a proxy — made now if needed.
-async fn offline_video(c: &Arc<Core>, f: &File, abs: &std::path::Path, original: bool) -> Result<PathBuf, String> {
+async fn offline_video(
+    c: &Arc<Core>,
+    f: &File,
+    abs: &std::path::Path,
+    original: bool,
+) -> Result<PathBuf, String> {
     let playable = c.media.playable(f);
     if playable && (original || !c.media.needs_preview(f)) {
         return Ok(abs.to_path_buf());
@@ -114,7 +120,8 @@ async fn offline_video(c: &Arc<Core>, f: &File, abs: &std::path::Path, original:
     if let Some(p) = c.media.proxy_path_if_ready(&f.key, variant) {
         return Ok(p);
     }
-    c.media.request_proxy(f, abs, variant, Priority::High, false);
+    c.media
+        .request_proxy(f, abs, variant, Priority::High, false);
     let deadline = Instant::now() + Duration::from_secs(20 * 60);
     while Instant::now() < deadline {
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -185,7 +192,9 @@ pub async fn offline(State(c): St, Path(id): Path<String>, req: Request) -> Resp
             refs.truncate(2);
         }
         for mr in refs {
-            let Ok(clean) = clean_rel(&mr.path) else { continue };
+            let Ok(clean) = clean_rel(&mr.path) else {
+                continue;
+            };
             let c2 = c.clone();
             let lib = mr.library_id.clone();
             let found = blocking(move || {
@@ -207,18 +216,23 @@ pub async fn offline(State(c): St, Path(id): Path<String>, req: Request) -> Resp
             };
             match f.kind.as_str() {
                 KIND_IMAGE => {
-                    let Ok(p) = c.media.thumb(&f, &abs, 2560).await else { continue };
+                    let Ok(p) = c.media.thumb(&f, &abs, 2560).await else {
+                        continue;
+                    };
                     mo.src = add(p, ".webp", &mut files);
                 }
                 KIND_GIF => {
-                    let Ok(p) = c.media.gif(&f, &abs).await else { continue };
+                    let Ok(p) = c.media.gif(&f, &abs).await else {
+                        continue;
+                    };
                     mo.src = add(p, ".mp4", &mut files);
                 }
                 KIND_VIDEO => {
                     if let Ok(p) = c.media.thumb(&f, &abs, 1280).await {
                         mo.poster = add(p, ".webp", &mut files);
                     }
-                    let Ok(src) = offline_video(&c, &f, &abs, input.quality == "original").await else {
+                    let Ok(src) = offline_video(&c, &f, &abs, input.quality == "original").await
+                    else {
                         continue;
                     };
                     let ext = if src == abs {
@@ -258,7 +272,9 @@ pub async fn offline(State(c): St, Path(id): Path<String>, req: Request) -> Resp
                 b"Open index.html in a browser (double-click). Arrow keys or clicks move between slides, F toggles full screen.\nMade with Tessera.\n",
             )?;
             for (zp, abs) in files {
-                let Ok(mut f) = std::fs::File::open(&abs) else { continue };
+                let Ok(mut f) = std::fs::File::open(&abs) else {
+                    continue;
+                };
                 let modified = f.metadata().and_then(|m| m.modified()).ok();
                 z.add(&format!("{zname}/{zp}"), Method::Store, modified, &mut f)?;
             }

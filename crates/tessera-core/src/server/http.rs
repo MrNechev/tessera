@@ -12,7 +12,7 @@ use axum::body::Body;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Version};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
@@ -33,7 +33,10 @@ pub fn json<T: Serialize + ?Sized>(status: u16, v: &T) -> Response {
     let mut r = Response::new(Body::from(body));
     *r.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let h = r.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json; charset=utf-8"),
+    );
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     r
 }
@@ -47,8 +50,14 @@ pub fn err(status: u16, msg: &str) -> Response {
 pub fn text_err(status: u16, msg: &str) -> Response {
     let mut r = Response::new(Body::from(format!("{msg}\n")));
     *r.status_mut() = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8"));
-    r.headers_mut().insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    r.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    r.headers_mut().insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     r
 }
 
@@ -135,13 +144,23 @@ impl ReqInfo {
     pub fn from_parts(parts: &Parts) -> ReqInfo {
         let conn = parts.extensions.get::<ConnInfo>().copied();
         let h = &parts.headers;
-        let hv = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).map(str::trim).unwrap_or("");
+        let hv = |k: &str| {
+            h.get(k)
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .unwrap_or("")
+        };
         let mut ip = hv("true-client-ip").to_string();
         if ip.is_empty() {
             ip = hv("x-real-ip").to_string();
         }
         if ip.is_empty() {
-            ip = hv("x-forwarded-for").split(',').next().unwrap_or("").trim().to_string();
+            ip = hv("x-forwarded-for")
+                .split(',')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
         }
         if ip.is_empty() {
             ip = conn.map(|c| c.remote.ip().to_string()).unwrap_or_default();
@@ -190,7 +209,11 @@ pub fn proto_str(v: Version) -> &'static str {
 }
 
 pub fn request_host(parts: &Parts) -> String {
-    if let Some(h) = parts.headers.get(header::HOST).and_then(|v| v.to_str().ok()) {
+    if let Some(h) = parts
+        .headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+    {
         return h.to_string();
     }
     parts
@@ -225,7 +248,11 @@ pub fn type_by_extension(name: &str) -> Option<String> {
         ".webmanifest" => "application/manifest+json",
         ".txt" => "text/plain; charset=utf-8",
         "" => return None,
-        _ => return mime_guess::from_ext(&ext[1..]).first().map(|m| m.to_string()),
+        _ => {
+            return mime_guess::from_ext(&ext[1..])
+                .first()
+                .map(|m| m.to_string())
+        }
     };
     Some(t.to_string())
 }
@@ -275,7 +302,11 @@ fn etag_list(s: &str) -> Vec<String> {
         match r[1..].find('"') {
             Some(end) => {
                 let tag = &r[..end + 2];
-                out.push(if weak { format!("W/{tag}") } else { tag.to_string() });
+                out.push(if weak {
+                    format!("W/{tag}")
+                } else {
+                    tag.to_string()
+                });
                 rest = &r[end + 2..];
             }
             None => break,
@@ -284,7 +315,7 @@ fn etag_list(s: &str) -> Vec<String> {
     out
 }
 
-fn hdr<'a>(h: &'a HeaderMap, k: header::HeaderName) -> &'a str {
+fn hdr(h: &HeaderMap, k: header::HeaderName) -> &str {
     h.get(k).and_then(|v| v.to_str().ok()).unwrap_or("")
 }
 
@@ -366,6 +397,25 @@ fn parse_range(s: &str, size: u64) -> Result<Vec<Range>, RangeErr> {
     Ok(ranges)
 }
 
+/// Go's `http.Error` on a response whose headers were already set: keeps them, replaces
+/// the content type, drops the length.
+fn error_with(mut headers: HeaderMap, status: u16, msg: &str) -> Response {
+    let mut r = text_err(status, msg);
+    headers.remove(header::CONTENT_LENGTH);
+    for (k, v) in r.headers() {
+        headers.insert(k.clone(), v.clone());
+    }
+    *r.headers_mut() = headers;
+    r
+}
+
+fn status_only(headers: HeaderMap, status: StatusCode) -> Response {
+    let mut r = Response::new(Body::empty());
+    *r.status_mut() = status;
+    *r.headers_mut() = headers;
+    r
+}
+
 fn not_modified(mut headers: HeaderMap) -> Response {
     headers.remove(header::CONTENT_TYPE);
     headers.remove(header::CONTENT_LENGTH);
@@ -416,7 +466,10 @@ pub async fn serve_content(
     let mut ch = Cond::None;
     let im = hdr(req, header::IF_MATCH);
     if !im.is_empty() {
-        ch = if etag_list(im).iter().any(|t| t == "*" || etag_strong_match(t, &etag)) {
+        ch = if etag_list(im)
+            .iter()
+            .any(|t| t == "*" || etag_strong_match(t, &etag))
+        {
             Cond::True
         } else {
             Cond::False
@@ -425,14 +478,16 @@ pub async fn serve_content(
         let ius = hdr(req, header::IF_UNMODIFIED_SINCE);
         if let (false, Some(ms)) = (ius.is_empty(), mod_secs) {
             if let Some(t) = parse_http_date(ius) {
-                ch = if ms <= t.timestamp() { Cond::True } else { Cond::False };
+                ch = if ms <= t.timestamp() {
+                    Cond::True
+                } else {
+                    Cond::False
+                };
             }
         }
     }
     if ch == Cond::False {
-        let mut r = Response::new(Body::empty());
-        *r.status_mut() = StatusCode::PRECONDITION_FAILED;
-        return r;
+        return status_only(headers, StatusCode::PRECONDITION_FAILED);
     }
     // checkIfNoneMatch / checkIfModifiedSince
     let inm = hdr(req, header::IF_NONE_MATCH);
@@ -444,9 +499,7 @@ pub async fn serve_content(
             if is_get_head {
                 return not_modified(headers);
             }
-            let mut r = Response::new(Body::empty());
-            *r.status_mut() = StatusCode::PRECONDITION_FAILED;
-            return r;
+            return status_only(headers, StatusCode::PRECONDITION_FAILED);
         }
     } else if is_get_head {
         let ims = hdr(req, header::IF_MODIFIED_SINCE);
@@ -488,13 +541,14 @@ pub async fn serve_content(
     let mut ranges = match parse_range(&range_hdr, size) {
         Ok(r) => r,
         Err(RangeErr::NoOverlap) => {
-            let mut r = text_err(416, "invalid range: failed to overlap");
-            if let Ok(v) = HeaderValue::from_str(&format!("bytes */{size}")) {
-                r.headers_mut().insert(header::CONTENT_RANGE, v);
-            }
-            return r;
+            set(
+                &mut headers,
+                header::CONTENT_RANGE,
+                &format!("bytes */{size}"),
+            );
+            return error_with(headers, 416, "invalid range: failed to overlap");
         }
-        Err(RangeErr::Invalid) => return text_err(416, "invalid range"),
+        Err(RangeErr::Invalid) => return error_with(headers, 416, "invalid range"),
     };
     if ranges.iter().map(|r| r.length).sum::<u64>() > size {
         // the total number of bytes in all the ranges is larger than the size of the
@@ -648,15 +702,6 @@ pub fn set(h: &mut HeaderMap, k: header::HeaderName, v: &str) {
     }
 }
 
-impl IntoResponse for Source {
-    fn into_response(self) -> Response {
-        match self {
-            Source::Bytes(b) => Response::new(Body::from(b)),
-            Source::File(_) => err(500, "unsupported"),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,9 +717,18 @@ mod tests {
         assert_eq!(ok("bytes=-5"), vec![(95, 5)]);
         assert_eq!(ok("bytes=95-200"), vec![(95, 5)]);
         assert_eq!(ok("bytes=0-1,5-6"), vec![(0, 2), (5, 2)]);
-        assert!(matches!(parse_range("bytes=200-", 100), Err(RangeErr::NoOverlap)));
-        assert!(matches!(parse_range("items=0-1", 100), Err(RangeErr::Invalid)));
-        assert!(matches!(parse_range("bytes=5-1", 100), Err(RangeErr::Invalid)));
+        assert!(matches!(
+            parse_range("bytes=200-", 100),
+            Err(RangeErr::NoOverlap)
+        ));
+        assert!(matches!(
+            parse_range("items=0-1", 100),
+            Err(RangeErr::Invalid)
+        ));
+        assert!(matches!(
+            parse_range("bytes=5-1", 100),
+            Err(RangeErr::Invalid)
+        ));
         assert_eq!(etag_list(r#""a", W/"b", *"#), vec!["\"a\"", "W/\"b\"", "*"]);
     }
 
@@ -685,7 +739,15 @@ mod tests {
         req.insert(header::RANGE, HeaderValue::from_static("bytes=2-4"));
         let mut pre = HeaderMap::new();
         pre.insert(header::ETAG, HeaderValue::from_static("\"x\""));
-        let r = serve_content(&Method::GET, &req, pre.clone(), "a.txt", Some(SystemTime::now()), src()).await;
+        let r = serve_content(
+            &Method::GET,
+            &req,
+            pre.clone(),
+            "a.txt",
+            Some(SystemTime::now()),
+            src(),
+        )
+        .await;
         assert_eq!(r.status(), 206);
         assert_eq!(r.headers()[header::CONTENT_RANGE], "bytes 2-4/10");
         assert_eq!(r.headers()[header::CONTENT_LENGTH], "3");
@@ -707,9 +769,15 @@ mod tests {
         req.insert(header::RANGE, HeaderValue::from_static("bytes=0-0,8-9"));
         let r = serve_content(&Method::GET, &req, pre, "a.txt", None, src()).await;
         assert_eq!(r.status(), 206);
-        let len: usize = r.headers()[header::CONTENT_LENGTH].to_str().unwrap().parse().unwrap();
+        let len: usize = r.headers()[header::CONTENT_LENGTH]
+            .to_str()
+            .unwrap()
+            .parse()
+            .unwrap();
         let b = axum::body::to_bytes(r.into_body(), 10000).await.unwrap();
         assert_eq!(b.len(), len);
-        assert!(String::from_utf8_lossy(&b).contains("Content-Range: bytes 8-9/10\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n89"));
+        assert!(String::from_utf8_lossy(&b).contains(
+            "Content-Range: bytes 8-9/10\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n89"
+        ));
     }
 }

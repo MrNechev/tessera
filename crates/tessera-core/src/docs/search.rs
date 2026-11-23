@@ -238,7 +238,10 @@ mod tests {
         assert_eq!(snippet("A short   title", "short"), "A short title");
         let long = format!("{}needle{}", "x ".repeat(60), " y".repeat(60));
         let s = snippet(&long, "needle");
-        assert!(s.starts_with('…') && s.ends_with('…') && s.contains("needle"), "{s}");
+        assert!(
+            s.starts_with('…') && s.ends_with('…') && s.contains("needle"),
+            "{s}"
+        );
         assert_eq!(snippet("Смешни котки", "котки"), "Смешни котки");
         assert_eq!(snippet("abc", "zzz"), "");
     }

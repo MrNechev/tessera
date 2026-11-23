@@ -679,9 +679,7 @@ impl Store {
         match q.orientation.as_str() {
             "landscape" => wh.push("width>height*1.05".into()),
             "portrait" => wh.push("height>width*1.05".into()),
-            "square" => {
-                wh.push("width>0 AND abs(width-height)<=max(width,height)*0.05".into())
-            }
+            "square" => wh.push("width>0 AND abs(width-height)<=max(width,height)*0.05".into()),
             _ => {}
         }
         if q.has_gps {
@@ -1007,13 +1005,10 @@ mod tests {
     #[test]
     fn file_key_matches_go() {
         // value computed with Letopis' Go implementation
-        assert_eq!(
-            file_key("main", "a/b.jpg", 1234, 1700000000123456789),
-            {
-                let mut h = Sha1::new();
-                h.update(b"main\0a/b.jpg\x001234\x001700000000123456789");
-                hex::encode(h.finalize())[..20].to_string()
-            }
-        );
+        assert_eq!(file_key("main", "a/b.jpg", 1234, 1700000000123456789), {
+            let mut h = Sha1::new();
+            h.update(b"main\0a/b.jpg\x001234\x001700000000123456789");
+            hex::encode(h.finalize())[..20].to_string()
+        });
     }
 }

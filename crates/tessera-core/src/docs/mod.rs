@@ -72,20 +72,43 @@ pub struct MediaRef {
     pub library_id: String,
     #[serde(default, deserialize_with = "nd")]
     pub path: String,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub caption: String,
-    #[serde(rename = "startAt", default, deserialize_with = "nd", skip_serializing_if = "is_zero")]
+    #[serde(
+        rename = "startAt",
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "is_zero"
+    )]
     pub start_at: f64,
-    #[serde(rename = "endAt", default, deserialize_with = "nd", skip_serializing_if = "is_zero")]
+    #[serde(
+        rename = "endAt",
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "is_zero"
+    )]
     pub end_at: f64,
     #[serde(default, deserialize_with = "nd", skip_serializing_if = "is_false")]
     pub muted: bool,
-    #[serde(rename = "loop", default, deserialize_with = "nd", skip_serializing_if = "is_false")]
+    #[serde(
+        rename = "loop",
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "is_false"
+    )]
     pub loop_: bool,
     #[serde(default, deserialize_with = "nd", skip_serializing_if = "is_false")]
     pub autoplay: bool,
     /// contain | cover
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub fit: String,
     #[serde(flatten)]
     pub extra: Extra,
@@ -94,7 +117,11 @@ pub struct MediaRef {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Gallery {
     /// grid | carousel
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub mode: String,
     #[serde(default, deserialize_with = "nd", skip_serializing_if = "is_zero_i")]
     pub columns: i64,
@@ -106,27 +133,47 @@ pub struct Gallery {
 pub struct Section {
     #[serde(default, deserialize_with = "nd")]
     pub id: String,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub title: String,
     #[serde(default, deserialize_with = "nd")]
     pub layout: String,
     #[serde(default, deserialize_with = "nd")]
     pub media: Vec<MediaRef>,
     /// TipTap JSON (owned by the web app).
-    #[serde(default, deserialize_with = "raw", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "raw",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub text: Option<Value>,
     #[serde(default, deserialize_with = "nd")]
     pub slide: bool,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub notes: String,
     #[serde(default, deserialize_with = "nd", skip_serializing_if = "is_false")]
     pub collapsed: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gallery: Option<Gallery>,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub transition: String,
     /// The section card's position on the whiteboard.
-    #[serde(default, deserialize_with = "raw", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "raw",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub canvas: Option<Value>,
     #[serde(flatten)]
     pub extra: Extra,
@@ -135,9 +182,17 @@ pub struct Section {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     /// fade | slide | zoom | none
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub transition: String,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "String::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
     pub theme: String,
     #[serde(flatten)]
     pub extra: Extra,
@@ -161,9 +216,17 @@ pub struct Document {
     pub sections: Vec<Section>,
     /// Whiteboard items (notes, shapes, arrows, frames). The server only checks that it is a
     /// JSON object; the web app owns the schema.
-    #[serde(default, deserialize_with = "raw", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "raw",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub canvas: Option<Value>,
-    #[serde(default, deserialize_with = "nd", skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cover: Option<MediaRef>,
@@ -282,7 +345,10 @@ pub fn normalize(d: &mut Document) -> Result<(), DocError> {
         }
         for mr in &sec.media {
             if mr.library_id.is_empty() || !valid_ref_path(&mr.path) {
-                return Err(DocError::Invalid(format!("bad media reference {:?}", mr.path)));
+                return Err(DocError::Invalid(format!(
+                    "bad media reference {:?}",
+                    mr.path
+                )));
             }
         }
         if !json_object_or_null(&sec.canvas) {
@@ -353,7 +419,9 @@ fn read_doc(path: &Path) -> Result<Document, DocError> {
     serde_json::from_slice(&b).map_err(|e| {
         DocError::Other(anyhow::anyhow!(
             "{}: {e}",
-            path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()
+            path.file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default()
         ))
     })
 }
@@ -591,10 +659,10 @@ impl Store {
         if std::fs::metadata(&src).is_err() {
             return Err(DocError::NotFound);
         }
-        let dst = self.dir.join(".trash").join(format!(
-            "{id}-{}.json",
-            chrono::Utc::now().timestamp()
-        ));
+        let dst = self
+            .dir
+            .join(".trash")
+            .join(format!("{id}-{}.json", chrono::Utc::now().timestamp()));
         std::fs::rename(&src, &dst)?;
         self.index.delete_doc(id)?;
         Ok(())
@@ -619,7 +687,9 @@ impl Store {
 
 /// Every `*.json` file below `dir` in lexical walk order: (slash-relative path, abs path).
 fn collect_json(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut entries: Vec<_> = rd.flatten().collect();
     entries.sort_by_key(|e| e.file_name());
     for e in entries {
@@ -749,7 +819,10 @@ mod tests {
                 canvas: Some(serde_json::from_str(bad).unwrap()),
                 ..Default::default()
             };
-            assert!(matches!(normalize(&mut doc), Err(DocError::Invalid(_))), "canvas {bad} accepted");
+            assert!(
+                matches!(normalize(&mut doc), Err(DocError::Invalid(_))),
+                "canvas {bad} accepted"
+            );
         }
         let mut doc = Document {
             title: "x".into(),
@@ -789,6 +862,11 @@ mod tests {
         assert!(buf.len() > 100);
         s.delete(&d.id).unwrap();
         assert!(matches!(s.get(&d.id), Err(DocError::NotFound)));
-        assert_eq!(std::fs::read_dir(dir.path().join("documents/.trash")).unwrap().count(), 1);
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("documents/.trash"))
+                .unwrap()
+                .count(),
+            1
+        );
     }
 }

@@ -217,7 +217,12 @@ fn skip_file(name: &str) -> bool {
 }
 
 impl Manager {
-    pub fn new(cfg: Arc<Config>, db: Arc<Store>, media: Arc<media::Manager>, cancel: CancellationToken) -> Manager {
+    pub fn new(
+        cfg: Arc<Config>,
+        db: Arc<Store>,
+        media: Arc<media::Manager>,
+        cancel: CancellationToken,
+    ) -> Manager {
         let libs = lib_set(&cfg.libraries);
         Manager {
             cfg,
@@ -310,7 +315,10 @@ impl Manager {
         if self.media.has_ffprobe() {
             if let Ok(n) = self.db.reset_tool_missing_probes() {
                 if n > 0 {
-                    tracing::info!(files = n, "re-probing files that failed while ffprobe was missing");
+                    tracing::info!(
+                        files = n,
+                        "re-probing files that failed while ffprobe was missing"
+                    );
                 }
             }
         }
@@ -354,23 +362,43 @@ impl Manager {
         let changed: Vec<String> = new
             .order
             .iter()
-            .filter(|id| old.map.get(*id).map(|o| o.cfg.root != new.map[*id].cfg.root).unwrap_or(true))
+            .filter(|id| {
+                old.map
+                    .get(*id)
+                    .map(|o| o.cfg.root != new.map[*id].cfg.root)
+                    .unwrap_or(true)
+            })
             .cloned()
             .collect();
         let removed: Vec<String> = old
             .order
             .iter()
-            .filter(|id| new.map.get(*id).map(|n| n.cfg.root != old.map[*id].cfg.root).unwrap_or(true))
+            .filter(|id| {
+                new.map
+                    .get(*id)
+                    .map(|n| n.cfg.root != old.map[*id].cfg.root)
+                    .unwrap_or(true)
+            })
             .cloned()
             .collect();
         let new = Arc::new(new);
         *self.libs.write().unwrap_or_else(|e| e.into_inner()) = new.clone();
         if !removed.is_empty() {
-            let keep: Vec<String> = new.order.iter().filter(|id| !changed.contains(id)).cloned().collect();
+            let keep: Vec<String> = new
+                .order
+                .iter()
+                .filter(|id| !changed.contains(id))
+                .cloned()
+                .collect();
             if let Err(e) = self.db.delete_libraries_except(&keep) {
                 tracing::error!(err = %e, "drop removed libraries");
             }
-            if let Some(w) = self.watcher.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            if let Some(w) = self
+                .watcher
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .as_ref()
+            {
                 for id in &removed {
                     w.remove_lib(id);
                 }
@@ -382,12 +410,18 @@ impl Manager {
         let m = self.clone();
         spawn("scan-new", move || {
             for id in &changed {
-                let Some(lib) = m.set().map.get(id).cloned() else { continue };
+                let Some(lib) = m.set().map.get(id).cloned() else {
+                    continue;
+                };
                 {
                     let _g = m.scan_mu.lock().unwrap_or_else(|e| e.into_inner());
                     match m.scan_tree(&lib, "", None) {
-                        Ok((seen, ch, _)) => tracing::info!(library = %id, files = seen, changed = ch, "library scanned"),
-                        Err((_, _, e)) => tracing::warn!(library = %id, err = %e, "library scan failed"),
+                        Ok((seen, ch, _)) => {
+                            tracing::info!(library = %id, files = seen, changed = ch, "library scanned")
+                        }
+                        Err((_, _, e)) => {
+                            tracing::warn!(library = %id, err = %e, "library scan failed")
+                        }
                     }
                 }
                 if let Some(w) = m.watcher.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
@@ -461,7 +495,13 @@ impl Manager {
             .zip(st.started_at)
             .map(|(e, s)| (e - s).num_milliseconds())
             .unwrap_or(0);
-        tracing::info!(files = st.seen, changed = st.changed, removed = st.removed, took_ms = took, "scan finished");
+        tracing::info!(
+            files = st.seen,
+            changed = st.changed,
+            removed = st.removed,
+            took_ms = took,
+            "scan finished"
+        );
         self.probe_kick.kick();
         self.bg_kick.kick();
     }
@@ -644,7 +684,9 @@ impl Manager {
             }
             let md = if ft.is_symlink() {
                 // follow symlinked files only if they stay inside the library
-                let Ok(real) = std::fs::canonicalize(abs.join(&name)) else { continue };
+                let Ok(real) = std::fs::canonicalize(abs.join(&name)) else {
+                    continue;
+                };
                 if !real.starts_with(&lib.real_root) || real == lib.real_root {
                     continue;
                 }
@@ -684,11 +726,19 @@ impl Manager {
         match res {
             Ok((_, changed, removed)) => {
                 if changed > 0 || removed > 0 {
-                    tracing::info!(library = lib_id, dir = rel_dir, changed, removed, "folder changed");
+                    tracing::info!(
+                        library = lib_id,
+                        dir = rel_dir,
+                        changed,
+                        removed,
+                        "folder changed"
+                    );
                     self.bg_kick.kick();
                 }
             }
-            Err((_, _, e)) => tracing::debug!(library = lib_id, dir = rel_dir, err = %e, "rescan dir"),
+            Err((_, _, e)) => {
+                tracing::debug!(library = lib_id, dir = rel_dir, err = %e, "rescan dir")
+            }
         }
     }
 
@@ -697,7 +747,8 @@ impl Manager {
     /// Fills in metadata for unprobed rows using the probe pool.
     fn prober(self: Arc<Self>) {
         loop {
-            self.probe_kick.wait(Some(Duration::from_secs(60)), &self.cancel);
+            self.probe_kick
+                .wait(Some(Duration::from_secs(60)), &self.cancel);
             if self.cancel.is_cancelled() {
                 return;
             }
@@ -717,20 +768,25 @@ impl Manager {
                     let abs = match self.resolve(&f.library, &f.path) {
                         Ok(a) => a,
                         Err(e) => {
-                            let _ = self
-                                .db
-                                .set_probe(f.id, &f.key, &Probe::error(format!("unreadable: {}", go_err(&e))));
+                            let _ = self.db.set_probe(
+                                f.id,
+                                &f.key,
+                                &Probe::error(format!("unreadable: {}", go_err(&e))),
+                            );
                             continue;
                         }
                     };
                     let m = self.clone();
                     let key = format!("p{}", f.key);
                     let (id, fkey) = (f.id, f.key.clone());
-                    let res = self.media.probes.submit(&key, Priority::Low, false, move |ctx| {
-                        let mut p = m.media.probe(&ctx.cancel, &abs, &f.kind, &f.ext);
-                        m.pair_live(&f, &mut p);
-                        m.db.set_probe(f.id, &f.key, &p)
-                    });
+                    let res = self
+                        .media
+                        .probes
+                        .submit(&key, Priority::Low, false, move |ctx| {
+                            let mut p = m.media.probe(&ctx.cancel, &abs, &f.kind, &f.ext);
+                            m.pair_live(&f, &mut p);
+                            m.db.set_probe(f.id, &f.key, &p)
+                        });
                     match res {
                         Ok(j) => pending.push(j),
                         Err(e) => {
@@ -808,7 +864,9 @@ impl Manager {
             }
             let mut queued = 0;
             let _ = self.db.for_each(&[], &self.cancel, |f| {
-                let Ok(abs) = self.resolve(&f.library, &f.path) else { return };
+                let Ok(abs) = self.resolve(&f.library, &f.path) else {
+                    return;
+                };
                 if (!f.probe_error.is_empty() && f.kind == KIND_VIDEO) || f.kind == KIND_AUDIO {
                     return;
                 }
@@ -859,7 +917,10 @@ impl Manager {
 
     /// Stops the watcher (background threads stop with the cancellation token).
     pub fn stop(&self) {
-        self.watcher.lock().unwrap_or_else(|e| e.into_inner()).take();
+        self.watcher
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         self.probe_kick.kick();
         self.bg_kick.kick();
     }
@@ -900,7 +961,17 @@ mod tests {
         ] {
             assert_eq!(clean_rel(inp).unwrap(), want, "{inp}");
         }
-        for bad in ["", "/etc/passwd", "../x", "a/../../x", "a/..", "..", "a\\..\\b", "a\0b", "."] {
+        for bad in [
+            "",
+            "/etc/passwd",
+            "../x",
+            "a/../../x",
+            "a/..",
+            "..",
+            "a\\..\\b",
+            "a\0b",
+            ".",
+        ] {
             assert!(clean_rel(bad).is_err(), "{bad:?} should fail");
         }
     }
@@ -913,6 +984,9 @@ mod tests {
         k.kick();
         assert!(k.wait(Some(Duration::from_millis(10)), &c));
         let js = serde_json::to_string(&ScanState::default()).unwrap();
-        assert_eq!(js, r#"{"running":false,"seen":0,"changed":0,"removed":0,"startedAt":"0001-01-01T00:00:00Z","endedAt":"0001-01-01T00:00:00Z"}"#);
+        assert_eq!(
+            js,
+            r#"{"running":false,"seen":0,"changed":0,"removed":0,"startedAt":"0001-01-01T00:00:00Z","endedAt":"0001-01-01T00:00:00Z"}"#
+        );
     }
 }

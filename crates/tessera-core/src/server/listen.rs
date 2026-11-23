@@ -42,7 +42,10 @@ impl std::fmt::Debug for TlsState {
 impl TlsState {
     /// The private CA certificate, once HTTPS uses the generated certificate.
     pub fn ca_cert(&self) -> Option<PathBuf> {
-        self.ca_cert.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.ca_cert
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// The current certificate; re-checks (and renews) it every 24 hours.
@@ -130,14 +133,18 @@ async fn handle_conn(
     let _ = stream.set_nodelay(true);
     let is_tls = tls.is_some();
     let svc = router.map_request(move |mut req: Request<Incoming>| {
-        req.extensions_mut().insert(ConnInfo { remote, tls: is_tls });
+        req.extensions_mut().insert(ConnInfo {
+            remote,
+            tls: is_tls,
+        });
         req
     });
     let svc = TowerToHyperService::new(svc);
     let b = builder();
     match tls {
         Some(acc) => {
-            let Ok(Ok(s)) = tokio::time::timeout(Duration::from_secs(15), acc.accept(stream)).await else {
+            let Ok(Ok(s)) = tokio::time::timeout(Duration::from_secs(15), acc.accept(stream)).await
+            else {
                 return;
             };
             let conn = b.serve_connection_with_upgrades(TokioIo::new(s), svc);
@@ -199,7 +206,13 @@ pub async fn serve(
             core.add_local_port(a.port());
         }
         tracing::info!(addr = %addr, "listening (HTTPS, HTTP/2)");
-        tasks.push(tokio::spawn(accept_loop(l, Some(acc), router.clone(), graceful.clone(), stop.clone())));
+        tasks.push(tokio::spawn(accept_loop(
+            l,
+            Some(acc),
+            router.clone(),
+            graceful.clone(),
+            stop.clone(),
+        )));
     }
     if let Some(addr) = core.cfg.http_addr.clone() {
         let l = bind(&addr).await?;
@@ -207,7 +220,13 @@ pub async fn serve(
             core.add_local_port(a.port());
         }
         tracing::info!(addr = %addr, "listening (HTTP)");
-        tasks.push(tokio::spawn(accept_loop(l, None, router.clone(), graceful.clone(), stop.clone())));
+        tasks.push(tokio::spawn(accept_loop(
+            l,
+            None,
+            router.clone(),
+            graceful.clone(),
+            stop.clone(),
+        )));
     }
     if tasks.is_empty() {
         anyhow::bail!("no listen address configured");
@@ -228,7 +247,10 @@ pub async fn serve(
 }
 
 /// Serves `router` on `127.0.0.1:0` (desktop app). The task stops when the core shuts down.
-pub async fn bind_local(core: Arc<Core>, router: Router) -> anyhow::Result<(SocketAddr, JoinHandle<()>)> {
+pub async fn bind_local(
+    core: Arc<Core>,
+    router: Router,
+) -> anyhow::Result<(SocketAddr, JoinHandle<()>)> {
     let l = TcpListener::bind("127.0.0.1:0").await?;
     let addr = l.local_addr()?;
     core.add_local_port(addr.port());

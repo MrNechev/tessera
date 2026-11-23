@@ -138,7 +138,10 @@ pub async fn duplicates(State(c): St, q: Query) -> Response {
             })
             .collect();
         let pending = c.db.hash_pending().unwrap_or(0);
-        json(200, &serde_json::json!({"groups": out, "hashPending": pending}))
+        json(
+            200,
+            &serde_json::json!({"groups": out, "hashPending": pending}),
+        )
     })
     .await
 }
@@ -301,11 +304,15 @@ pub async fn prewarm(State(c): St, body: Body) -> Response {
     blocking(move || {
         let mut queued = 0;
         for r in &b.refs {
-            let Ok(clean) = clean_rel(&r.path) else { continue };
+            let Ok(clean) = clean_rel(&r.path) else {
+                continue;
+            };
             let Ok(Some(f)) = c.db.by_path(&r.library_id, &clean) else {
                 continue;
             };
-            let Ok(abs) = c.lib.resolve(&f.library, &f.path) else { continue };
+            let Ok(abs) = c.lib.resolve(&f.library, &f.path) else {
+                continue;
+            };
             match f.kind.as_str() {
                 KIND_IMAGE => {
                     if c.media.thumb_queue(&f, &abs, 2560).is_ok() {

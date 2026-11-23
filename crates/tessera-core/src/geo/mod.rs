@@ -77,7 +77,9 @@ pub fn place(lat: f64, lon: f64) -> String {
             }
         }
     }
-    let Some(best) = best else { return String::new() };
+    let Some(best) = best else {
+        return String::new();
+    };
     if best_d > MAX_KM {
         return String::new();
     }

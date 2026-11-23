@@ -59,7 +59,10 @@ impl Hub {
             r.state = Some(msg.clone());
         }
         // slow client: drop
-        r.subs.values().filter(|tx| tx.try_send(msg.clone()).is_ok()).count()
+        r.subs
+            .values()
+            .filter(|tx| tx.try_send(msg.clone()).is_ok())
+            .count()
     }
 
     fn new_token(&self, doc: &str) -> String {
@@ -68,7 +71,13 @@ impl Hub {
         let mut b = [0u8; 16];
         rand::RngCore::fill_bytes(&mut rand::rng(), &mut b);
         let tok = hex::encode(b);
-        g.insert(tok.clone(), (doc.to_string(), Instant::now() + Duration::from_secs(15 * 60)));
+        g.insert(
+            tok.clone(),
+            (
+                doc.to_string(),
+                Instant::now() + Duration::from_secs(15 * 60),
+            ),
+        );
         tok
     }
 
@@ -82,7 +91,9 @@ impl Hub {
 }
 
 fn split_port(addr: &str) -> String {
-    addr.rsplit_once(':').map(|(_, p)| p.to_string()).unwrap_or_default()
+    addr.rsplit_once(':')
+        .map(|(_, p)| p.to_string())
+        .unwrap_or_default()
 }
 
 fn split_host(host: &str) -> String {
@@ -112,7 +123,12 @@ pub async fn pair(State(c): St, Path(doc): Path<String>, ri: ReqInfo) -> Respons
             urls.push(u);
         }
     };
-    let mut http_port = c.cfg.http_addr.as_deref().map(split_port).unwrap_or_default();
+    let mut http_port = c
+        .cfg
+        .http_addr
+        .as_deref()
+        .map(split_port)
+        .unwrap_or_default();
     if http_port == "0" {
         http_port = c
             .local_ports
@@ -128,7 +144,11 @@ pub async fn pair(State(c): St, Path(doc): Path<String>, ri: ReqInfo) -> Respons
         if h.is_empty() || h == "localhost" || h.starts_with("127.") || h == "::1" {
             continue;
         }
-        let hh = if h.contains(':') { format!("[{h}]") } else { h.clone() };
+        let hh = if h.contains(':') {
+            format!("[{h}]")
+        } else {
+            h.clone()
+        };
         if !http_port.is_empty() {
             add(format!("http://{hh}:{http_port}/remote/{tok}"));
         }
@@ -142,18 +162,29 @@ pub async fn pair(State(c): St, Path(doc): Path<String>, ri: ReqInfo) -> Respons
 /// remote page.
 pub async fn join(State(c): St, Path(tok): Path<String>, ri: ReqInfo) -> Response {
     let Some(doc) = c.remote.use_token(&tok) else {
-        let mut r = Response::new(Body::from(r#"<!doctype html><meta name="viewport" content="width=device-width"><body style="font:16px system-ui;padding:2em;background:#121117;color:#eee">This pairing code has expired. Press <b>P → Phone remote</b> in the presentation again and scan the new code.</body>"#));
+        let mut r = Response::new(Body::from(
+            r#"<!doctype html><meta name="viewport" content="width=device-width"><body style="font:16px system-ui;padding:2em;background:#121117;color:#eee">This pairing code has expired. Press <b>P → Phone remote</b> in the presentation again and scan the new code.</body>"#,
+        ));
         *r.status_mut() = StatusCode::GONE;
-        set(r.headers_mut(), header::CONTENT_TYPE, "text/html; charset=utf-8");
+        set(
+            r.headers_mut(),
+            header::CONTENT_TYPE,
+            "text/html; charset=utf-8",
+        );
         return r;
     };
     let mut r = Response::new(Body::empty());
     *r.status_mut() = StatusCode::FOUND;
-    set(r.headers_mut(), header::LOCATION, &format!("/#/remote/{doc}"));
+    set(
+        r.headers_mut(),
+        header::LOCATION,
+        &format!("/#/remote/{doc}"),
+    );
     set(
         r.headers_mut(),
         header::SET_COOKIE,
-        &c.auth.remote_cookie(&doc, Duration::from_secs(12 * 3600), ri.tls),
+        &c.auth
+            .remote_cookie(&doc, Duration::from_secs(12 * 3600), ri.tls),
     );
     r
 }
@@ -184,7 +215,11 @@ pub async fn stream(State(c): St, Path(doc): Path<String>, ri: ReqInfo) -> Respo
         first.extend_from_slice(b"\n\n");
     }
     first.extend_from_slice(b": hello\n\n");
-    let guard = Guard { hub: c.clone(), doc, id };
+    let guard = Guard {
+        hub: c.clone(),
+        doc,
+        id,
+    };
     let mut ping = tokio::time::interval_at(
         tokio::time::Instant::now() + Duration::from_secs(25),
         Duration::from_secs(25),
@@ -212,7 +247,11 @@ pub async fn stream(State(c): St, Path(doc): Path<String>, ri: ReqInfo) -> Respo
     let mut r = Response::new(Body::from_stream(st));
     set(r.headers_mut(), header::CONTENT_TYPE, "text/event-stream");
     set(r.headers_mut(), header::CACHE_CONTROL, "no-store");
-    set(r.headers_mut(), header::HeaderName::from_static("x-accel-buffering"), "no");
+    set(
+        r.headers_mut(),
+        header::HeaderName::from_static("x-accel-buffering"),
+        "no",
+    );
     r
 }
 
@@ -220,7 +259,8 @@ pub async fn send(State(c): St, Path(doc): Path<String>, ri: ReqInfo, body: Body
     if !remote_allowed(&c, &ri, &doc) {
         return err(401, "login required");
     }
-    let Ok(msg) = read_json::<serde_json::Map<String, serde_json::Value>>(body, 64 << 10).await else {
+    let Ok(msg) = read_json::<serde_json::Map<String, serde_json::Value>>(body, 64 << 10).await
+    else {
         return err(400, "bad request");
     };
     let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");

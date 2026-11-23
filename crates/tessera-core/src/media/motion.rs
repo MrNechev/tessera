@@ -67,7 +67,11 @@ pub fn embedded_motion(path: &Path) -> i64 {
             break;
         }
         let brand = &b[j + 4..(j + 8).min(b.len())];
-        if brand.starts_with(b"mp4") || brand.starts_with(b"isom") || brand.starts_with(b"iso") || brand == b"qt  " {
+        if brand.starts_with(b"mp4")
+            || brand.starts_with(b"isom")
+            || brand.starts_with(b"iso")
+            || brand == b"qt  "
+        {
             return (j - 4) as i64;
         }
         i = j as i64;
@@ -182,22 +186,34 @@ impl Manager {
             "{}scale='if(gt(iw,ih),-2,min(720,iw))':'if(gt(iw,ih),min(720,ih),-2)':flags=bicubic,format=yuv420p",
             tonemap_prefix(hdr)
         );
-        let args: Vec<String> = [
-            "-v", "error", "-nostdin", "-i",
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .chain([path_arg(&src)])
-        .chain(
-            [
-                "-an", "-t", "10", "-vf", &vf, "-c:v", "libx264", "-preset", "veryfast", "-crf",
-                "26", "-movflags", "+faststart", "-map_metadata", "-1", "-y",
-            ]
+        let args: Vec<String> = ["-v", "error", "-nostdin", "-i"]
             .iter()
-            .map(|s| s.to_string()),
-        )
-        .chain([path_arg(&tmp)])
-        .collect();
+            .map(|s| s.to_string())
+            .chain([path_arg(&src)])
+            .chain(
+                [
+                    "-an",
+                    "-t",
+                    "10",
+                    "-vf",
+                    &vf,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "26",
+                    "-movflags",
+                    "+faststart",
+                    "-map_metadata",
+                    "-1",
+                    "-y",
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            )
+            .chain([path_arg(&tmp)])
+            .collect();
         ex.run("ffmpeg", &args)?;
         publish(&tmp, out)
     }
@@ -236,6 +252,10 @@ mod tests {
         let mut b = img.clone();
         b.extend_from_slice(b"....ftypmp42");
         std::fs::write(&plain, &b).unwrap();
-        assert_eq!(embedded_motion(&plain), 0, "plain JPEG detected as motion photo");
+        assert_eq!(
+            embedded_motion(&plain),
+            0,
+            "plain JPEG detected as motion photo"
+        );
     }
 }

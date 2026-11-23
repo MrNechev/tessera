@@ -121,9 +121,18 @@ mod tests {
     fn roundtrip_and_recent() {
         let dir = tempfile::tempdir().unwrap();
         let s = Store::open(dir.path()).unwrap();
-        assert_eq!(serde_json::to_string(&s.get()).unwrap(), r#"{"favorites":[],"recent":[],"hidden":[]}"#);
-        let item = |p: &str| Item { library_id: "m".into(), path: p.into(), dir: false, at: 0 };
-        s.update(|p| p.add_recent(vec![item("a"), item("b"), item("a")], 5)).unwrap();
+        assert_eq!(
+            serde_json::to_string(&s.get()).unwrap(),
+            r#"{"favorites":[],"recent":[],"hidden":[]}"#
+        );
+        let item = |p: &str| Item {
+            library_id: "m".into(),
+            path: p.into(),
+            dir: false,
+            at: 0,
+        };
+        s.update(|p| p.add_recent(vec![item("a"), item("b"), item("a")], 5))
+            .unwrap();
         s.update(|p| p.add_recent(vec![item("b")], 7)).unwrap();
         let p = Store::open(dir.path()).unwrap().get();
         let names: Vec<_> = p.recent.iter().map(|i| (i.path.as_str(), i.at)).collect();

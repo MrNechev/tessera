@@ -111,7 +111,8 @@ fn covers(ck: &CertKey, hosts: &[String], ca_der: &[u8]) -> bool {
         match p256::SecretKey::from_sec1_der(k.secret_sec1_der()) {
             Ok(sk) => {
                 let pubkey = sk.public_key();
-                let point = p256::elliptic_curve::sec1::ToEncodedPoint::to_encoded_point(&pubkey, false);
+                let point =
+                    p256::elliptic_curve::sec1::ToEncodedPoint::to_encoded_point(&pubkey, false);
                 if leaf.public_key().subject_public_key.data.as_ref() != point.as_bytes() {
                     return false;
                 }
@@ -200,7 +201,10 @@ fn offset(secs: i64) -> time::OffsetDateTime {
 }
 
 fn load_or_create_ca(f: &Files) -> anyhow::Result<(Vec<u8>, p256::SecretKey)> {
-    if let (Ok(cb), Ok(kb)) = (std::fs::read(&f.ca_cert), std::fs::read_to_string(&f.ca_key)) {
+    if let (Ok(cb), Ok(kb)) = (
+        std::fs::read(&f.ca_cert),
+        std::fs::read_to_string(&f.ca_key),
+    ) {
         if let Ok(cert) = CertificateDer::from_pem_slice(&cb) {
             if let Ok(sk) = p256::SecretKey::from_sec1_pem(&kb) {
                 if let Ok((_, parsed)) = x509_parser::parse_x509_certificate(&cert) {
@@ -227,17 +231,27 @@ fn load_or_create_ca(f: &Files) -> anyhow::Result<(Vec<u8>, p256::SecretKey)> {
     params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
     let cert = params.self_signed(&key)?;
     write_file(&f.ca_key, sec1_pem(&sk)?.as_bytes(), 0o600)?;
-    write_file(&f.ca_cert, pem_encode("CERTIFICATE", cert.der()).as_bytes(), 0o644)?;
+    write_file(
+        &f.ca_cert,
+        pem_encode("CERTIFICATE", cert.der()).as_bytes(),
+        0o644,
+    )?;
     // a new CA invalidates the old server certificate
     let _ = std::fs::remove_file(&f.cert);
     Ok((cert.der().to_vec(), sk))
 }
 
-fn create_server(f: &Files, hosts: &[String], ca_der: &[u8], ca_sk: &p256::SecretKey) -> anyhow::Result<()> {
+fn create_server(
+    f: &Files,
+    hosts: &[String],
+    ca_der: &[u8],
+    ca_sk: &p256::SecretKey,
+) -> anyhow::Result<()> {
     if hosts.is_empty() {
         bail!("no TLS hosts");
     }
-    let issuer = Issuer::from_ca_cert_der(&CertificateDer::from(ca_der.to_vec()), rcgen_key(ca_sk)?)?;
+    let issuer =
+        Issuer::from_ca_cert_der(&CertificateDer::from(ca_der.to_vec()), rcgen_key(ca_sk)?)?;
     let sk = new_secret()?;
     let key = rcgen_key(&sk)?;
     let mut params = CertificateParams::default();
@@ -259,14 +273,18 @@ fn create_server(f: &Files, hosts: &[String], ca_der: &[u8], ca_sk: &p256::Secre
         if let Ok(ip) = h.parse::<IpAddr>() {
             params.subject_alt_names.push(SanType::IpAddress(ip));
         } else if !h.is_empty() {
-            params
-                .subject_alt_names
-                .push(SanType::DnsName(h.try_into().map_err(|e| anyhow!("TLS host {h:?}: {e}"))?));
+            params.subject_alt_names.push(SanType::DnsName(
+                h.try_into().map_err(|e| anyhow!("TLS host {h:?}: {e}"))?,
+            ));
         }
     }
     let cert = params.signed_by(&key, &issuer)?;
     write_file(&f.key, sec1_pem(&sk)?.as_bytes(), 0o600)?;
-    write_file(&f.cert, pem_encode("CERTIFICATE", cert.der()).as_bytes(), 0o644)?;
+    write_file(
+        &f.cert,
+        pem_encode("CERTIFICATE", cert.der()).as_bytes(),
+        0o644,
+    )?;
     Ok(())
 }
 
@@ -284,8 +302,13 @@ mod tests {
         let (ck, f) = ensure(dir.path(), &hosts).unwrap();
         let ca1 = std::fs::read(&f.ca_cert).unwrap();
         let cert1 = std::fs::read(&f.cert).unwrap();
-        assert!(String::from_utf8_lossy(&std::fs::read(&f.ca_key).unwrap()).starts_with("-----BEGIN EC PRIVATE KEY-----"));
-        assert!(covers(&ck, &hosts, &CertificateDer::from_pem_slice(&ca1).unwrap()));
+        assert!(String::from_utf8_lossy(&std::fs::read(&f.ca_key).unwrap())
+            .starts_with("-----BEGIN EC PRIVATE KEY-----"));
+        assert!(covers(
+            &ck,
+            &hosts,
+            &CertificateDer::from_pem_slice(&ca1).unwrap()
+        ));
         // second call reuses everything
         ensure(dir.path(), &hosts).unwrap();
         assert_eq!(std::fs::read(&f.cert).unwrap(), cert1);
@@ -301,7 +324,11 @@ mod tests {
                 .arg(&f.cert)
                 .output()
                 .unwrap();
-            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stdout)
+            );
         }
     }
 }

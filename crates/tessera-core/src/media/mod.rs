@@ -15,7 +15,9 @@ pub mod raw;
 pub mod sprite;
 pub mod transcode;
 
-pub use kinds::{browser_image, is_psd, is_raw, kind_of, mime, KIND_AUDIO, KIND_GIF, KIND_IMAGE, KIND_VIDEO};
+pub use kinds::{
+    browser_image, is_psd, is_raw, kind_of, mime, KIND_AUDIO, KIND_GIF, KIND_IMAGE, KIND_VIDEO,
+};
 pub use phash::phash;
 pub use sprite::{sprite_layout, SPRITE_COLS, SPRITE_TILE_W};
 pub use transcode::{ProxyState, VARIANT_FULL, VARIANT_PREVIEW};
@@ -212,9 +214,8 @@ impl Manager {
             return;
         }
         if std::fs::metadata(&dev).is_err() {
-            self.hw_note = format!(
-                "no {dev} (pass /dev/dri into the container for GPU transcoding)"
-            );
+            self.hw_note =
+                format!("no {dev} (pass /dev/dri into the container for GPU transcoding)");
             return;
         }
         let ex = self.exec(&CancellationToken::new(), Duration::from_secs(20), false);
@@ -278,7 +279,12 @@ impl Manager {
     // ---------- thumbnails ----------
 
     /// Makes sure the thumbnail exists, generating it at high priority and waiting.
-    pub async fn thumb(self: &Arc<Self>, f: &File, abs: &Path, size: i64) -> Result<PathBuf, JobError> {
+    pub async fn thumb(
+        self: &Arc<Self>,
+        f: &File,
+        abs: &Path,
+        size: i64,
+    ) -> Result<PathBuf, JobError> {
         let out = self.thumb_path(&f.key, size);
         if exists(&out) {
             self.thumb_stats.hit();
@@ -320,7 +326,14 @@ impl Manager {
         }
     }
 
-    fn make_thumb(&self, ctx: &JobCtx, f: &File, abs: &Path, size: i64, out: &Path) -> anyhow::Result<()> {
+    fn make_thumb(
+        &self,
+        ctx: &JobCtx,
+        f: &File,
+        abs: &Path,
+        size: i64,
+        out: &Path,
+    ) -> anyhow::Result<()> {
         if let Some(d) = out.parent() {
             std::fs::create_dir_all(d)?;
         }
@@ -391,7 +404,14 @@ impl Manager {
     }
 
     /// Thumbnails the camera's embedded JPEG preview, rotated by the RAW's orientation.
-    fn raw_thumb(&self, ex: &Exec, abs: &Path, size: i64, tmp: &Path, out: &Path) -> anyhow::Result<()> {
+    fn raw_thumb(
+        &self,
+        ex: &Exec,
+        abs: &Path,
+        size: i64,
+        tmp: &Path,
+        out: &Path,
+    ) -> anyhow::Result<()> {
         let (jpg, mt) = raw::raw_preview(abs)?;
         let out_s = out.to_string_lossy();
         let src = tmp_for(Path::new(&format!(
@@ -490,7 +510,9 @@ impl Manager {
             return Ok(());
         }
         let job = self.gif_job(abs, out);
-        self.gifs.submit(&f.key, Priority::Low, false, job).map(|_| ())
+        self.gifs
+            .submit(&f.key, Priority::Low, false, job)
+            .map(|_| ())
     }
 
     fn gif_job(
@@ -581,7 +603,9 @@ impl Manager {
 }
 
 fn dir_size(p: &Path) -> i64 {
-    let Ok(rd) = std::fs::read_dir(p) else { return 0 };
+    let Ok(rd) = std::fs::read_dir(p) else {
+        return 0;
+    };
     let mut total = 0;
     for e in rd.flatten() {
         let Ok(ft) = e.file_type() else { continue };
@@ -652,6 +676,9 @@ mod tests {
     fn tmp_keeps_extension() {
         let t = tmp_for(Path::new("/c/thumbs/ab/abc-320.webp"));
         let s = t.to_string_lossy();
-        assert!(s.starts_with("/c/thumbs/ab/abc-320.tmp-") && s.ends_with(".webp"), "{s}");
+        assert!(
+            s.starts_with("/c/thumbs/ab/abc-320.tmp-") && s.ends_with(".webp"),
+            "{s}"
+        );
     }
 }

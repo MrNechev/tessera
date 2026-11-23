@@ -65,7 +65,9 @@ struct CreateBody {
 }
 
 pub async fn create(State(c): St, body: Body) -> Response {
-    let b = read_json::<CreateBody>(body, 1 << 16).await.unwrap_or_default();
+    let b = read_json::<CreateBody>(body, 1 << 16)
+        .await
+        .unwrap_or_default();
     blocking(move || {
         let d = Document {
             title: b.title,
@@ -130,7 +132,10 @@ pub async fn save(State(c): St, Path(id): Path<String>, body: Body) -> Response 
     match blocking(move || c2.docs.save(&id, b.1, b.0, b.2)).await {
         Ok(d) => {
             after_save(&c, &d);
-            json(200, &serde_json::json!({"version": d.version, "updatedAt": d.updated_at}))
+            json(
+                200,
+                &serde_json::json!({"version": d.version, "updatedAt": d.updated_at}),
+            )
         }
         Err(e) => doc_err(e),
     }
@@ -169,10 +174,12 @@ pub async fn history(State(c): St, Path(id): Path<String>) -> Response {
 }
 
 pub async fn version(State(c): St, Path((id, v)): Path<(String, String)>) -> Response {
-    blocking(move || match c.docs.get_version(&id, v.parse().unwrap_or(0)) {
-        Ok(d) => json(200, &d),
-        Err(e) => doc_err(e),
-    })
+    blocking(
+        move || match c.docs.get_version(&id, v.parse().unwrap_or(0)) {
+            Ok(d) => json(200, &d),
+            Err(e) => doc_err(e),
+        },
+    )
     .await
 }
 
@@ -290,18 +297,32 @@ struct StressBody {
 /// Builds a document from random library media (many videos + GIFs) to check that
 /// scrolling stays smooth.
 pub async fn stress_test(State(c): St, body: Body) -> Response {
-    let mut b = read_json::<StressBody>(body, 4096).await.unwrap_or_default();
+    let mut b = read_json::<StressBody>(body, 4096)
+        .await
+        .unwrap_or_default();
     if b.videos == 0 && b.gifs == 0 && b.images == 0 {
         (b.videos, b.gifs, b.images) = (40, 25, 40);
     }
     let c2 = c.clone();
     let res = blocking(move || {
-        let videos = c2.db.random(&[KIND_VIDEO], b.videos.min(500)).unwrap_or_default();
-        let gifs = c2.db.random(&[KIND_GIF], b.gifs.min(500)).unwrap_or_default();
-        let images = c2.db.random(&[KIND_IMAGE], b.images.min(2000)).unwrap_or_default();
+        let videos = c2
+            .db
+            .random(&[KIND_VIDEO], b.videos.min(500))
+            .unwrap_or_default();
+        let gifs = c2
+            .db
+            .random(&[KIND_GIF], b.gifs.min(500))
+            .unwrap_or_default();
+        let images = c2
+            .db
+            .random(&[KIND_IMAGE], b.images.min(2000))
+            .unwrap_or_default();
         let layouts = ["media-top", "media-left", "media-right", "media-full"];
         let mut d = Document {
-            title: format!("Stress test {}", chrono::Local::now().format("%Y-%m-%d %H:%M")),
+            title: format!(
+                "Stress test {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M")
+            ),
             ..Default::default()
         };
         let text = |s: &str| {

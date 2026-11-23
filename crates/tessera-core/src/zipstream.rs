@@ -275,7 +275,8 @@ mod tests {
     #[test]
     fn readable_by_unzip() {
         let mut z = ZipStream::new(Vec::new());
-        z.add_bytes("a/hello.txt", Method::Deflate, b"hello hello hello").unwrap();
+        z.add_bytes("a/hello.txt", Method::Deflate, b"hello hello hello")
+            .unwrap();
         z.add(
             "a/raw.bin",
             Method::Store,
@@ -298,7 +299,11 @@ mod tests {
                 .output()
                 .unwrap();
             let s = String::from_utf8_lossy(&out.stdout);
-            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
             assert!(s.contains("'a/hello.txt', 'a/raw.bin', 'ü.txt'"), "{s}");
             assert!(s.contains("hello hello hello"), "{s}");
         }

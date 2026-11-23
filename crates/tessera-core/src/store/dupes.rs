@@ -115,14 +115,19 @@ impl Store {
                 files: g,
             });
         }
-        similar.sort_by(|a, b| b.files.len().cmp(&a.files.len()));
+        similar.sort_by_key(|g| std::cmp::Reverse(g.files.len()));
         out.extend(similar);
         Ok(out)
     }
 
     /// The paired clip of an Apple Live Photo: a video with the same name (minus
     /// extension) in the same folder.
-    pub fn sibling_video(&self, library: &str, dir: &str, stem: &str) -> anyhow::Result<Option<String>> {
+    pub fn sibling_video(
+        &self,
+        library: &str,
+        dir: &str,
+        stem: &str,
+    ) -> anyhow::Result<Option<String>> {
         let c = self.pool.get()?;
         Ok(c.query_row(
             "SELECT path FROM files WHERE library=? AND dir=? AND kind='video' AND name LIKE ? ESCAPE '\\' AND duration<=6 LIMIT 1",

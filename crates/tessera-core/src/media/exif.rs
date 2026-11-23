@@ -32,8 +32,7 @@ pub fn jpeg_exif(r: impl Read) -> Option<Vec<u8>> {
             return None;
         }
         let marker = hdr[1];
-        if marker == 0xD8 || (0xD0..=0xD7).contains(&marker) || marker == 0x01 || marker == 0xFF
-        {
+        if marker == 0xD8 || (0xD0..=0xD7).contains(&marker) || marker == 0x01 || marker == 0xFF {
             continue;
         }
         if marker == 0xDA || marker == 0xD9 {
@@ -46,7 +45,8 @@ pub fn jpeg_exif(r: impl Read) -> Option<Vec<u8>> {
         }
         let n = n as usize;
         if marker != 0xE1 {
-            let skipped = std::io::copy(&mut (&mut br).take(n as u64), &mut std::io::sink()).ok()?;
+            let skipped =
+                std::io::copy(&mut (&mut br).take(n as u64), &mut std::io::sink()).ok()?;
             if skipped as usize != n {
                 return None;
             }
@@ -63,7 +63,9 @@ pub fn jpeg_exif(r: impl Read) -> Option<Vec<u8>> {
 
 /// EXIF orientation of a JPEG (1..8) or 0.
 pub fn jpeg_orientation(r: impl Read) -> i64 {
-    jpeg_exif(r).map(|t| parse_tiff(&t).orientation).unwrap_or(0)
+    jpeg_exif(r)
+        .map(|t| parse_tiff(&t).orientation)
+        .unwrap_or(0)
 }
 
 #[derive(Clone, Copy)]
@@ -176,7 +178,10 @@ impl<'a> Tiff<'a> {
                     self.u32(&e.val[i + 4..]) as i32 as f64,
                 )
             } else {
-                (self.u32(&e.val[i..]) as f64, self.u32(&e.val[i + 4..]) as f64)
+                (
+                    self.u32(&e.val[i..]) as f64,
+                    self.u32(&e.val[i + 4..]) as f64,
+                )
             };
             out.push(if den == 0.0 { 0.0 } else { num / den });
             i += 8;
@@ -247,7 +252,11 @@ pub fn parse_tiff(b: &[u8]) -> Meta {
 }
 
 pub fn valid_gps(la: f64, lo: f64) -> bool {
-    !la.is_nan() && !lo.is_nan() && la.abs() <= 90.0 && lo.abs() <= 180.0 && (la != 0.0 || lo != 0.0)
+    !la.is_nan()
+        && !lo.is_nan()
+        && la.abs() <= 90.0
+        && lo.abs() <= 180.0
+        && (la != 0.0 || lo != 0.0)
 }
 
 /// Joins make and model without repeating the brand ("Apple iPhone 15 Pro", not "Apple
@@ -261,11 +270,7 @@ pub fn camera_name(mk: &str, model: &str) -> String {
     if model.is_empty() {
         return mk.to_string();
     }
-    let first = mk
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
+    let first = mk.split_whitespace().next().unwrap_or("").to_lowercase();
     if model.to_lowercase().starts_with(&first) {
         return model.to_string();
     }
@@ -278,9 +283,11 @@ pub fn camera_name(mk: &str, model: &str) -> String {
 }
 
 fn strict_digits(s: &str, positions: &[std::ops::Range<usize>]) -> bool {
-    positions
-        .iter()
-        .all(|r| s.get(r.clone()).map(|p| p.bytes().all(|c| c.is_ascii_digit())).unwrap_or(false))
+    positions.iter().all(|r| {
+        s.get(r.clone())
+            .map(|p| p.bytes().all(|c| c.is_ascii_digit()))
+            .unwrap_or(false)
+    })
 }
 
 /// Parses "2024:07:14 18:22:05" (+ optional "+02:00"). Without an offset the time is taken
@@ -473,21 +480,76 @@ pub(crate) mod tests {
             v
         };
         let mut ifd0 = vec![
-            Ent { tag: 0x010F, typ: 2, count: 0, data: ascii("Apple") },
-            Ent { tag: 0x0110, typ: 2, count: 0, data: ascii("iPhone 15 Pro") },
-            Ent { tag: 0x0112, typ: 3, count: 1, data: 6u16.to_le_bytes().to_vec() },
-            Ent { tag: 0x8769, typ: 4, count: 1, data: vec![] },
-            Ent { tag: 0x8825, typ: 4, count: 1, data: vec![] },
+            Ent {
+                tag: 0x010F,
+                typ: 2,
+                count: 0,
+                data: ascii("Apple"),
+            },
+            Ent {
+                tag: 0x0110,
+                typ: 2,
+                count: 0,
+                data: ascii("iPhone 15 Pro"),
+            },
+            Ent {
+                tag: 0x0112,
+                typ: 3,
+                count: 1,
+                data: 6u16.to_le_bytes().to_vec(),
+            },
+            Ent {
+                tag: 0x8769,
+                typ: 4,
+                count: 1,
+                data: vec![],
+            },
+            Ent {
+                tag: 0x8825,
+                typ: 4,
+                count: 1,
+                data: vec![],
+            },
         ];
         let exif = vec![
-            Ent { tag: 0x9003, typ: 2, count: 0, data: ascii("2024:07:14 18:22:05") },
-            Ent { tag: 0x9011, typ: 2, count: 0, data: ascii("+02:00") },
+            Ent {
+                tag: 0x9003,
+                typ: 2,
+                count: 0,
+                data: ascii("2024:07:14 18:22:05"),
+            },
+            Ent {
+                tag: 0x9011,
+                typ: 2,
+                count: 0,
+                data: ascii("+02:00"),
+            },
         ];
         let gps = vec![
-            Ent { tag: 0x0001, typ: 2, count: 0, data: ascii("N") },
-            Ent { tag: 0x0002, typ: 5, count: 3, data: rat(&[(64, 1), (8, 1), (4776, 100)]) },
-            Ent { tag: 0x0003, typ: 2, count: 0, data: ascii("W") },
-            Ent { tag: 0x0004, typ: 5, count: 3, data: rat(&[(21, 1), (56, 1), (3336, 100)]) },
+            Ent {
+                tag: 0x0001,
+                typ: 2,
+                count: 0,
+                data: ascii("N"),
+            },
+            Ent {
+                tag: 0x0002,
+                typ: 5,
+                count: 3,
+                data: rat(&[(64, 1), (8, 1), (4776, 100)]),
+            },
+            Ent {
+                tag: 0x0003,
+                typ: 2,
+                count: 0,
+                data: ascii("W"),
+            },
+            Ent {
+                tag: 0x0004,
+                typ: 5,
+                count: 3,
+                data: rat(&[(21, 1), (56, 1), (3336, 100)]),
+            },
         ];
         let size = |n: usize| 2 + 12 * n + 4;
         let off1 = 8 + size(ifd0.len());
@@ -501,7 +563,11 @@ pub(crate) mod tests {
         for es in [&ifd0, &exif, &gps] {
             buf.extend_from_slice(&(es.len() as u16).to_le_bytes());
             for e in es.iter() {
-                let cnt = if e.typ == 2 { e.data.len() as u32 } else { e.count };
+                let cnt = if e.typ == 2 {
+                    e.data.len() as u32
+                } else {
+                    e.count
+                };
                 let mut rec = vec![0u8; 12];
                 rec[0..2].copy_from_slice(&e.tag.to_le_bytes());
                 rec[2..4].copy_from_slice(&e.typ.to_le_bytes());
@@ -537,11 +603,15 @@ pub(crate) mod tests {
     fn iso6709_and_camera() {
         let (la, lo) = parse_iso6709("+48.8577+002.2950+035.000/").unwrap();
         assert_eq!((la, lo), (48.8577, 2.295));
-        assert!(parse_iso6709("+00.0000+000.0000/").is_none(), "0,0 accepted");
+        assert!(
+            parse_iso6709("+00.0000+000.0000/").is_none(),
+            "0,0 accepted"
+        );
         assert_eq!(camera_name("NIKON CORPORATION", "NIKON Z 6"), "NIKON Z 6");
         assert_eq!(camera_name("Canon", "EOS R5"), "Canon EOS R5");
-        let v = parse_vips_gps("48/1 51/1 2436/100 (48, 51, 24.36, Rational, 3 components, 24 bytes)")
-            .unwrap();
+        let v =
+            parse_vips_gps("48/1 51/1 2436/100 (48, 51, 24.36, Rational, 3 components, 24 bytes)")
+                .unwrap();
         assert!(v > 48.856 && v < 48.857);
     }
 }

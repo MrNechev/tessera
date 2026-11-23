@@ -41,7 +41,10 @@ pub(crate) fn router(core: Arc<Core>, extra: Router) -> Router {
         .route("/api/resolve", post(api_media::resolve))
         .route("/api/proxy", post(api_media::proxy))
         .route("/api/scan", post(api_media::scan))
-        .route("/api/prefs", get(api_extra::prefs_get).put(api_extra::prefs_put))
+        .route(
+            "/api/prefs",
+            get(api_extra::prefs_get).put(api_extra::prefs_put),
+        )
         .route("/api/duplicates", get(api_extra::duplicates))
         .route("/api/cameras", get(api_extra::cameras))
         .route("/api/usage", get(api_extra::usage))
@@ -54,12 +57,17 @@ pub(crate) fn router(core: Arc<Core>, extra: Router) -> Router {
         .route("/api/documents/stress-test", post(api_docs::stress_test))
         .route(
             "/api/documents/{id}",
-            get(api_docs::get_doc).put(api_docs::save).delete(api_docs::delete_doc),
+            get(api_docs::get_doc)
+                .put(api_docs::save)
+                .delete(api_docs::delete_doc),
         )
         .route("/api/documents/{id}/duplicate", post(api_docs::duplicate))
         .route("/api/documents/{id}/snapshot", post(api_docs::snapshot))
         .route("/api/documents/{id}/history", get(api_docs::history))
-        .route("/api/documents/{id}/history/{version}", get(api_docs::version))
+        .route(
+            "/api/documents/{id}/history/{version}",
+            get(api_docs::version),
+        )
         .route(
             "/api/documents/{id}/history/{version}/restore",
             post(api_docs::restore),
@@ -101,7 +109,8 @@ pub(crate) fn router(core: Arc<Core>, extra: Router) -> Router {
         .no_zstd()
         .compress_when(
             move |status: StatusCode, _: Version, h: &HeaderMap, _: &axum::http::Extensions| {
-                if status == StatusCode::PARTIAL_CONTENT || h.contains_key(header::CONTENT_ENCODING) {
+                if status == StatusCode::PARTIAL_CONTENT || h.contains_key(header::CONTENT_ENCODING)
+                {
                     return false;
                 }
                 let ct = h
@@ -123,7 +132,10 @@ pub(crate) fn router(core: Arc<Core>, extra: Router) -> Router {
 
 async fn security_headers(mut r: Response) -> Response {
     let h = r.headers_mut();
-    h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     h.insert("referrer-policy", HeaderValue::from_static("same-origin"));
     h.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
     r
@@ -152,7 +164,11 @@ async fn token_gate(State(c): St, req: Request, next: Next) -> Response {
     };
     let (parts, body) = req.into_parts();
     let host = http::request_host(&parts);
-    let ports = c.local_ports.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let ports = c
+        .local_ports
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let host_ok = ports.iter().any(|p| {
         host == format!("127.0.0.1:{p}") || host.eq_ignore_ascii_case(&format!("localhost:{p}"))
     });
@@ -181,7 +197,10 @@ async fn token_gate(State(c): St, req: Request, next: Next) -> Response {
                     http::set(
                         r.headers_mut(),
                         header::SET_COOKIE,
-                        &format!("{}={token}; Path=/; HttpOnly; SameSite=Strict", crate::auth::TOKEN_COOKIE),
+                        &format!(
+                            "{}={token}; Path=/; HttpOnly; SameSite=Strict",
+                            crate::auth::TOKEN_COOKIE
+                        ),
                     );
                     http::set(r.headers_mut(), header::CACHE_CONTROL, "no-store");
                     return r;
@@ -240,7 +259,11 @@ async fn login(State(c): St, ri: ReqInfo, body: Body) -> Response {
 
 async fn logout(State(c): St, ri: ReqInfo) -> Response {
     let mut r = json(200, &serde_json::json!({"ok": true}));
-    http::set(r.headers_mut(), header::SET_COOKIE, &c.auth.logout_cookie(ri.tls));
+    http::set(
+        r.headers_mut(),
+        header::SET_COOKIE,
+        &c.auth.logout_cookie(ri.tls),
+    );
     r
 }
 
@@ -251,7 +274,11 @@ async fn ca(State(c): St) -> Response {
     match tokio::fs::read(&p).await {
         Ok(b) => {
             let mut r = Response::new(Body::from(b));
-            http::set(r.headers_mut(), header::CONTENT_TYPE, "application/x-x509-ca-cert");
+            http::set(
+                r.headers_mut(),
+                header::CONTENT_TYPE,
+                "application/x-x509-ca-cert",
+            );
             http::set(
                 r.headers_mut(),
                 header::CONTENT_DISPOSITION,
@@ -265,7 +292,12 @@ async fn ca(State(c): St) -> Response {
 
 // ---------- static web UI ----------
 
-async fn static_files(State(c): St, method: Method, uri: axum::http::Uri, req_headers: HeaderMap) -> Response {
+async fn static_files(
+    State(c): St,
+    method: Method,
+    uri: axum::http::Uri,
+    req_headers: HeaderMap,
+) -> Response {
     let path = uri.path().to_string();
     if path.starts_with("/api/") || path.starts_with("/media/") || path.starts_with("/d/") {
         return err(404, "not found");
@@ -298,7 +330,11 @@ async fn static_files(State(c): St, method: Method, uri: axum::http::Uri, req_he
     };
     let mut h = HeaderMap::new();
     if p.starts_with("assets/") {
-        http::set(&mut h, header::CACHE_CONTROL, "public, max-age=31536000, immutable");
+        http::set(
+            &mut h,
+            header::CACHE_CONTROL,
+            "public, max-age=31536000, immutable",
+        );
     } else {
         http::set(&mut h, header::CACHE_CONTROL, "no-cache");
     }
