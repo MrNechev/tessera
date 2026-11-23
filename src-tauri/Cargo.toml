@@ -32,9 +32,7 @@ anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
 tokio = { version = "1", features = ["full"] }
-axum = "0.8"
 url = "2"
-getrandom = "0.3"
 tessera-core = { path = "../crates/tessera-core" }
 
 # Native print dialog with the project's paper size (same versions Tauri uses).

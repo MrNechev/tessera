@@ -121,6 +121,28 @@ impl Tools {
     }
 }
 
+/// Library id of the Outputs folder (everything Tessera makes).
+pub const OUTPUTS_ID: &str = "outputs";
+/// Library id of the Inbox folder (uploads the user kept; server mode).
+pub const INBOX_ID: &str = "inbox";
+
+/// The guard's areas for the engine's libraries (Outputs and Inbox are libraries too).
+pub fn areas_for(libs: &[crate::Library]) -> Vec<Area> {
+    libs.iter()
+        .map(|l| Area {
+            id: l.id.clone(),
+            name: l.name.clone(),
+            root: l.root.clone(),
+            writable: l.writable,
+            kind: match l.id.as_str() {
+                OUTPUTS_ID => AreaKind::Outputs,
+                INBOX_ID => AreaKind::Inbox,
+                _ => AreaKind::Library,
+            },
+        })
+        .collect()
+}
+
 /// Errors cross the API boundary as user-presentable strings.
 pub type CmdResult<T> = Result<T, String>;
 

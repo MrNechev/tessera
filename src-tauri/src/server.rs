@@ -1,23 +1,20 @@
-//! Runs Tessera's engine on 127.0.0.1 for the window.
-//!
-//! TEMPORARY (until the ported library/documents core is merged): serves the
-//! tool routes, the embedded UI and a token check itself.
+//! Runs Tessera's engine (`tessera-core`) on 127.0.0.1 for the window.
 
+use std::borrow::Cow;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
-use axum::body::Body;
-use axum::extract::Request;
-use axum::http::{header, HeaderValue, StatusCode, Uri};
-use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Redirect, Response};
-use axum::Router;
 use tauri::{AppHandle, Manager};
-use tessera_core::tools::{self, Mode, Tools, ToolsConfig};
+use tessera_core::tools::settings::{self, Settings};
+use tessera_core::tools::{self, Mode, Tools, ToolsConfig, OUTPUTS_ID};
+use tessera_core::{Config, Core, Library, WebAssets};
 
 pub struct Started {
     pub addr: SocketAddr,
     pub token: String,
+    #[allow(dead_code)]
+    pub core: Arc<Core>,
     #[allow(dead_code)]
     pub tools: Arc<Tools>,
 }
@@ -38,15 +35,17 @@ impl Started {
 }
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
-static TOKEN: OnceLock<String> = OnceLock::new();
 
-fn random_token() -> String {
-    let mut b = [0u8; 24];
-    getrandom::fill(&mut b).expect("random");
-    b.iter().map(|x| format!("{x:02x}")).collect()
+/// The UI, embedded in the binary by Tauri (the same files as `dist/`).
+fn embedded(path: &str) -> Option<Cow<'static, [u8]>> {
+    let app = APP.get()?;
+    let path = if path.is_empty() { "index.html" } else { path };
+    app.asset_resolver()
+        .get(path.to_string())
+        .map(|a| Cow::Owned(a.bytes))
 }
 
-pub fn tools_config(app: &AppHandle) -> ToolsConfig {
+fn dirs(app: &AppHandle) -> (PathBuf, PathBuf, PathBuf) {
     let p = app.path();
     let data = p
         .app_data_dir()
@@ -55,141 +54,93 @@ pub fn tools_config(app: &AppHandle) -> ToolsConfig {
         .app_cache_dir()
         .unwrap_or_else(|_| std::env::temp_dir().join("tessera"));
     let config = p.app_config_dir().unwrap_or_else(|_| data.clone());
-    ToolsConfig {
+    (data, cache, config)
+}
+
+/// The engine's libraries for these settings: the user's folders plus the
+/// save folder as "Outputs" (results show up in the Library).
+fn libraries_for(s: &Settings) -> Vec<Library> {
+    let mut libs: Vec<Library> = s
+        .libraries
+        .iter()
+        .filter(|l| tessera_core::config::valid_library_id(&l.id) && l.id != OUTPUTS_ID)
+        .map(|l| Library {
+            id: l.id.clone(),
+            name: l.name.clone(),
+            root: tools::paths::expand(&l.path),
+            writable: l.writable,
+        })
+        .collect();
+    if !s.save_directory.trim().is_empty() {
+        let root = tools::paths::expand(&s.save_directory);
+        let _ = std::fs::create_dir_all(&root);
+        libs.push(Library {
+            id: OUTPUTS_ID.into(),
+            name: "Outputs".into(),
+            root,
+            writable: true,
+        });
+    }
+    libs.retain(|l| l.root.is_dir());
+    libs
+}
+
+pub async fn start(app: AppHandle) -> anyhow::Result<Started> {
+    let _ = APP.set(app.clone());
+    let (data, cache, config) = dirs(&app);
+    let tools = Arc::new(Tools::new(ToolsConfig {
         mode: Mode::Desktop,
         uploads_dir: cache.join("uploads"),
         outputs_dir: tools::paths::default_save_dir(),
         inbox_dir: None,
         max_upload: None,
-        data_dir: data,
+        data_dir: data.clone(),
         config_dir: config,
-        cache_dir: cache,
-    }
-}
-
-pub async fn start(app: AppHandle) -> anyhow::Result<Started> {
-    let _ = APP.set(app.clone());
-    let token = random_token();
-    let _ = TOKEN.set(token.clone());
-    let tools = Arc::new(Tools::new(tools_config(&app)));
-    let router = Router::new()
-        .merge(tools::api::routes(tools.clone()))
-        .fallback(static_file)
-        .layer(middleware::from_fn(check_token));
-    let port: u16 = if cfg!(debug_assertions) { 1430 } else { 0 };
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
-    let addr = listener.local_addr()?;
-    tauri::async_runtime::spawn(async move {
-        if let Err(e) = axum::serve(listener, router).await {
-            log::error!("engine server stopped: {e}");
-        }
-    });
-    Ok(Started { addr, token, tools })
-}
-
-fn cookie_token(req: &Request) -> Option<String> {
-    let cookies = req.headers().get(header::COOKIE)?.to_str().ok()?;
-    cookies.split(';').find_map(|c| {
-        let (k, v) = c.trim().split_once('=')?;
-        (k == "tessera_token").then(|| v.to_string())
-    })
-}
-
-async fn check_token(req: Request, next: Next) -> Response {
-    let Some(token) = TOKEN.get() else {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
-    };
-    // DNS-rebinding guard: only our own loopback names.
-    let host_ok = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|h| h.to_str().ok())
-        .map(|h| h.starts_with("127.0.0.1:") || h.starts_with("localhost:"))
-        .unwrap_or(false);
-    if !host_ok {
-        return StatusCode::FORBIDDEN.into_response();
-    }
-    let query_token = req.uri().query().and_then(|q| {
-        url::form_urlencoded::parse(q.as_bytes())
-            .find(|(k, _)| k == "token")
-            .map(|(_, v)| v.into_owned())
-    });
-    if let Some(t) = query_token {
-        if &t == token {
-            // Set the cookie and drop the token from the address bar.
-            let uri = strip_token(req.uri());
-            let mut res = if req.uri().path().starts_with("/api/") {
-                next.run(req).await
-            } else {
-                Redirect::to(&uri).into_response()
-            };
-            if let Ok(v) = HeaderValue::from_str(&format!(
-                "tessera_token={t}; Path=/; HttpOnly; SameSite=Strict"
-            )) {
-                res.headers_mut().append(header::SET_COOKIE, v);
+        cache_dir: cache.clone(),
+    }));
+    let s = settings::load_settings(&tools);
+    let mut cfg = Config::desktop(data, cache.join("library"), libraries_for(&s));
+    cfg.web = WebAssets::Embedded(embedded);
+    cfg.version = env!("CARGO_PKG_VERSION").to_string();
+    // A bundled ffmpeg next to the executable wins over the system one.
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(PathBuf::from))
+    {
+        for (name, slot) in [("ffmpeg", &mut cfg.ffmpeg), ("ffprobe", &mut cfg.ffprobe)] {
+            let bundled = dir.join(name);
+            if bundled.is_file() {
+                *slot = bundled.to_string_lossy().into_owned();
             }
-            return res;
         }
     }
-    let ok = cookie_token(&req).as_deref() == Some(token.as_str())
-        || req
-            .headers()
-            .get("x-tessera-token")
-            .and_then(|v| v.to_str().ok())
-            == Some(token.as_str());
-    if !ok {
-        return (StatusCode::UNAUTHORIZED, "Tessera: not authorised").into_response();
+    let core = Core::start(cfg).await?;
+    tools.guard.set_areas(tools::areas_for(&core.libraries()));
+    {
+        let core = core.clone();
+        let t = Arc::downgrade(&tools);
+        tools.on_settings_saved(Box::new(move |s| {
+            let libs = libraries_for(s);
+            if libs != core.libraries() {
+                core.set_libraries(libs.clone());
+            }
+            if let Some(t) = t.upgrade() {
+                t.guard.set_areas(tools::areas_for(&libs));
+            }
+        }));
     }
-    next.run(req).await
-}
-
-fn strip_token(uri: &Uri) -> String {
-    let rest: Vec<(String, String)> = uri
-        .query()
-        .map(|q| {
-            url::form_urlencoded::parse(q.as_bytes())
-                .filter(|(k, _)| k != "token")
-                .map(|(k, v)| (k.into_owned(), v.into_owned()))
-                .collect()
-        })
-        .unwrap_or_default();
-    if rest.is_empty() {
-        uri.path().to_string()
+    tools::api::spawn_cleanup(tools.clone());
+    let router = core.router_with(tools::api::routes(tools.clone()));
+    let (addr, _) = if cfg!(debug_assertions) {
+        core.bind_local_port(router, 1430).await?
     } else {
-        let q: String = url::form_urlencoded::Serializer::new(String::new())
-            .extend_pairs(rest)
-            .finish();
-        format!("{}?{q}", uri.path())
-    }
-}
-
-/// The UI, embedded in the binary by Tauri (same files as `dist/`).
-async fn static_file(uri: Uri) -> Response {
-    let Some(app) = APP.get() else {
-        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        core.bind_local(router).await?
     };
-    let path = uri.path().trim_start_matches('/');
-    let resolver = app.asset_resolver();
-    let asset = resolver
-        .get(if path.is_empty() {
-            "index.html".into()
-        } else {
-            path.to_string()
-        })
-        .or_else(|| resolver.get("index.html".into()));
-    match asset {
-        Some(a) => {
-            let cache = if path.starts_with("assets/") {
-                "public, max-age=31536000, immutable"
-            } else {
-                "no-cache"
-            };
-            Response::builder()
-                .header(header::CONTENT_TYPE, a.mime_type)
-                .header(header::CACHE_CONTROL, cache)
-                .body(Body::from(a.bytes))
-                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
-        }
-        None => StatusCode::NOT_FOUND.into_response(),
-    }
+    let token = core.token().unwrap_or_default().to_string();
+    Ok(Started {
+        addr,
+        token,
+        core,
+        tools,
+    })
 }
