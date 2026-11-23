@@ -64,6 +64,27 @@ export interface Settings {
   showWelcome: boolean;
   /** Web app: download results to this computer after saving them on the server. */
   downloadResults: boolean;
+  /** Desktop: folders shown in the Library. */
+  libraries: LibrarySetting[];
+  /** Desktop: the first-start setup is done. */
+  setupDone: boolean;
+}
+
+export interface LibrarySetting {
+  /** Stored in documents with every media reference; never changes. */
+  id: string;
+  name: string;
+  path: string;
+  writable: boolean;
+}
+
+/** A folder the engine knows (library, Outputs or Inbox). */
+export interface Area {
+  id: string;
+  name: string;
+  root: string;
+  writable: boolean;
+  kind: 'library' | 'outputs' | 'inbox';
 }
 
 export interface ImportedImage {

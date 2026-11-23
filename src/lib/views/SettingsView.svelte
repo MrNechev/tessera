@@ -12,6 +12,18 @@
   import { formatBytes } from '../stores/batch.svelte';
   import { library } from '../stores/library.svelte';
   import { toasts } from '../stores/toasts.svelte';
+  import LibrariesEditor from '../components/LibrariesEditor.svelte';
+  import { call } from '../api/http';
+  import type { Area } from '../api/types';
+
+  let areas = $state<Area[]>([]);
+  async function loadAreas() {
+    try {
+      areas = await call<Area[]>('areas');
+    } catch {
+      areas = [];
+    }
+  }
 
   const s = $derived(app.settings);
   let cache = $state<number | null>(null);
@@ -39,6 +51,7 @@
   let clearing = $state(false);
 
   onMount(async () => {
+    void loadAreas();
     try {
       cache = await api.cacheSize();
     } catch {
@@ -49,6 +62,24 @@
 
 <div class="settings">
   <h2>Settings</h2>
+
+  <section class="card">
+    <h3>Libraries</h3>
+    {#if app.isServer}
+      <p class="hint">
+        The folders this server shows in the Library. They are set in the server's <code>.env</code> file
+        (LIBRARY_n_PATH, WRITABLE_LIBRARIES); see the Docker guide.
+      </p>
+      <div class="areas">
+        {#each areas as a (a.id)}
+          <div class="area"><b>{a.name}</b><span class="truncate">{a.root}</span><span class="tag" class:rw={a.writable}>{a.writable ? 'read-write' : 'read-only'}</span></div>
+        {/each}
+      </div>
+    {:else}
+      <p class="hint">Folders with your photos and videos. They appear in the Library and can be used in collages and documents.</p>
+      <LibrariesEditor value={s.libraries} onchange={(v) => void app.saveSettings({ libraries: v }).then(loadAreas)} />
+    {/if}
+  </section>
 
   <section class="card">
     <h3>Saving</h3>
@@ -243,5 +274,26 @@
   .about p {
     margin: 0;
     line-height: 1.55;
+  }
+  .areas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .area {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .area .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: var(--panel-3);
+    color: var(--text-2);
+  }
+  .area .tag.rw {
+    color: var(--warning);
   }
 </style>

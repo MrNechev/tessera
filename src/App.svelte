@@ -32,6 +32,7 @@
   import PrintView from './lib/documents/components/PrintView.svelte';
   import RemoteView from './lib/documents/components/RemoteView.svelte';
   import CommandPalette from './lib/documents/components/CommandPalette.svelte';
+  import SetupDialog from './lib/components/SetupDialog.svelte';
   import './lib/documents/documents.css';
 
   let editorView: EditorView | undefined = $state();
@@ -310,6 +311,7 @@
 {/if}
 
 {#if palette.open}<div class="lt"><CommandPalette /></div>{/if}
+{#if app.ready && isTauri && !app.settings.setupDone}<SetupDialog onclose={() => undefined} />{/if}
 {/if}
 
 <Toasts />

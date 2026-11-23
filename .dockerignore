@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+dist
+target
+scratch
+test-output
+src-tauri/target
+src-tauri/gen
+*.AppImage
+*.flatpak
+.flatpak-builder
+flatpak-build
+flatpak-repo
+packaging/docker/data
+packaging/docker/cache
+DEV-GUIDE.md

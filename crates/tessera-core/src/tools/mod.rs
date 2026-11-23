@@ -18,7 +18,7 @@ pub mod transfer;
 
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 
 use serde::Serialize;
 
@@ -61,7 +61,11 @@ pub struct Tools {
     pub guard: Guard,
     pub exports: Mutex<export::Jobs>,
     pub cancel_batch: AtomicBool,
+    on_settings: RwLock<Option<SettingsHook>>,
 }
+
+/// Called after settings are saved (the desktop app reconfigures its libraries).
+pub type SettingsHook = Box<dyn Fn(&settings::Settings) + Send + Sync>;
 
 impl Tools {
     pub fn new(cfg: ToolsConfig) -> Tools {
@@ -79,6 +83,7 @@ impl Tools {
             guard,
             exports: Mutex::default(),
             cancel_batch: AtomicBool::new(false),
+            on_settings: RwLock::new(None),
             cfg,
         };
         tools.guard.set_internal(vec![
@@ -87,6 +92,16 @@ impl Tools {
             tools.cfg.uploads_dir.clone(),
         ]);
         tools
+    }
+
+    pub fn on_settings_saved(&self, hook: SettingsHook) {
+        *self.on_settings.write().unwrap_or_else(|e| e.into_inner()) = Some(hook);
+    }
+
+    fn settings_saved(&self, s: &settings::Settings) {
+        if let Some(h) = self.on_settings.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            h(s);
+        }
     }
 
     pub fn progress(&self, task: &'static str, done: usize, total: usize, current: Option<String>) {

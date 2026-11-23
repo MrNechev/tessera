@@ -52,3 +52,17 @@ jobs:
       - run: cargo test --locked --workspace --release
       - name: Imaging crate without HEIF
         run: cargo test -p tessera-imaging --release --no-default-features
+
+  docker:
+    name: Docker image (build only)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

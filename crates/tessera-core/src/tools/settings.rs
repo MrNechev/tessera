@@ -22,6 +22,23 @@ pub struct Settings {
     pub show_welcome: bool,
     /// Web app: download results to the browser's computer after saving them.
     pub download_results: bool,
+    /// Desktop: the folders shown in the Library (media libraries).
+    pub libraries: Vec<LibrarySetting>,
+    /// Desktop: the first-start setup (choose libraries and the save folder) is done.
+    pub setup_done: bool,
+}
+
+/// A media library folder chosen in the desktop app.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySetting {
+    /// Stored in documents with every media reference; never changes.
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    /// Tessera may write here (e.g. "replace originals"); read-only by default.
+    #[serde(default)]
+    pub writable: bool,
 }
 
 impl Default for Settings {
@@ -40,6 +57,8 @@ impl Default for Settings {
             recent_import_dir: dirs::picture_dir().map(|p| p.to_string_lossy().into_owned()),
             show_welcome: true,
             download_results: true,
+            libraries: Vec::new(),
+            setup_done: false,
         }
     }
 }
@@ -86,5 +105,7 @@ pub fn load_settings(t: &Tools) -> Settings {
 
 pub fn save_settings(t: &Tools, settings: Settings) -> CmdResult<()> {
     let json = serde_json::to_vec_pretty(&settings).map_err(err)?;
-    paths::write_atomic(&file(t), &json).map_err(|e| format!("Could not save settings: {e}"))
+    paths::write_atomic(&file(t), &json).map_err(|e| format!("Could not save settings: {e}"))?;
+    t.settings_saved(&settings);
+    Ok(())
 }

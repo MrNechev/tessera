@@ -1,0 +1,51 @@
+# Tessera as a self-hosted web app: collages, image tools, a media library,
+# documents and presentations, in the browser.
+#
+#   cp .env.example .env     # set TESSERA_PASSWORD and LIBRARY_1_PATH at least
+#   docker compose up -d
+#
+# Open http://<server>:8470, or https://<server>:8471 for HTTP/2 (see README).
+name: tessera
+
+services:
+  tessera:
+    image: ${TESSERA_IMAGE:-ghcr.io/mrnechev/tessera}:${TESSERA_VERSION:-latest}
+    # To build the image yourself instead: set TESSERA_SRC to a Tessera checkout
+    # and run `docker compose build`.
+    build:
+      context: ${TESSERA_SRC:-.}
+      dockerfile: packaging/docker/Dockerfile
+    container_name: tessera
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "${TESSERA_HTTP_PORT:-8470}:8470"
+      - "${TESSERA_HTTPS_PORT:-8471}:8471"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TESSERA_LIBRARY_NAMES: "${LIBRARY_1_ID:-main}=${LIBRARY_1_NAME:-Library},${LIBRARY_2_ID:-.unused2}=${LIBRARY_2_NAME:-},${LIBRARY_3_ID:-.unused3}=${LIBRARY_3_NAME:-},${LIBRARY_4_ID:-.unused4}=${LIBRARY_4_NAME:-}"
+      TESSERA_WRITABLE_LIBRARIES: "${WRITABLE_LIBRARIES:-}"
+      TZ: ${TZ:-UTC}
+    # GPU for ffmpeg (Intel/AMD VAAPI). Remove if the machine has no /dev/dri.
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${DATA_DIR:-./data}:/data            # documents, projects, settings, index, certificate (back this up)
+      - ${CACHE_DIR:-./cache}:/cache         # thumbnails, proxies, temporary uploads (fast disk; safe to delete)
+      - ${OUTPUTS_DIR:-./outputs}:/outputs   # everything Tessera makes (collages, converted photos, ...)
+      - ${INBOX_DIR:-./inbox}:/inbox         # uploads you chose to keep
+      # Media libraries, read-only unless LIBRARY_n_MODE=rw (and the id is in WRITABLE_LIBRARIES).
+      # Unused slots point at an empty folder and are ignored.
+      - ${LIBRARY_1_PATH:?Set LIBRARY_1_PATH in .env}:/libraries/${LIBRARY_1_ID:-main}:${LIBRARY_1_MODE:-ro}
+      - ${LIBRARY_2_PATH:-./.unused}:/libraries/${LIBRARY_2_ID:-.unused2}:${LIBRARY_2_MODE:-ro}
+      - ${LIBRARY_3_PATH:-./.unused}:/libraries/${LIBRARY_3_ID:-.unused3}:${LIBRARY_3_MODE:-ro}
+      - ${LIBRARY_4_PATH:-./.unused}:/libraries/${LIBRARY_4_ID:-.unused4}:${LIBRARY_4_MODE:-ro}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

@@ -22,6 +22,8 @@ export function defaultSettings(): Settings {
     recentImportDir: null,
     showWelcome: true,
     downloadResults: true,
+    libraries: [],
+    setupDone: false,
   };
 }
 
