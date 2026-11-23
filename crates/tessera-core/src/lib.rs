@@ -11,6 +11,7 @@ pub mod config;
 pub mod docs;
 pub mod geo;
 pub mod jobs;
+pub mod library;
 pub mod media;
 pub mod prefs;
 pub mod store;
