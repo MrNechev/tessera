@@ -420,6 +420,40 @@ class Editor {
     });
   }
 
+  /**
+   * Add photos the way the page expects them: into the automatic layout if
+   * there is one; otherwise into the template's empty frames first (in page
+   * order), and any left over as free photos.
+   */
+  placePhotos(assetIds: string[]): void {
+    if (!assetIds.length) return;
+    if (this.hasLayout || !this.doc.elements.length) {
+      this.addToLayout(assetIds);
+      return;
+    }
+    const empty = this.doc.elements.filter(
+      (e): e is PhotoElement => e.kind === 'photo' && !e.asset && !e.hidden && e.name !== AUTO_PLACEHOLDER,
+    );
+    const fill = assetIds.slice(0, empty.length);
+    const rest = assetIds.slice(fill.length);
+    if (fill.length) {
+      this.begin();
+      this.update((d) => {
+        fill.forEach((assetId, i) => {
+          this.ensureAsset(d, assetId);
+          const el = d.elements.find((e) => e.id === empty[i].id);
+          if (el && el.kind === 'photo') {
+            el.asset = assetId;
+            el.crop = { x: 0.5, y: 0.5, zoom: 1 };
+          }
+        });
+      });
+      if (rest.length) this.addFreePhotos(rest);
+      else this.selection = [empty[fill.length - 1].id];
+      this.end();
+    } else this.addFreePhotos(rest);
+  }
+
   /** Add photos as free elements, cascading from a point. */
   addFreePhotos(assetIds: string[], at?: { x: number; y: number }): void {
     const S = this.pageShort;

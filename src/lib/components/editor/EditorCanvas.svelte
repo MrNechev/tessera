@@ -582,10 +582,7 @@
     dropTargetId = null;
     requestDraw();
     const ids = await importLibraryRefs(refs);
-    if (ids.length && !dropAssets(ids, x, y)) {
-      if (editor.hasLayout) editor.addToLayout(ids);
-      else editor.addFreePhotos(ids);
-    }
+    if (ids.length && !dropAssets(ids, x, y)) editor.placePhotos(ids);
   }
 
   $effect(() => {

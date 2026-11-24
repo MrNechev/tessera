@@ -18,12 +18,15 @@
     relinking = false,
     oncancelrelink,
     paletteTarget = true,
+    hint = 'Click to insert · drag into the document · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview',
   }: {
     onpick: (items: FileItem[], newSection: boolean) => void;
     relinking?: boolean;
     oncancelrelink?: () => void;
     /** Ctrl+K "open folder" opens folders here (off for panels that may be hidden). */
     paletteTarget?: boolean;
+    /** The how-to line at the bottom (defaults to the document editor's). */
+    hint?: string;
   } = $props();
 
   const PAGE = 240;
@@ -567,7 +570,7 @@
       <div class="none muted">{q ? 'No matches.' : 'No media in this folder.'}</div>
     {/if}
   </div>
-  <div class="hint muted">Click to insert · drag into the document · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview</div>
+  <div class="hint muted">{hint}</div>
 </div>
 
 {#if folderMenu}

@@ -35,8 +35,7 @@
   }
 
   function add(ids: string[]) {
-    if (editor.hasLayout) editor.addToLayout(ids);
-    else editor.addFreePhotos(ids);
+    editor.placePhotos(ids);
   }
 
   function onDown(e: PointerEvent, id: string, thumb: string) {
@@ -74,11 +73,15 @@
 
 {#if editor.photoSource === 'library'}
   <div class="lt libwrap">
-    <LibraryPanel paletteTarget={false} onpick={(items) => void insertFromLibrary(items)} />
-    <p class="libhint">Drag photos onto the page or a frame · double-click to add · <button class="linkish" onclick={async () => {
+    <LibraryPanel
+      paletteTarget={false}
+      hint="Click to add · drag onto the page or a frame · Ctrl/Shift+click: select · double-click: preview"
+      onpick={(items) => void insertFromLibrary(items)}
+    />
+    <p class="libhint"><button class="linkish" onclick={async () => {
       const ids = await addPhotos();
       if (ids.length) add(ids);
-    }}>add from {app.isServer ? 'the server or this computer' : 'other folders'}…</button></p>
+    }}>Add photos from {app.isServer ? 'the server or this computer' : 'other folders'}…</button></p>
   </div>
 {:else}
 <div class="wrap">
@@ -87,7 +90,9 @@
     <div class="row">
       <button class="btn primary grow" onclick={async () => {
         const ids = await addPhotos();
-        if (ids.length && (editor.hasLayout || !editor.doc.elements.length)) editor.addToLayout(ids);
+        // Fill the layout or the template's empty frames; otherwise the photos wait in the panel.
+        const emptyFrames = editor.doc.elements.some((e) => e.kind === 'photo' && !e.asset && !e.hidden);
+        if (ids.length && (editor.hasLayout || !editor.doc.elements.length || emptyFrames)) editor.placePhotos(ids);
       }}><ImagePlus size={16} /> Add photos</button>
       <button class="btn" title="Add a whole folder" onclick={addFolder}><FolderPlus size={16} /></button>
     </div>

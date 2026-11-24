@@ -174,7 +174,7 @@
         <span class="muted">{Math.round(c.w * W)} × {Math.round(c.h * H)} px</span>
       </div>
       <div class="stage">
-        <div class="imgbox" bind:this={box} style="aspect-ratio:{W}/{H}" style:transform={flipX || flipY ? `scale(${flipX ? -1 : 1},${flipY ? -1 : 1})` : undefined}>
+        <div class="imgbox" bind:this={box} style="aspect-ratio:{W}/{H};width:min(100%, calc(62vh * {W / H}))" style:transform={flipX || flipY ? `scale(${flipX ? -1 : 1},${flipY ? -1 : 1})` : undefined}>
           <img src="/d/{file.key}/t1280.webp" alt="" draggable="false" style:filter={lookFilter(adjust) || undefined} />
           <div class="shade" style="clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 0,{c.x * 100}% {c.y * 100}%,{c.x * 100}% {(c.y + c.h) * 100}%,{(c.x + c.w) * 100}% {(c.y + c.h) * 100}%,{(c.x + c.w) * 100}% {c.y * 100}%,{c.x * 100}% {c.y * 100}%)"></div>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -371,9 +371,7 @@
   }
   .imgbox {
     position: relative;
-    max-width: 100%;
-    max-height: 62vh;
-    height: 62vh;
+    flex: none;
     user-select: none;
     touch-action: none;
   }

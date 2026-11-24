@@ -78,8 +78,7 @@
         const imgs = await library.import(paths);
         const ids = imgs.map((i) => i.id);
         if (ids.length && !editorView?.dropFiles(ids, x, y)) {
-          if (editor.hasLayout || !editor.doc.elements.length) editor.addToLayout(ids);
-          else editor.addFreePhotos(ids);
+          editor.placePhotos(ids);
         }
         break;
       }
@@ -105,6 +104,8 @@
   }
 
   function go(view: View) {
+    // Documents again while a document is open: back to the list.
+    if (view === 'documents' && app.view === 'documents' && router.route.name === 'doc') router.go('/');
     app.view = view;
     if (view === 'system') router.go('/system');
     else if (router.route.name === 'system') router.go('/');
