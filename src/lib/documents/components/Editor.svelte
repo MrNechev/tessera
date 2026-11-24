@@ -20,6 +20,7 @@
   import FindReplace from './FindReplace.svelte';
   import { exportMarkdown, exportOffline, exportPptx } from '../lib/exporters';
   import HistoryDialog from './HistoryDialog.svelte';
+  import VideoDialog from '../../components/VideoDialog.svelte';
   import Icon from './Icon.svelte';
   import LibraryPanel from './LibraryPanel.svelte';
   import Outline from './Outline.svelte';
@@ -293,6 +294,7 @@
   let findOpen = $state(false);
   let settingsOpen = $state(false);
   let docMenu = $state(false);
+  let videoOpen = $state(false);
 
   async function jumpTo(sectionId?: string, itemId?: string) {
     if (itemId) {
@@ -312,6 +314,7 @@
     try {
       if (kind === 'md') await exportMarkdown(ds.doc);
       else if (kind === 'pptx') await exportPptx(ds.doc);
+      else if (kind === 'video') videoOpen = true;
       else if (kind === 'print') window.open(`#/print/${id}`, '_blank');
       else if (kind === 'slides') window.open(`#/print/${id}?mode=slides`, '_blank');
       else if (kind === 'canvas') window.open(`#/print/${id}?mode=canvas`, '_blank');
@@ -531,6 +534,7 @@
           <button onclick={() => runExport('canvas')}><Icon name="file-pdf" size={15} /> PDF (canvas frames)</button>
           <button onclick={() => runExport('pptx')}><Icon name="present" size={15} /> PowerPoint (.pptx)</button>
           <button onclick={() => runExport('md')}><Icon name="file" size={15} /> Markdown (.md)</button>
+          <button onclick={() => runExport('video')}><Icon name="video" size={15} /> Video (.mp4)</button>
           <a href="/api/documents/{id}/export" onclick={() => (docMenu = false)}><Icon name="download" size={15} /> JSON (for import / backup)</a>
           <button onclick={() => runExport('offline')}><Icon name="package" size={15} /> Offline presentation (.zip with media)</button>
         </div>
@@ -677,6 +681,10 @@
 
 {#if history && ds.doc}
   <HistoryDialog {ds} onclose={() => (history = false)} />
+{/if}
+
+{#if videoOpen && ds.doc}
+  <VideoDialog source={{ kind: 'story', doc: ds.doc }} onclose={() => (videoOpen = false)} />
 {/if}
 
 <style>

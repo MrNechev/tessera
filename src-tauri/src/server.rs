@@ -116,6 +116,7 @@ pub async fn start(app: AppHandle) -> anyhow::Result<Started> {
     }
     let core = Core::start(cfg).await?;
     tools.guard.set_areas(tools::areas_for(&core.libraries()));
+    tools.attach_media(core.media.clone());
     {
         let core = core.clone();
         let t = Arc::downgrade(&tools);

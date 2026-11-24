@@ -34,15 +34,13 @@ const LOAD_CONCURRENCY = 4;
  * Render one page at full resolution into a backend export job and return
  * its id. The caller finishes the job (single image) or adds it to a PDF.
  */
-export async function renderToJob(
+/** Full-quality photos, stickers and fonts for rendering `doc` at `scale`. */
+async function loadResources(
   doc: CollageDoc,
-  opts: { scale?: number; onProgress?: (fraction: number, stage: string) => void; signal?: { cancelled: boolean } },
-): Promise<number> {
-  const scale = opts.scale ?? 1;
-  const W = Math.max(1, Math.round(doc.page.width * scale));
-  const H = Math.max(1, Math.round(doc.page.height * scale));
-  const progress = opts.onProgress ?? (() => {});
-
+  scale: number,
+  progress: (fraction: number, stage: string) => void,
+  signal?: { cancelled: boolean },
+): Promise<{ resources: RenderResources; dispose: () => void }> {
   // 1. Work out how many pixels each photo really needs.
   const need = new Map<string, { w: number; h: number }>();
   const bump = (id: string, w: number, h: number) => {
@@ -72,7 +70,7 @@ export async function renderToJob(
   let done = 0;
   const loadNext = async (): Promise<void> => {
     for (let item = queue.shift(); item; item = queue.shift()) {
-      if (opts.signal?.cancelled) throw new Error('Export cancelled');
+      if (signal?.cancelled) throw new Error('Export cancelled');
       const [id, size] = item;
       const a = doc.assets[id];
       try {
@@ -111,6 +109,28 @@ export async function renderToJob(
     sticker: (id) => stickers.image(id),
     adjustCache: new AdjustCache(768),
   };
+  return {
+    resources,
+    dispose: () => {
+      for (const b of bitmaps.values()) (b.source as ImageBitmap).close?.();
+      resources.adjustCache.clear();
+    },
+  };
+}
+
+/**
+ * Render one page at full resolution into a backend export job and return
+ * its id. The caller finishes the job (single image) or adds it to a PDF.
+ */
+export async function renderToJob(
+  doc: CollageDoc,
+  opts: { scale?: number; onProgress?: (fraction: number, stage: string) => void; signal?: { cancelled: boolean } },
+): Promise<number> {
+  const scale = opts.scale ?? 1;
+  const W = Math.max(1, Math.round(doc.page.width * scale));
+  const H = Math.max(1, Math.round(doc.page.height * scale));
+  const progress = opts.onProgress ?? (() => {});
+  const { resources, dispose } = await loadResources(doc, scale, progress, opts.signal);
 
   // 4. Render tiles and stream them to the backend.
   const job = await api.exportBegin(W, H);
@@ -154,8 +174,32 @@ export async function renderToJob(
     await api.exportCancel(job).catch(() => {});
     throw e;
   } finally {
-    for (const b of bitmaps.values()) (b.source as ImageBitmap).close?.();
-    resources.adjustCache.clear();
+    dispose();
+  }
+}
+
+/**
+ * Render one page, fitted inside maxW × maxH pixels, to an encoded image
+ * (video slides: small enough for one canvas, no tiles needed).
+ */
+export async function renderPageBlob(
+  doc: CollageDoc,
+  maxW: number,
+  maxH: number,
+  type: 'image/png' | 'image/jpeg' = 'image/jpeg',
+  signal?: { cancelled: boolean },
+): Promise<Blob> {
+  const scale = Math.min(maxW / doc.page.width, maxH / doc.page.height);
+  const { resources, dispose } = await loadResources(doc, scale, () => {}, signal);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(doc.page.width * scale));
+    canvas.height = Math.max(1, Math.round(doc.page.height * scale));
+    const c = canvas.getContext('2d')!;
+    renderDocument(c, doc, { scale, resources, placeholders: false });
+    return await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('Could not encode the page'))), type, 0.92));
+  } finally {
+    dispose();
   }
 }
 

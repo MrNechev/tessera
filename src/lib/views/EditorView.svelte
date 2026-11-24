@@ -26,11 +26,13 @@
     Copy,
     Trash2,
     FileText,
+    Film,
   } from '@lucide/svelte';
   import EditorCanvas from '../components/editor/EditorCanvas.svelte';
   import Inspector from '../components/editor/Inspector.svelte';
   import ExportDialog from '../components/editor/ExportDialog.svelte';
   import ToDocumentDialog from '../components/editor/ToDocumentDialog.svelte';
+  import VideoDialog from '../components/VideoDialog.svelte';
   import PhotosPanel from '../components/editor/panels/PhotosPanel.svelte';
   import LayoutPanel from '../components/editor/panels/LayoutPanel.svelte';
   import TemplatesPanel from '../components/editor/panels/TemplatesPanel.svelte';
@@ -53,6 +55,7 @@
   let canvasRef: EditorCanvas | undefined = $state();
   let exportOpen = $state(false);
   let toDocOpen = $state(false);
+  let videoOpen = $state(false);
   let fileMenu = $state(false);
   void Smile;
 
@@ -194,6 +197,7 @@
           { id: 'co:saveas', group: 'This collage', icon: 'download', title: 'Save image as…', shortcut: 'Ctrl ⇧ S', run: () => void (exportOpen = true) },
           { id: 'co:print', group: 'This collage', icon: 'file-pdf', title: 'Print…', shortcut: 'Ctrl P', run: () => void printProject('all') },
           { id: 'co:todoc', group: 'This collage', icon: 'notes', title: 'Add to a story…', keywords: 'insert section story', run: () => void (toDocOpen = true) },
+          { id: 'co:video', group: 'This collage', icon: 'video', title: 'Make a video (.mp4)…', keywords: 'mp4 slideshow movie', run: () => void (videoOpen = true) },
           { id: 'co:project', group: 'This collage', icon: 'folder', title: 'Save project as…', run: () => void saveProjectAs() },
           ...(editor.hasLayout ? [{ id: 'co:regen', group: 'This collage', icon: 'refresh', title: 'Regenerate the layout', shortcut: 'Ctrl R', run: () => editor.regenerate() }] : []),
           { id: 'co:page', group: 'This collage', icon: 'plus', title: 'Add a page', run: () => editor.addPage() },
@@ -241,6 +245,7 @@
           <button role="menuitem" onclick={() => (exportOpen = true)}><FileImage size={15} /> Save image as… <span class="kbd">Ctrl+⇧+S</span></button>
           <button role="menuitem" disabled={saveState.busy} onclick={() => void printProject('all')}><Printer size={15} /> Print… <span class="kbd">Ctrl+P</span></button>
           <button role="menuitem" disabled={saveState.busy} onclick={() => (toDocOpen = true)}><FileText size={15} /> Add to a story…</button>
+          <button role="menuitem" disabled={saveState.busy} onclick={() => (videoOpen = true)}><Film size={15} /> Video (.mp4)…</button>
           <div class="divider"></div>
           <button role="menuitem" onclick={() => editor.addPage()}><FilePlus size={15} /> Add a page</button>
           {#if editor.pageCount > 1}
@@ -319,6 +324,9 @@
 {/if}
 {#if toDocOpen}
   <ToDocumentDialog onclose={() => (toDocOpen = false)} />
+{/if}
+{#if videoOpen}
+  <VideoDialog source={{ kind: 'collage' }} onclose={() => (videoOpen = false)} />
 {/if}
 
 <style>
