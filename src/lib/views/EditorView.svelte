@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    ArrowLeft,
     ChevronDown,
     FilePlus,
     FolderOpen,
@@ -47,6 +48,7 @@
   import { app } from '../stores/app.svelte';
   import { onMount } from 'svelte';
   import { palette } from '../documents/lib/palette.svelte';
+  import { backToStory, collages } from '../documents/lib/collages.svelte';
 
   let canvasRef: EditorCanvas | undefined = $state();
   let exportOpen = $state(false);
@@ -217,6 +219,10 @@
 
 <div class="editor">
   <header class="topbar">
+    {#if collages.returnTo && collages.returnTo.projectId === editor.doc.id}
+      <!-- opened from a story's live collage: changes are saved, the story shows them -->
+      <button class="btn ghost" title="Back to “{collages.returnTo.title || 'Untitled'}”" onclick={() => void backToStory()}><ArrowLeft size={15} /> Back to the story</button>
+    {/if}
     <div class="menu-wrap">
       <button
         class="btn ghost"

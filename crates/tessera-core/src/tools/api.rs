@@ -247,6 +247,7 @@ fn dispatch(t: &Tools, cmd: &str, a: &Value) -> CmdResult<Value> {
         }
         "list_projects" => to(projects::list_projects(t)?),
         "load_project" => to(projects::load_project(t, arg::<PathArg>(a)?.path)?),
+        "load_project_by_id" => to(projects::load_project_by_id(t, arg::<IdArg>(a)?.id)?),
         "save_project" => {
             #[derive(Deserialize)]
             struct A {

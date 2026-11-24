@@ -4,6 +4,7 @@ import { picker } from '../platform/picker.svelte';
 import { call } from '../api/http';
 import type { Area, ExportFormat } from '../api/types';
 import { api as docApi } from '../documents/lib/api';
+import { collageSaved } from '../documents/lib/collages.svelte';
 import { relayout } from '../collage/layout';
 import { createDoc, defaultLayout, createPhoto } from '../model/factory';
 import { presetById, presetSize } from '../model/pages';
@@ -156,6 +157,8 @@ export function autosave(): Promise<void> {
       const thumb = await renderThumbnail(doc, thumbnailResources());
       const json = serialize(doc);
       await api.saveProject(doc.id, json, thumb);
+      // Stories showing this collage live redraw it.
+      collageSaved(doc.id);
       if (path) await api.saveProjectFile(path, json);
       autosaveWarned = false;
     } catch (e) {

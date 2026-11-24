@@ -6,6 +6,7 @@
   import type { Section } from '../lib/types';
   import MediaView from './MediaView.svelte';
   import CompareView from './CompareView.svelte';
+  import CollageView from './CollageView.svelte';
 
   let {
     section,
@@ -26,7 +27,8 @@
   const hasText = $derived(!isEmptyText(section.text));
   const carousel = $derived(section.layout === 'gallery' && section.gallery?.mode === 'carousel');
   const media = $derived(carousel ? section.media.slice(sub, sub + 1) : section.media);
-  const layout = $derived(section.chapter ? 'chapter' : section.media.length === 0 ? 'text-only' : section.layout);
+  // a live collage has no media of its own
+  const layout = $derived(section.chapter ? 'chapter' : section.layout === 'collage' ? 'collage' : section.media.length === 0 ? 'text-only' : section.layout);
   const gridCols = $derived(
     layout === 'gallery' && !carousel
       ? section.gallery?.columns || Math.ceil(Math.sqrt(media.length))
@@ -52,6 +54,8 @@
         <CompareView {section} present fill {active} />
       {/if}
     </div>
+  {:else if layout === 'collage'}
+    <div class="smedia cmp"><CollageView ref={section.collage} fill {still} /></div>
   {:else if layout !== 'text-only'}
     <div class="smedia" style="grid-template-columns:repeat({gridCols},minmax(0,1fr));grid-template-rows:repeat({gridRows},minmax(0,1fr))">
       {#each media as m, i (i + m.path)}

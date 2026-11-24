@@ -83,6 +83,24 @@ pub fn load_project(t: &Tools, path: String) -> CmdResult<String> {
     fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))
 }
 
+/// Load a project of the app's library by its id (stories embed live collages
+/// by id, so they keep working when the projects folder moves).
+pub fn load_project_by_id(t: &Tools, id: String) -> CmdResult<String> {
+    load_project_in(&t.projects(), &id)
+}
+
+fn load_project_in(dir: &Path, id: &str) -> CmdResult<String> {
+    if !valid_id(id) {
+        return Err("invalid project id".into());
+    }
+    let p = dir.join(format!("{id}.tessera"));
+    match fs::metadata(&p) {
+        Ok(m) if m.len() > MAX_PROJECT_BYTES => Err("Project file is too large".into()),
+        Ok(_) => fs::read_to_string(&p).map_err(err),
+        Err(_) => Err("This collage no longer exists".into()),
+    }
+}
+
 pub fn save_project(
     t: &Tools,
     id: String,
@@ -122,4 +140,23 @@ pub fn delete_project(t: &Tools, id: String) -> CmdResult<()> {
     let base = t.projects().join(format!("{id}.tessera"));
     let _ = fs::remove_file(base.with_extension("jpg"));
     fs::remove_file(&base).map_err(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_by_id() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("abc-1.tessera"), r#"{"id":"abc-1"}"#).unwrap();
+        assert_eq!(
+            load_project_in(dir.path(), "abc-1").unwrap(),
+            r#"{"id":"abc-1"}"#
+        );
+        assert!(load_project_in(dir.path(), "missing").is_err());
+        // Ids are file names: no way out of the projects folder.
+        assert!(load_project_in(dir.path(), "../abc-1").is_err());
+        assert!(load_project_in(dir.path(), "").is_err());
+    }
 }

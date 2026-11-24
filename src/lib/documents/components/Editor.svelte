@@ -13,7 +13,9 @@
   import { router } from '../lib/router.svelte';
   import { toasts } from '../lib/toast.svelte';
   import type { FileItem, MediaRef } from '../lib/types';
+  import { applyChoice, collages, type CollageChoice } from '../lib/collages.svelte';
   import Canvas from './Canvas.svelte';
+  import CollagePicker from './CollagePicker.svelte';
   import DocSettings from './DocSettings.svelte';
   import FindReplace from './FindReplace.svelte';
   import { exportMarkdown, exportOffline, exportPptx } from '../lib/exporters';
@@ -47,6 +49,8 @@
   let libWidth = $state(Number(pref('libWidth', '380')));
   let relink = $state<{ sectionId: string; index: number } | null>(null);
   let history = $state(false);
+  /** the collage picker for a new collage section at the end */
+  let addingCollage = $state(false);
   let sectionsEl = $state<HTMLDivElement>();
   let scrollEl = $state<HTMLDivElement>();
   let dropAt = $state<number | null>(null);
@@ -322,6 +326,17 @@
 
   function refsOf(items: { libraryId: string; path: string }[]): MediaRef[] {
     return items.map((x) => ({ libraryId: x.libraryId, path: x.path }));
+  }
+
+  /** A new section at the end that shows a collage (an existing one, or a new one opened in the editor). */
+  function addCollageSection(c: CollageChoice) {
+    addingCollage = false;
+    void applyChoice(c, (ref) => {
+      if (!ds.doc) return;
+      const s = ds.addSection(null, { ...newSection('collage'), title: c.kind === 'new' ? '' : ref.name ?? '', collage: ref });
+      if (c.kind === 'new') collages.returnTo = { docId: ds.doc.id, sectionId: s.id, projectId: ref.projectId, title: ds.doc.title };
+      else void scrollToSection(s.id);
+    });
   }
 
   async function scrollToSection(sid: string, smooth = true) {
@@ -638,6 +653,7 @@
           </div>
           <div class="add">
             <button class="btn" onclick={() => { const s = ds.addSection(null); scrollToSection(s.id); }}><Icon name="plus" /> Add section</button>
+            <button class="btn" onclick={() => (addingCollage = true)} title="A collage from the collage editor that stays editable"><Icon name="collage" /> Add collage</button>
             <span class="muted">or drop media from the library</span>
           </div>
         {/key}
@@ -653,6 +669,10 @@
 
 {#if settingsOpen && ds.doc}
   <DocSettings {ds} onclose={() => (settingsOpen = false)} />
+{/if}
+
+{#if addingCollage && ds.doc}
+  <CollagePicker name={ds.doc.title || 'Collage'} onpick={addCollageSection} onclose={() => (addingCollage = false)} />
 {/if}
 
 {#if history && ds.doc}
