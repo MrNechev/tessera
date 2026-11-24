@@ -53,7 +53,7 @@ What the merge was for: features written once, used by collages and documents al
 
 | | Item | Why / what | Size |
 |---|---|---|---|
-| 📋 | **Collages from the library** | Select photos in the Library → *Make a collage / photo book / calendar* with the layout engines and templates (the first step shipped in 0.6.0: quick collage from a selection). | S |
+| ✅ | **Collages from the library** | Select photos in the Library → *Make a collage / photo book / calendar* with the layout engines and templates. Also: *Add to a document* from the collage editor, *Make a collage* from a document section. | S |
 | 📋 | **A collage inside a document** | A section (or canvas card, or slide) can be a Tessera collage page: edit it in the collage editor, it renders live in the document and the presentation, and exports to PDF/PPTX. | L |
 | 📋 | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. *Done: filters, adjustments, flips and crop for document/canvas media (Edit photo). Open: rotation, frames, and the same dialog in the collage editor.* | L |
 | 📋 | **One image engine** | Library thumbnails, previews and RAW/HEIC decoding move to `tessera-imaging` (colour-managed, real RAW development, no libvips needed); the collage editor uses the library's cached previews instead of making its own. One cache, less disk, less work. | L |

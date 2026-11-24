@@ -28,6 +28,11 @@ are closing, and the two start sharing their tools.
 - **Command palette everywhere** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): go to any
   view, start any kind of project, open recent collages, find library files
   and folders, the collage editor's commands, actions on the Library selection.
+- **Collages and documents use each other**: select photos in the Library
+  (click, Ctrl/Shift+click) and make a collage, photo book or calendar;
+  *File → Add to a document…* in the collage editor saves the pages into
+  Outputs and adds them as a section of a new or existing document; a
+  document section's … menu has *Make a collage of these photos*.
 - **Settings → Documents & library**: slide transition, library thumbnail
   size and blur, hidden folders, favourite folders, recently inserted media.
 
