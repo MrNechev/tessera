@@ -61,6 +61,7 @@
     star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
     activity: 'M22 12h-4l-3 9L9 3l-3 9H2',
     grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+    collage: 'M3 3h18v18H3zM12 3v11M3 14h18M8 14v7',
     columns: 'M3 4h18v16H3zM12 4v16',
     collapse: 'm7 20 5-5 5 5M7 4l5 5 5-5',
     expand: 'm7 15 5 5 5-5M7 9l5-5 5 5',

@@ -80,6 +80,7 @@ export const api = {
 
   listProjects: () => call<ProjectSummary[]>('list_projects'),
   loadProject: (path: string) => call<string>('load_project', { path }),
+  loadProjectById: (id: string) => call<string>('load_project_by_id', { id }),
   saveProject: (id: string, json: string, thumbnail: string | null) =>
     call<ProjectSummary>('save_project', { id, json, thumbnail }),
   saveProjectFile: (path: string, json: string) => call<void>('save_project_file', { path, json }),

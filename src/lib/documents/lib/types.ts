@@ -2,7 +2,7 @@ import type { PhotoAdjust } from '../../model/types';
 
 export type Kind = 'image' | 'gif' | 'video' | 'audio';
 
-export type Layout = 'media-top' | 'media-left' | 'media-right' | 'media-full' | 'text-only' | 'gallery' | 'compare';
+export type Layout = 'media-top' | 'media-left' | 'media-right' | 'media-full' | 'text-only' | 'gallery' | 'compare' | 'collage';
 
 export interface MediaRef {
   libraryId: string;
@@ -23,6 +23,21 @@ export interface MediaRef {
   flipY?: boolean;
 }
 
+/**
+ * A live collage in a section. The project stays the single source: editing it in
+ * the collage editor changes every story that shows it.
+ */
+export interface CollageRef {
+  /** id of a project in the app's project library (`load_project_by_id`) */
+  projectId: string;
+  /** page of a multi-page project (0 = first) */
+  page?: number;
+  /** width / height when it was linked: sizes the box before the project has loaded */
+  aspect?: number;
+  /** the project's name when it was linked, for the "missing collage" placeholder */
+  name?: string;
+}
+
 export interface Section {
   id: string;
   title?: string;
@@ -35,6 +50,8 @@ export interface Section {
   gallery?: { mode?: 'grid' | 'carousel'; columns?: number };
   /** comparison layout: slider over two images/videos, or two videos side by side in sync */
   compare?: { mode?: 'slider' | 'sync'; pos?: number };
+  /** collage layout: a page of a collage project, rendered live from the project */
+  collage?: CollageRef;
   transition?: string;
   /** position of the section's card on the canvas */
   canvas?: SectionCanvas;

@@ -3,6 +3,7 @@
 import { api, thumbUrl } from './api';
 import { toHTML } from './tiptap';
 import { bakeLook } from '../../look/looks.svelte';
+import { collageImage } from './collages.svelte';
 import type { Doc, MediaRef, Resolved, Section } from './types';
 
 function download(name: string, blob: Blob) {
@@ -81,7 +82,8 @@ export function sectionMarkdown(s: Section, i: number): string {
   if (s.chapter) out.push(`# ${s.title || 'Chapter'}`);
   else if (s.title) out.push(`## ${s.title}`);
   else out.push(`## Section ${i + 1}`);
-  for (const m of s.media) {
+  if (s.layout === 'collage') out.push(`*Collage${s.collage?.name ? `: ${s.collage.name}` : ''} (made in Tessera)*`);
+  for (const m of s.layout === 'collage' ? [] : s.media) {
     const name = m.path.split('/').pop()!;
     out.push(`![${(m.caption || name).replace(/[[\]]/g, '')}](${mediaURL(m)})` + (m.caption ? `\n*${m.caption}*` : ''));
   }
@@ -158,9 +160,12 @@ export async function exportPptx(doc: Doc) {
     slide.background = { color: '0B0A0F' };
     const title = s.title || '';
     const text = plain(s.text);
-    const media = s.layout === 'gallery' && s.gallery?.mode === 'carousel' ? s.media.slice(0, 1) : s.media;
+    // A live collage goes in as one picture, rendered now from its project.
+    const collage = !s.chapter && s.layout === 'collage' && s.collage ? await collageImage(s.collage, 2400) : null;
+    const media = s.layout === 'collage' ? [] : s.layout === 'gallery' && s.gallery?.mode === 'carousel' ? s.media.slice(0, 1) : s.media;
+    const count = collage ? 1 : media.length;
     let top = M;
-    if (s.chapter || (!media.length && !text)) {
+    if (s.chapter || (!count && !text)) {
       slide.addText(title || 'Chapter', { x: M, y: 0, w: W - 2 * M, h: H, fontSize: 44, bold: true, color: 'F2EFF7', align: 'center', valign: 'middle', fontFace: 'Georgia' });
     } else {
       if (title && s.layout !== 'media-full') {
@@ -190,12 +195,16 @@ export async function exportPptx(doc: Doc) {
           mx = M * 2 + tw;
         }
         th = mh;
-      } else if (text && media.length) {
+      } else if (text && count) {
         th = Math.min(2.2, 0.35 * text.split('\n').length + 0.4);
         mh -= th + 0.2;
         ty = my + mh + 0.2;
       } else if (text) th = mh;
 
+      if (collage) {
+        const f = fit(collage.width, collage.height, mw, mh);
+        slide.addImage({ data: collage.url, x: mx + f.dx, y: my + f.dy, w: f.w, h: f.h });
+      }
       if (media.length) {
         const cols = s.layout === 'gallery' ? s.gallery?.columns || Math.ceil(Math.sqrt(media.length)) : Math.min(media.length, 2);
         const rows = Math.ceil(media.length / cols);

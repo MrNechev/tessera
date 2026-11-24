@@ -5,6 +5,7 @@
   import { onMount, tick } from 'svelte';
   import { api, thumbUrl, fmtDuration } from '../lib/api';
   import { autoPlace, steps as stepsOf, whenResolved } from '../lib/canvas';
+  import { collageImage, type CollageImage } from '../lib/collages.svelte';
   import { resolver } from '../lib/resolver.svelte';
   import { router } from '../lib/router.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
@@ -18,12 +19,18 @@
   let ready = $state(false);
   let error = $state('');
   let pageSize = $state<'A4' | 'letter'>('A4');
+  let collageShots = $state.raw(new Map<string, CollageImage | null>());
 
   onMount(async () => {
     try {
       const d = await api.getDoc(id);
       const refs = d.sections.flatMap((s) => s.media);
       await whenResolved(refs, 5000);
+      // Live collages print as images rendered now: at print resolution in the document,
+      // at the size CollageView asks for in slides and canvas frames (already cached then).
+      const live = d.sections.filter((s) => s.layout === 'collage' && s.collage && (mode !== 'slides' || s.slide));
+      const shots = await Promise.all(live.map((s) => collageImage(s.collage!, mode === 'doc' ? 2400 : 1600)));
+      collageShots = new Map(live.map((s, i) => [s.id, shots[i]]));
       if (mode === 'canvas') autoPlace(d);
       doc = d;
       document.title = `${d.title} · ${mode === 'doc' ? 'Print' : mode === 'slides' ? 'Slides' : 'Canvas'}`;
@@ -78,7 +85,14 @@
         {#each doc.sections as s (s.id)}
           <section class:chapter={s.chapter}>
             {#if s.title}<h2>{s.title}</h2>{/if}
-            {#if s.media.length && s.layout !== 'text-only'}
+            {#if s.layout === 'collage'}
+              {@const shot = collageShots.get(s.id)}
+              <div class="media">
+                <figure>
+                  {#if shot}<img src={shot.url} alt={s.collage?.name || 'Collage'} />{:else}<div class="missing">Missing collage{s.collage?.name ? `: ${s.collage.name}` : ''}</div>{/if}
+                </figure>
+              </div>
+            {:else if s.media.length && s.layout !== 'text-only'}
               <div class="media" class:grid={s.media.length > 1}>
                 {#each s.layout === 'compare' ? s.media.slice(0, 2) : s.media as m, j (j)}
                   {@const rr = r(m)}

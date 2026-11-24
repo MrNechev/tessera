@@ -50,7 +50,7 @@
       {@const t = thumb(s)}
       <button class="oi" class:active={ds.activeSection === s.id} class:noslide={!s.slide} onclick={() => onjump(s.id)}>
         <span class="n">{i + 1}</span>
-        {#if t}<img src={t} alt="" loading="lazy" />{:else}<span class="noimg"><Icon name={s.layout === 'text-only' ? 'notes' : 'image'} size={13} /></span>{/if}
+        {#if t}<img src={t} alt="" loading="lazy" />{:else}<span class="noimg"><Icon name={s.layout === 'text-only' ? 'notes' : s.layout === 'collage' ? 'collage' : 'image'} size={13} /></span>{/if}
         <span class="l">{label(s, i)}</span>
         {#if !s.slide}<span class="hid" title="Not in the presentation"><Icon name="eye-off" size={12} /></span>{/if}
       </button>

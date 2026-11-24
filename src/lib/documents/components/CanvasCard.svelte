@@ -11,6 +11,7 @@
   import MediaView from './MediaView.svelte';
   import RichText from './RichText.svelte';
   import CompareView from './CompareView.svelte';
+  import CollageView from './CollageView.svelte';
 
   let {
     section,
@@ -49,7 +50,10 @@
   const c = $derived(section.canvas!);
   const screenW = $derived(c.w * lod);
   const tiny = $derived(!editing && (screenW < 150 || c.h * lod < 70));
-  const layout = $derived(section.media.length === 0 ? 'text-only' : section.layout === 'compare' ? 'media-top' : section.layout);
+  // a live collage has no media of its own
+  const layout = $derived(
+    section.layout === 'collage' ? 'collage' : section.media.length === 0 ? 'text-only' : section.layout === 'compare' ? 'media-top' : section.layout,
+  );
   const compare = $derived(section.layout === 'compare' && section.media.length >= 2);
   const hasText = $derived(!isEmptyText(section.text));
   const carousel = $derived(layout === 'gallery' && section.gallery?.mode === 'carousel');
@@ -72,7 +76,7 @@
     const inner = c.h - head - 2 * CARD_PAD;
     if (side) return inner;
     const mw = c.w - 2 * CARD_PAD;
-    const natural = media.length > 1 || (layout === 'gallery' && !carousel) ? ((mw / cols) * 0.75) * rows : mw / mediaRatio(media[0]);
+    const natural = layout === 'collage' ? mw / (section.collage?.aspect || 4 / 3) : media.length > 1 || (layout === 'gallery' && !carousel) ? ((mw / cols) * 0.75) * rows : mw / mediaRatio(media[0]);
     const room = hasText ? inner - Math.min(90, inner * 0.3) : inner;
     return Math.max(24, Math.min(natural, room));
   });
@@ -115,6 +119,10 @@
       {#if compare && !still && !tiny}
         <div class="cmedia" style="height:{mediaH}px">
           <CompareView {section} present={present} active={playing} fill />
+        </div>
+      {:else if layout === 'collage'}
+        <div class="cmedia" style="height:{mediaH}px">
+          {#if mounted || still}<CollageView ref={section.collage} fill zoom={lod} {still} />{/if}
         </div>
       {:else if layout !== 'text-only'}
         <div

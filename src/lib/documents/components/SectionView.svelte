@@ -16,6 +16,9 @@
   import { editor } from '../../editor/editor.svelte';
   import { app } from '../../stores/app.svelte';
   import { toasts } from '../lib/toast.svelte';
+  import { applyChoice, collages, editCollage, type CollageChoice } from '../lib/collages.svelte';
+  import CollageView from './CollageView.svelte';
+  import CollagePicker from './CollagePicker.svelte';
 
   let {
     section,
@@ -40,6 +43,7 @@
     { id: 'media-full', label: 'Full-width media', icon: 'maximize' },
     { id: 'gallery', label: 'Gallery', icon: 'grid' },
     { id: 'compare', label: 'Compare two (before/after slider, or side by side in sync)', icon: 'compare' },
+    { id: 'collage', label: 'Collage (made in the collage editor, stays editable)', icon: 'collage' },
     { id: 'text-only', label: 'Text only', icon: 'notes' },
   ];
 
@@ -49,7 +53,9 @@
   let showNotes = $state(untrack(() => !!section.notes));
   let carousel = $state(0);
   let cropFor = $state<number | null>(null);
+  let picking = $state(false);
   const isCompare = $derived(section.layout === 'compare');
+  const isCollage = $derived(section.layout === 'collage');
   const chapterCount = $derived.by(() => {
     if (!section.chapter || !ds.doc) return 0;
     let n = 0;
@@ -118,6 +124,11 @@
   }
 
   function setLayout(l: Layout) {
+    // A collage section needs a collage first (the photos stay, for switching back).
+    if (l === 'collage' && !section.collage) {
+      picking = true;
+      return;
+    }
     section.layout = l;
     if (l === 'gallery' && !section.gallery) section.gallery = { mode: 'grid', columns: 0 };
     if (l === 'compare' && !section.compare) section.compare = { mode: 'slider', pos: 0.5 };
@@ -178,6 +189,23 @@
     editor.rename(section.title || 'Collage');
     editor.addToLayout(ids);
     app.view = 'editor';
+  }
+
+  function pickCollage(c: CollageChoice) {
+    picking = false;
+    void applyChoice(c, (ref) => {
+      if (!ds.doc) return;
+      section.collage = ref;
+      section.layout = 'collage';
+      touch();
+      // A new collage opens in the editor: offer the way back here.
+      if (c.kind === 'new') collages.returnTo = { docId: ds.doc.id, sectionId: section.id, projectId: ref.projectId, title: ds.doc.title };
+    });
+  }
+
+  function editThisCollage() {
+    if (!section.collage || !ds.doc) return;
+    void editCollage(section.collage, { docId: ds.doc.id, sectionId: section.id, title: ds.doc.title });
   }
 
   function applyEdit(i: number, e: PhotoEdit) {
@@ -259,7 +287,7 @@
   {#if section.collapsed}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="summary muted" onclick={() => { section.collapsed = false; touch(); }}>
-      {#if section.chapter}{chapterCount} section{chapterCount === 1 ? '' : 's'} in this chapter — click to expand{:else}{section.media.length} media{excerpt ? ' · ' + excerpt : ''}{/if}
+      {#if section.chapter}{chapterCount} section{chapterCount === 1 ? '' : 's'} in this chapter — click to expand{:else}{isCollage ? 'Collage' + (section.collage?.name ? ` “${section.collage.name}”` : '') : `${section.media.length} media`}{excerpt ? ' · ' + excerpt : ''}{/if}
     </div>
   {:else}
     {#if isCompare}
@@ -285,8 +313,21 @@
       </div>
     {/if}
 
+    {#if isCollage}
+      <div class="gallery-opts">
+        <button class="seg" disabled={!section.collage} onclick={editThisCollage}><Icon name="pencil" size={13} /> Edit collage</button>
+        <button class="seg" onclick={() => (picking = true)}>Choose another…</button>
+        <span class="muted">a live collage: changes in the collage editor show up here</span>
+      </div>
+    {/if}
+
     <div class="body">
-      {#if section.layout !== 'text-only'}
+      {#if isCollage}
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="collagezone" ondblclick={editThisCollage} title="Double-click to edit the collage">
+          <CollageView ref={section.collage} />
+        </div>
+      {:else if section.layout !== 'text-only'}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="mediazone"
@@ -407,6 +448,15 @@
   {/if}
 </section>
 
+{#if picking}
+  <CollagePicker
+    photos={section.media}
+    name={section.title || ds.doc?.title || 'Collage'}
+    onpick={pickCollage}
+    onclose={() => (picking = false)}
+  />
+{/if}
+
 {#if cropFor !== null}
   {@const m = section.media[cropFor]}
   {@const r = m ? resolver.cache.get(m.libraryId + '\u0000' + m.path) : undefined}
@@ -432,6 +482,11 @@
     letter-spacing: 0.06em;
     color: var(--accent);
     white-space: nowrap;
+  }
+  .collagezone {
+    min-width: 0;
+    border-radius: 10px;
+    overflow: hidden;
   }
   .cmpwrap {
     margin-bottom: 10px;

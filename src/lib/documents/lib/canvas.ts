@@ -321,7 +321,8 @@ export const CARD_HEAD = 46;
 /** Natural size of a section card for its layout and content (the user can resize it). */
 export function defaultCardSize(s: Section): { w: number; h: number } {
   const n = s.media.length;
-  const layout = n === 0 ? 'text-only' : s.layout;
+  // a live collage has no media of its own
+  const layout = s.layout === 'collage' ? 'collage' : n === 0 ? 'text-only' : s.layout;
   const text = plainText(s.text).trim();
   const head = s.title ? CARD_HEAD : 0;
   const textH = (w: number) => {
@@ -332,6 +333,11 @@ export function defaultCardSize(s: Section): { w: number; h: number } {
   };
   const r = mediaRatio(s.media[0]);
   switch (layout) {
+    case 'collage': {
+      const a = s.collage?.aspect || 4 / 3;
+      const w = a >= 1 ? 640 : 440;
+      return { w, h: Math.round(head + (w - 2 * CARD_PAD) / a + (text ? 10 + textH(w) : 0) + 2 * CARD_PAD) };
+    }
     case 'text-only': {
       const w = 420;
       return { w, h: Math.max(120, head + textH(w) + 2 * CARD_PAD + (head ? 0 : 6)) };

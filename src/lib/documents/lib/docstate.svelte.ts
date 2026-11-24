@@ -239,6 +239,11 @@ export class DocState {
     if (!this.doc || !refs.length) return;
     prefs.addRecent(refs);
     let sec = sectionId ? this.doc.sections.find((s) => s.id === sectionId) : undefined;
+    // A collage section shows its collage, not media: the new media get their own section below it.
+    if (sec?.layout === 'collage') {
+      newAt = this.sectionIndex(sec.id) + 1;
+      sec = undefined;
+    }
     if (!sec) {
       const layout: Layout = refs.length > 1 ? 'gallery' : 'media-top';
       sec = this.addSection(newAt, newSection(layout, []));
