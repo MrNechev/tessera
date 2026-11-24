@@ -4,8 +4,9 @@
    * libraries, with search, filters, duplicates and previews. Picked items can
    * start a collage or go to the image tools.
    */
-  import { ArrowLeftRight, BookOpen, CalendarDays, LayoutDashboard, Minimize2, Wand, X } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, CalendarDays, Film, LayoutDashboard, Minimize2, Wand, X } from '@lucide/svelte';
   import LibraryPanel from '../documents/components/LibraryPanel.svelte';
+  import VideoDialog from '../components/VideoDialog.svelte';
   import type { FileItem } from '../documents/lib/types';
   import { call } from '../api/http';
   import { newQuickCollage } from '../editor/session.svelte';
@@ -16,6 +17,8 @@
   import { palette } from '../documents/lib/palette.svelte';
 
   let picked = $state<FileItem[]>([]);
+  /** The selection the video dialog was opened with (kept if the selection changes). */
+  let videoFiles = $state<FileItem[] | null>(null);
   let panel: LibraryPanel | undefined = $state();
 
   function clear() {
@@ -34,6 +37,7 @@
         { id: 'lib:calendar', group: 'Selection', icon: 'calendar', title: `Make a calendar from ${n}`, run: () => use('calendar') },
         { id: 'lib:convert', group: 'Selection', icon: 'refresh', title: `Convert ${n}`, run: () => use('convert') },
         { id: 'lib:compress', group: 'Selection', icon: 'package', title: `Compress ${n}`, run: () => use('compress') },
+        { id: 'lib:video', group: 'Selection', icon: 'video', title: `Make a video from ${n}`, run: () => void (videoFiles = [...visual]) },
         { id: 'lib:batch', group: 'Selection', icon: 'sliders', title: `Resize, watermark or rename ${n}`, run: () => use('batch') },
       ];
     }),
@@ -41,6 +45,8 @@
   let busy = $state(false);
 
   const images = $derived(picked.filter((f) => f.kind === 'image'));
+  // Photos, clips and GIFs can go into a video.
+  const visual = $derived(picked.filter((f) => f.kind !== 'audio'));
 
   async function paths(items: FileItem[]): Promise<string[]> {
     return Promise.all(items.map((f) => call<string>('resolve', { libraryId: f.libraryId, path: f.path })));
@@ -79,6 +85,7 @@
       <button class="btn primary" disabled={busy || !images.length} onclick={() => void use('collage')}><LayoutDashboard size={15} /> Collage</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('book')}><BookOpen size={15} /> Photo book</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('calendar')}><CalendarDays size={15} /> Calendar</button>
+      <button class="btn" disabled={busy || !visual.length} title="An MP4 slideshow of the selected photos and clips" onclick={() => (videoFiles = [...visual])}><Film size={15} /> Video</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('convert')}><ArrowLeftRight size={15} /> Convert</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('compress')}><Minimize2 size={15} /> Compress</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('batch')}><Wand size={15} /> Batch</button>
@@ -86,6 +93,10 @@
     </div>
   {/if}
 </div>
+
+{#if videoFiles}
+  <VideoDialog source={{ kind: 'files', files: videoFiles }} onclose={() => (videoFiles = null)} />
+{/if}
 
 <style>
   .library-view {

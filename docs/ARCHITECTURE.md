@@ -144,6 +144,21 @@ and opens the print dialog. WebKitGTK ignores CSS `@page` sizes, so on Linux
 `src-tauri/src/print.rs` runs WebKit's print operation itself with a GTK page
 setup that matches the project's paper size and has no margins.
 
+## Video out
+
+`tools/video` makes MP4 slideshows (`video_start` / `video_status` /
+`video_cancel`, progress as `video` events). The UI (`src/lib/video`,
+`components/VideoDialog.svelte`) sends an ordered list of library photos,
+clips (with in/out points) and pictures it drew itself (title cards, collage
+pages). Photos are decoded by tessera-imaging (orientation, HEIC, RAW, crops)
+into plain JPEGs first. ffmpeg holds every still of a filter graph decoded, so
+the slideshow is encoded in chunks of six segments (zoompan, xfade, fill or
+fit-over-blur) with the final encoder (VA-API, x264 or OpenH264) and the chunks
+are joined by the concat demuxer without re-encoding; a chunk also renders the
+crossfade into the next chunk's first segment. The music is added in that last
+step. Results go to `Outputs/Videos` through the guard. The pure graph
+builder is unit-tested in `tools/video/graph.rs`.
+
 ## Image engine
 
 `crates/tessera-imaging` has its own [README](../crates/tessera-imaging/README.md)
