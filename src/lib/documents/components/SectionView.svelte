@@ -22,6 +22,7 @@
   import CollageView from './CollageView.svelte';
   import CollagePicker from './CollagePicker.svelte';
   import { fmtDayShort } from '../lib/diary';
+  import { openCutout } from '../../cutout/open.svelte';
 
   let {
     section,
@@ -222,6 +223,27 @@
     touch();
   }
 
+  /** Remove the photo's background; the transparent PNG (in Outputs) replaces it or follows it. */
+  function cutOut(i: number, name: string) {
+    const m = section.media[i];
+    openCutout({
+      source: { libraryId: m.libraryId, path: m.path, name },
+      actions: [
+        { id: 'insert', label: 'Add after it' },
+        { id: 'replace', label: 'Replace with the cut-out' },
+      ],
+      onsaved: (r, action) => {
+        const at = section.media.indexOf(m);
+        if (at < 0) return;
+        const next: MediaRef = { ...r.ref, ...(m.caption ? { caption: m.caption } : {}), ...(m.fit ? { fit: m.fit } : {}) };
+        if (action === 'replace') section.media[at] = next;
+        else section.media.splice(at + 1, 0, next);
+        optsFor = null;
+        touch();
+      },
+    });
+  }
+
   function setOpt<K extends keyof MediaRef>(i: number, k: K, v: MediaRef[K]) {
     const m = section.media[i];
     if (v === undefined || v === false || v === '') delete m[k];
@@ -404,6 +426,7 @@
                     <div class="row">
                       {#if r?.file && r.file.kind !== 'audio'}<button class="btn sm" onclick={() => (cropFor = i)}><Icon name="sliders" size={14} /> {m.crop || hasLook(m) ? 'Edit photo…' : 'Crop, filters…'}</button>{/if}
                       {#if m.crop || hasLook(m)}<button class="btn sm ghost" onclick={() => applyEdit(i, {})}>Undo edits</button>{/if}
+                      {#if r?.file?.kind === 'image'}<button class="btn sm" title="Remove the background (on this device)" onclick={() => cutOut(i, r.file!.name)}><Icon name="scissors" size={14} /> Cut out…</button>{/if}
                       <button class="btn sm" onclick={() => setCover(m)}><Icon name="image" size={14} /> Set as cover</button>
                       {#if r?.file?.taken || r?.file?.place}<button class="btn sm" onclick={() => metaCaption(i)}><Icon name="pin" size={14} /> Date/place caption</button>{/if}
                     </div>

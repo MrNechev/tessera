@@ -10,6 +10,13 @@ All notable changes to Tessera are documented here. The format follows
 are closing, and the two start sharing their tools.
 
 ### Added
+- **Cut-out stickers**: remove the background of any photo on your own
+  machine (U²-Netp in a Web Worker, nothing is uploaded anywhere) — from the
+  Library (*Cut out background*), a collage photo (*Cut out…* in the
+  Inspector, scissors in the Photos panel) or a story's media options. Refine
+  the edge with threshold, softness and an erase/restore brush; the result is
+  a transparent PNG in *Outputs › Cut-outs*, listed under *My cut-outs* in
+  the Stickers panel and usable in stories like any library photo.
 - **One home screen**: one *Recent* list for collages and documents (with
   covers; All / Collages / Documents), one set of *New* actions (quick
   collage, template, document, blank design, photo book, calendar, canvas,

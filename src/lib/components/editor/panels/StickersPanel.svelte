@@ -3,6 +3,7 @@
   import { createSticker } from '../../../model/factory';
   import type { StickerInfo } from '../../../stores/stickers.svelte';
   import StickerGrid from '../../StickerGrid.svelte';
+  import CutoutStickers from '../../../cutout/CutoutStickers.svelte';
 
   function add(s: StickerInfo) {
     const size = editor.pageShort * 0.18;
@@ -22,6 +23,7 @@
 <div class="head">
   <h3>Stickers</h3>
 </div>
+<CutoutStickers />
 <!-- the catalogue grid is shared with the story canvas' sticker picker -->
 <div class="body">
   <StickerGrid onpick={add} />
