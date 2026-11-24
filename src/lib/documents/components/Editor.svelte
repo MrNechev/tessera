@@ -195,13 +195,13 @@
   const unregister = palette.register('editor', (): Command[] => {
     if (!ds.doc) return [];
     const cmds: Command[] = [
-      { id: 'ed:view', group: 'This document', icon: view === 'doc' ? 'canvas' : 'notes', title: view === 'doc' ? 'Switch to canvas' : 'Switch to document', run: () => router.go(view === 'doc' ? `/doc/${id}/canvas` : `/doc/${id}`) },
-      { id: 'ed:present', group: 'This document', icon: 'present', title: 'Present', shortcut: 'F5', run: () => present() },
-      { id: 'ed:add', group: 'This document', icon: 'plus', title: 'Add section', run: () => { const s = ds.addSection(ds.activeSection ? ds.sectionIndex(ds.activeSection) + 1 : null); scrollToSection(s.id); } },
-      { id: 'ed:find', group: 'This document', icon: 'replace', title: 'Find and replace', shortcut: 'Ctrl+H', run: () => { findOpen = true; } },
-      { id: 'ed:history', group: 'This document', icon: 'history', title: 'Version history', run: () => { history = true; } },
-      { id: 'ed:settings', group: 'This document', icon: 'settings', title: 'Document settings (tags, cover, music, slideshow)', run: () => { settingsOpen = true; } },
-      { id: 'ed:library', group: 'This document', icon: 'panel-left', title: showLibrary ? 'Hide library' : 'Show library', run: () => { showLibrary = !showLibrary; setPref('library', showLibrary ? '1' : '0'); } },
+      { id: 'ed:view', group: 'This story', icon: view === 'doc' ? 'canvas' : 'notes', title: view === 'doc' ? 'Switch to canvas' : 'Switch to story', run: () => router.go(view === 'doc' ? `/doc/${id}/canvas` : `/doc/${id}`) },
+      { id: 'ed:present', group: 'This story', icon: 'present', title: 'Present', shortcut: 'F5', run: () => present() },
+      { id: 'ed:add', group: 'This story', icon: 'plus', title: 'Add section', run: () => { const s = ds.addSection(ds.activeSection ? ds.sectionIndex(ds.activeSection) + 1 : null); scrollToSection(s.id); } },
+      { id: 'ed:find', group: 'This story', icon: 'replace', title: 'Find and replace', shortcut: 'Ctrl+H', run: () => { findOpen = true; } },
+      { id: 'ed:history', group: 'This story', icon: 'history', title: 'Version history', run: () => { history = true; } },
+      { id: 'ed:settings', group: 'This story', icon: 'settings', title: 'Story settings (tags, cover, music, slideshow)', run: () => { settingsOpen = true; } },
+      { id: 'ed:library', group: 'This story', icon: 'panel-left', title: showLibrary ? 'Hide library' : 'Show library', run: () => { showLibrary = !showLibrary; setPref('library', showLibrary ? '1' : '0'); } },
     ];
     ds.doc.sections.forEach((sec, i) =>
       cmds.push({
@@ -480,7 +480,7 @@
 
 <div class="editor" style="--lib-w:{showLibrary ? libWidth : 0}px">
   <header class="top">
-    <button class="btn ghost back" title="All documents" onclick={() => router.go('/')}><Icon name="chev-left" /> Documents</button>
+    <button class="btn ghost back" title="All stories" onclick={() => router.go('/')}><Icon name="chev-left" /> Stories</button>
     <button class="icon-btn" class:on={showLibrary} title="Library" onclick={() => { showLibrary = !showLibrary; setPref('library', showLibrary ? '1' : '0'); }}><Icon name="panel-left" /></button>
     {#if ds.doc}
       <input class="doc-title" bind:value={ds.doc.title} oninput={() => ds.touch()} placeholder="Untitled" />
@@ -492,26 +492,26 @@
     </span>
     <div class="grow"></div>
     <div class="viewseg" role="tablist" aria-label="View">
-      <button role="tab" aria-selected={view === 'doc'} class:on={view === 'doc'} title="Document: sections top to bottom" onclick={() => router.go(`/doc/${id}`)}><Icon name="notes" size={15} /> Document</button>
+      <button role="tab" aria-selected={view === 'doc'} class:on={view === 'doc'} title="Document: sections top to bottom" onclick={() => router.go(`/doc/${id}`)}><Icon name="notes" size={15} /> Story</button>
       <button role="tab" aria-selected={view === 'canvas'} class:on={view === 'canvas'} title="Canvas: the same sections as cards on a whiteboard" onclick={() => router.go(`/doc/${id}/canvas`)}><Icon name="canvas" size={15} /> Canvas</button>
     </div>
     {#if ds.doc?.tags?.length}
-      <button class="tagchips" title="Tags — edit in document settings" onclick={() => (settingsOpen = true)}>
+      <button class="tagchips" title="Tags — edit in story settings" onclick={() => (settingsOpen = true)}>
         {#each ds.doc.tags.slice(0, 3) as t (t)}<span class="chip">{t}</span>{/each}{#if ds.doc.tags.length > 3}<span class="chip">+{ds.doc.tags.length - 3}</span>{/if}
       </button>
     {/if}
     <button class="btn ghost" title="Version history" onclick={() => (history = true)} disabled={!ds.doc}><Icon name="history" /> History</button>
     <div class="menuwrap">
-      <button class="icon-btn" title="Document menu" onclick={() => (docMenu = !docMenu)} disabled={!ds.doc}><Icon name="more" /></button>
+      <button class="icon-btn" title="Story menu" onclick={() => (docMenu = !docMenu)} disabled={!ds.doc}><Icon name="more" /></button>
       {#if docMenu}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
         <div class="menu-backdrop" onclick={() => (docMenu = false)}></div>
         <div class="dmenu">
           <button onclick={() => { docMenu = false; findOpen = true; }}><Icon name="replace" size={15} /> Find and replace <span class="kbd">Ctrl H</span></button>
-          <button onclick={() => { docMenu = false; settingsOpen = true; }}><Icon name="settings" size={15} /> Document settings <span class="muted">tags, cover, music</span></button>
+          <button onclick={() => { docMenu = false; settingsOpen = true; }}><Icon name="settings" size={15} /> Story settings <span class="muted">tags, cover, music</span></button>
           <button onclick={() => { docMenu = false; palette.open = true; }}><Icon name="command" size={15} /> Command palette <span class="kbd">Ctrl K</span></button>
           <div class="dsep">Export</div>
-          <button onclick={() => runExport('print')}><Icon name="file-pdf" size={15} /> PDF / print (document)</button>
+          <button onclick={() => runExport('print')}><Icon name="file-pdf" size={15} /> PDF / print (story)</button>
           <button onclick={() => runExport('slides')}><Icon name="file-pdf" size={15} /> PDF (slides)</button>
           <button onclick={() => runExport('canvas')}><Icon name="file-pdf" size={15} /> PDF (canvas frames)</button>
           <button onclick={() => runExport('pptx')}><Icon name="present" size={15} /> PowerPoint (.pptx)</button>
@@ -550,7 +550,7 @@
   {#if ds.status === 'conflict'}
     <div class="conflict">
       <Icon name="alert" />
-      <span>This document was changed in another tab or on another computer{ds.conflict ? ` (version ${ds.conflict.version}, ${new Date(ds.conflict.updatedAt).toLocaleString()})` : ''}. Your latest edits are not saved.</span>
+      <span>This story was changed in another tab or on another computer{ds.conflict ? ` (version ${ds.conflict.version}, ${new Date(ds.conflict.updatedAt).toLocaleString()})` : ''}. Your latest edits are not saved.</span>
       <button class="btn sm" onclick={() => ds.takeTheirs()}>Load their version</button>
       <button class="btn sm primary" onclick={() => ds.keepMine()}>Overwrite with mine</button>
     </div>
@@ -573,7 +573,7 @@
         {:else if !ds.doc}
           <div class="center">
             <p>{ds.error}</p>
-            <button class="btn" onclick={() => router.go('/')}>Back to documents</button>
+            <button class="btn" onclick={() => router.go('/')}>Back to stories</button>
           </div>
         {:else}
           <Canvas
@@ -593,7 +593,7 @@
       {:else if !ds.doc}
         <div class="center">
           <p>{ds.error}</p>
-          <button class="btn" onclick={() => router.go('/')}>Back to documents</button>
+          <button class="btn" onclick={() => router.go('/')}>Back to stories</button>
         </div>
       {:else}
         {#key ds.revision}

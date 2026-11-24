@@ -53,7 +53,7 @@
         await docApi.saveDoc(d.id, d.version, d);
         id = d.id;
       }
-      toasts.push({ kind: 'success', title: 'Added to the document', message: `${refs.length} image${refs.length === 1 ? '' : 's'} saved in Outputs.` });
+      toasts.push({ kind: 'success', title: 'Added to the story', message: `${refs.length} image${refs.length === 1 ? '' : 's'} saved in Outputs.` });
       onclose();
       router.go(`/doc/${id}?s=${section.id}`);
       app.view = 'documents';
@@ -65,13 +65,13 @@
   }
 </script>
 
-<Modal title="Add to a document" width={460} {onclose}>
+<Modal title="Add to a story" width={460} {onclose}>
   <div class="col">
     <p class="hint">The collage is saved as {editor.pageCount > 1 ? 'images' : 'an image'} in Outputs and added as a new section.</p>
     <label class="col tight">
-      <span class="label">Document</span>
+      <span class="label">Story</span>
       <select class="select" bind:value={target}>
-        <option value="new">New document…</option>
+        <option value="new">New story…</option>
         {#each docs as d (d.id)}<option value={d.id}>{d.title || 'Untitled'}</option>{/each}
       </select>
     </label>

@@ -59,7 +59,7 @@
 
 <div class="bar noprint">
   <button class="btn" onclick={() => router.go(`/doc/${id}`)}><Icon name="chev-left" /> Back</button>
-  <b>{mode === 'doc' ? 'Document' : mode === 'slides' ? 'Slides' : 'Canvas frames'} — print or “Save as PDF”</b>
+  <b>{mode === 'doc' ? 'Story' : mode === 'slides' ? 'Slides' : 'Canvas frames'} — print or “Save as PDF”</b>
   <span class="grow"></span>
   {#if mode === 'doc'}
     <select class="input" bind:value={pageSize}><option value="A4">A4</option><option value="letter">Letter</option></select>

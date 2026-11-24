@@ -19,7 +19,7 @@
     oncancelrelink,
     paletteTarget = true,
     onselect,
-    hint = 'Click to insert · drag into the document · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview',
+    hint = 'Click to insert · drag into the story · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview',
   }: {
     onpick: (items: FileItem[], newSection: boolean) => void;
     relinking?: boolean;

@@ -463,7 +463,7 @@
     const sections = selCards.map((s) => $state.snapshot(s)) as Section[];
     const text = CLIP_PREFIX + JSON.stringify({ v: 1, items, sections });
     navigator.clipboard?.writeText(text).then(
-      () => toasts.show(`Copied ${selected.size} item${selected.size === 1 ? '' : 's'} — paste on any canvas or document`, 'ok'),
+      () => toasts.show(`Copied ${selected.size} item${selected.size === 1 ? '' : 's'} — paste on any canvas or story`, 'ok'),
       () => toasts.error('The browser blocked clipboard access'),
     );
     if (cut) {
@@ -1227,7 +1227,7 @@
     select([]);
     change();
     if (hidden)
-      toasts.show(hidden === 1 ? 'Card removed from the canvas (the section is still in the document)' : `${hidden} cards removed from the canvas (still in the document)`, 'info', 6000, {
+      toasts.show(hidden === 1 ? 'Card removed from the canvas (the section is still in the story)' : `${hidden} cards removed from the canvas (still in the story)`, 'info', 6000, {
         label: 'Undo',
         run: undo,
       });
@@ -1658,7 +1658,7 @@
         <div class="empty">
           <h3>An empty canvas</h3>
           <p>Drag media from the library here, or pick a tool on the left. Double-click anywhere for a sticky note.</p>
-          <p class="muted">Sections of the document show up here as cards. Frames become the steps of a canvas presentation.</p>
+          <p class="muted">Sections of the story show up here as cards. Frames become the steps of a canvas presentation.</p>
         </div>
       {/if}
     </div>
@@ -1695,7 +1695,7 @@
         {#if arrangeMenu}
           <div class="zpop">
             <div class="zh">Arrange {selCards.length >= 2 ? `${selCards.length} selected cards` : 'all cards'}</div>
-            <button onclick={() => arrange('grid')}><Icon name="grid" size={14} /> Grid (document order)</button>
+            <button onclick={() => arrange('grid')}><Icon name="grid" size={14} /> Grid (story order)</button>
             <button onclick={() => arrange('timeline')}><Icon name="calendar" size={14} /> Timeline (date taken)</button>
             <button onclick={() => arrange('folder')}><Icon name="folder" size={14} /> By folder (with frames)</button>
           </div>
@@ -1737,7 +1737,7 @@
         {#if only('card') && selCards.length === 1}
           <button class="btn sm" onclick={() => openDrawer(selCards[0].id)}><Icon name="pencil" size={14} /> Edit</button>
           <button class="icon-btn" title="Fit height to the content" onclick={() => fitCardHeight(selCards[0].id)}><Icon name="fit-h" /></button>
-          <button class="icon-btn" title="Present the document from this section" onclick={() => onpresentdoc(ds.sectionIndex(selCards[0].id))}><Icon name="present" /></button>
+          <button class="icon-btn" title="Present the story from this section" onclick={() => onpresentdoc(ds.sectionIndex(selCards[0].id))}><Icon name="present" /></button>
           <span class="vsep"></span>
         {/if}
         {#if only('frame') && selItems.length === 1 && selItems[0].type === 'frame'}
@@ -1826,7 +1826,7 @@
           <button class="icon-btn" title="Send to back" onclick={() => reorder(false)}><Icon name="arrow-down" /></button>
         {/if}
         <button class="icon-btn" title="Duplicate (Ctrl+D)" onclick={duplicateSelection}><Icon name="copy" /></button>
-        <button class="icon-btn danger" title={selCards.length && !selItems.length ? 'Remove from the canvas (Delete) — stays in the document' : 'Delete (Del)'} onclick={deleteSelection}>
+        <button class="icon-btn danger" title={selCards.length && !selItems.length ? 'Remove from the canvas (Delete) — stays in the story' : 'Delete (Del)'} onclick={deleteSelection}>
           <Icon name={selCards.length && !selItems.length ? 'eye-off' : 'trash'} />
         </button>
       </div>
@@ -1843,7 +1843,7 @@
           <span><span class="kbd">Shift 1</span> show all · <span class="kbd">Shift 2</span> zoom to selection</span><span><span class="kbd">Ctrl 0</span> 100% · <span class="kbd">+</span>/<span class="kbd">−</span> zoom</span>
           <span><span class="kbd">Ctrl Z</span> undo · <span class="kbd">Ctrl Shift Z</span> redo</span><span><span class="kbd">Ctrl D</span> duplicate · <span class="kbd">Del</span> delete</span>
           <span><span class="kbd">P</span> pen · <span class="kbd">M</span> highlighter</span><span>Double-click a card: edit its text in place</span>
-          <span><span class="kbd">Ctrl C</span>/<span class="kbd">V</span>/<span class="kbd">X</span> copy, paste, cut (also between canvases and documents)</span><span><span class="kbd">Ctrl G</span> group · <span class="kbd">Ctrl Shift G</span> ungroup</span>
+          <span><span class="kbd">Ctrl C</span>/<span class="kbd">V</span>/<span class="kbd">X</span> copy, paste, cut (also between canvases and stories)</span><span><span class="kbd">Ctrl G</span> group · <span class="kbd">Ctrl Shift G</span> ungroup</span>
           <span><span class="kbd">Ctrl Shift L</span> lock / unlock</span><span>Drag the middle of an arrow to bend it</span>
           <span>Double-click a note or shape: edit text</span><span>Double-click empty space: sticky note</span>
           <span>Alt+click: select one item of a group</span><span>Pink lines: alignment guides (Alt = off)</span>

@@ -45,7 +45,7 @@
     {:else}
       <div class="nope">
         <img src="/d/{file.key}/t1280.webp" alt="" />
-        <p>This {file.vcodec?.toUpperCase()} video needs a browser-compatible copy. Insert it into a document and it is converted automatically.</p>
+        <p>This {file.vcodec?.toUpperCase()} video needs a browser-compatible copy. Insert it into a story and it is converted automatically.</p>
       </div>
     {/if}
   </div>
@@ -62,7 +62,7 @@
     </div>
     <div class="uses">
       {#if uses === null}<span class="muted">…</span>
-      {:else if !uses.length}<span class="muted">Not used in any document</span>
+      {:else if !uses.length}<span class="muted">Not used in any story</span>
       {:else}
         <span class="muted">Used in</span>
         {#each uses.slice(0, 6) as u, i (i)}

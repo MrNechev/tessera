@@ -139,7 +139,7 @@
     </div>
     <button class="btn sm add" onclick={onaddframe}><Icon name="frame" size={14} /> Frame around the view</button>
   {:else}
-    <p class="hint muted">Every section of the document is a card. Hidden cards stay in the document.</p>
+    <p class="hint muted">Every section of the story is a card. Hidden cards stay in the document.</p>
     <div class="list">
       {#each doc.sections as s, i (s.id)}
         {@const t = thumb(s)}

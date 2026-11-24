@@ -89,7 +89,7 @@
   </section>
 
   <section class="card">
-    <h3>Documents &amp; library</h3>
+    <h3>Stories &amp; library</h3>
     <div class="field">
       <div class="lbl"><span>Slide transition</span><span class="hint">Used when presenting documents. Saved in this browser.</span></div>
       <Segmented

@@ -51,7 +51,7 @@
       router.go(`/doc/${d.id}${canvas ? '/canvas' : ''}`);
       app.view = 'documents';
     } catch (e) {
-      toasts.push({ kind: 'error', title: 'Could not create the document', message: String(e instanceof Error ? e.message : e) });
+      toasts.push({ kind: 'error', title: 'Could not create the story', message: String(e instanceof Error ? e.message : e) });
     }
   }
 
@@ -61,7 +61,7 @@
       router.go(`/doc/${d.id}${t.canvas ? '/canvas' : ''}`);
       app.view = 'documents';
     } catch (e) {
-      toasts.push({ kind: 'error', title: 'Could not create the document', message: String(e instanceof Error ? e.message : e) });
+      toasts.push({ kind: 'error', title: 'Could not create the story', message: String(e instanceof Error ? e.message : e) });
     }
   }
   let chosen = $state<TemplateDef | null>(null);
@@ -123,7 +123,7 @@
   <section class="hero">
     <div class="intro">
       <h1>Make something <span class="grad">beautiful</span>.</h1>
-      <p>Collages, photo books, documents and presentations from your photos — and the tools to polish every image.</p>
+      <p>Collages, photo books, stories and presentations from your photos — and the tools to polish every image.</p>
     </div>
     <div class="actions">
       <button class="action a1" onclick={() => void newQuickCollage()}>
@@ -138,8 +138,8 @@
       </button>
       <button class="action a4" onclick={() => void newDoc()}>
         <span class="ico"><FileText size={22} /></span>
-        <span class="t">Document</span>
-        <span class="d">Tell a story with photos, videos and text. Present it full-screen.</span>
+        <span class="t">Story</span>
+        <span class="d">A diary, a trip, a family chronicle: photos, videos and text. Present it full-screen.</span>
       </button>
       <button class="action a3" onclick={newBlank}>
         <span class="ico"><Hand size={22} /></span>
@@ -187,9 +187,9 @@
       <div class="seg" role="tablist" aria-label="Show">
         <button role="tab" aria-selected={recentKind === 'all'} class:on={recentKind === 'all'} onclick={() => (recentKind = 'all')}>All</button>
         <button role="tab" aria-selected={recentKind === 'collage'} class:on={recentKind === 'collage'} onclick={() => (recentKind = 'collage')}>Collages</button>
-        <button role="tab" aria-selected={recentKind === 'doc'} class:on={recentKind === 'doc'} onclick={() => (recentKind = 'doc')}>Documents</button>
+        <button role="tab" aria-selected={recentKind === 'doc'} class:on={recentKind === 'doc'} onclick={() => (recentKind = 'doc')}>Stories</button>
       </div>
-      <button class="btn ghost" onclick={() => { router.go('/'); app.view = 'documents'; }}>All documents →</button>
+      <button class="btn ghost" onclick={() => { router.go('/'); app.view = 'documents'; }}>All stories →</button>
     </div>
     {#if recent.length}
       <div class="recent">
@@ -213,7 +213,7 @@
             <div class="proj card" role="button" tabindex="0" onclick={() => openDoc(d)} onkeydown={(e) => e.key === 'Enter' && openDoc(d)}>
               <div class="pthumb doc">
                 {#if c}<img class="cover" src={c} alt="" loading="lazy" />{:else}<FileText size={30} />{/if}
-                <span class="kind"><FileText size={12} /> Document</span>
+                <span class="kind"><FileText size={12} /> Story</span>
               </div>
               <div class="pinfo">
                 <span class="truncate"><b>{d.title || 'Untitled'}</b></span>
@@ -225,7 +225,7 @@
         {/each}
       </div>
     {:else}
-      <p class="hint">Your collages and documents appear here automatically as you work on them.</p>
+      <p class="hint">Your collages and stories appear here automatically as you work on them.</p>
     {/if}
   </section>
 

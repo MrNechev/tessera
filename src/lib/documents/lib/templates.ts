@@ -27,7 +27,7 @@ export const TEMPLATES: Template[] = [
       sections: [
         sec({ title: 'The trip', layout: 'media-full', text: doc(p('Where, when and who. Drop a cover photo here.')) }),
         sec({ title: 'Day 1', chapter: true, layout: 'text-only', text: doc(p('Arrival.')) }),
-        sec({ title: 'Arrival', text: doc(p('First impressions. Add photos from the library, then use Document settings → Tools → “Add date & place captions”.')) }),
+        sec({ title: 'Arrival', text: doc(p('First impressions. Add photos from the library, then use Story settings → Tools → “Add date & place captions”.')) }),
         sec({ title: 'Highlight of the day', layout: 'media-left', text: doc(p('What made the day.')) }),
         sec({ title: 'Day 2', chapter: true, layout: 'text-only', text: doc(p('')) }),
         sec({ title: 'Gallery', layout: 'gallery', gallery: { mode: 'grid', columns: 3 }, text: doc(p('')) }),

@@ -51,7 +51,7 @@
   const nav: { id: View; label: string; icon: typeof House }[] = [
     { id: 'home', label: 'Home', icon: House },
     { id: 'library', label: 'Library', icon: Images },
-    { id: 'documents', label: 'Documents', icon: BookOpen },
+    { id: 'documents', label: 'Stories', icon: BookOpen },
     { id: 'editor', label: 'Collage', icon: LayoutDashboard },
     { id: 'convert', label: 'Convert', icon: ArrowLeftRight },
     { id: 'compress', label: 'Compress', icon: Minimize2 },

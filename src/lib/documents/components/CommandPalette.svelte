@@ -79,7 +79,7 @@
     for (const d of docs)
       all.push({
         id: 'doc:' + d.id,
-        group: 'Documents',
+        group: 'Stories',
         icon: 'file',
         title: d.title || 'Untitled',
         subtitle: d.tags?.length ? d.tags.join(' · ') : `${d.sections} sections`,
@@ -114,7 +114,7 @@
     for (const h of hits)
       top.push({
         id: 'hit:' + h.docId + h.section + h.field + h.snippet.slice(0, 20),
-        group: 'Found in documents',
+        group: 'Found in stories',
         icon: 'search',
         title: h.snippet,
         subtitle: `${h.docTitle}${h.section >= 0 ? ` · section ${h.section + 1}` : ''} · ${h.field}`,
@@ -164,7 +164,7 @@
   <div class="pal" onclick={(e) => e.stopPropagation()}>
     <div class="in">
       <Icon name="search" />
-      <input bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Search commands, collages, documents, library files…" spellcheck="false" />
+      <input bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Search commands, collages, stories, library files…" spellcheck="false" />
       <span class="kbd">Esc</span>
     </div>
     <div class="list" bind:this={list}>

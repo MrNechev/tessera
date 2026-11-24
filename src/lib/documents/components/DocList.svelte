@@ -126,8 +126,8 @@
   <main>
     <div class="head">
       <div class="titles">
-        <h1>Documents</h1>
-        <p class="muted">Long stories, canvases and presentations made from your library.</p>
+        <h1>Stories</h1>
+        <p class="muted">Diaries, trips and chronicles — told with your photos and videos, presented full-screen.</p>
       </div>
       <input class="input search" type="search" placeholder="Search titles, tags and text…" bind:value={filter} />
       <div class="menuwrap">
@@ -136,15 +136,15 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="menu-backdrop" onclick={() => (moreOpen = false)}></div>
           <div class="tpls more-menu">
-            <button onclick={() => { moreOpen = false; fileInput.click(); }}><Icon name="upload" /><span><b>Import a document</b><small>A .json file exported from Tessera or Letopis</small></span></button>
-            <a href="/api/export" onclick={() => (moreOpen = false)}><Icon name="download" /><span><b>Back up every document</b><small>One zip with every document and its history</small></span></a>
-            <button onclick={() => { moreOpen = false; void stress(); }}><Icon name="activity" /><span><b>Create a stress-test document</b><small>Random library media, to check scrolling performance</small></span></button>
+            <button onclick={() => { moreOpen = false; fileInput.click(); }}><Icon name="upload" /><span><b>Import a story</b><small>A .json file exported from Tessera or Letopis</small></span></button>
+            <a href="/api/export" onclick={() => (moreOpen = false)}><Icon name="download" /><span><b>Back up every story</b><small>One zip with every story and its history</small></span></a>
+            <button onclick={() => { moreOpen = false; void stress(); }}><Icon name="activity" /><span><b>Create a stress-test story</b><small>Random library media, to check scrolling performance</small></span></button>
           </div>
         {/if}
       </div>
       <input type="file" accept=".json,application/json" hidden bind:this={fileInput} onchange={importFile} />
       <div class="split">
-        <button class="btn primary" onclick={create}><Icon name="plus" /> New document</button>
+        <button class="btn primary" onclick={create}><Icon name="plus" /> New story</button>
         <button class="btn primary more" title="Start from a template" onclick={() => (tplOpen = !tplOpen)}><Icon name="chev-down" /></button>
         {#if tplOpen}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -166,7 +166,7 @@
     {/if}
     {#if hits.length}
       <div class="hits">
-        <div class="muted small">Found inside documents</div>
+        <div class="muted small">Found inside stories</div>
         {#each hits as h, i (i)}
           <a class="hit" href="#/doc/{h.docId}{h.sectionId ? `?s=${h.sectionId}` : ''}"><b>{h.docTitle}</b> <span class="muted">· {h.field}</span> — {h.snippet}</a>
         {/each}
@@ -179,12 +179,12 @@
       <div class="empty">
         <h2>Start your first chronicle</h2>
         <p class="muted">
-          A document is a list of sections. Each section combines images or videos from your library with text. Reorder
+          A story is a list of sections. Each section combines images or videos from your library with text. Reorder
           them freely, then present them full-screen.
         </p>
         <div class="row">
-          <button class="btn primary" onclick={create}><Icon name="plus" /> New document</button>
-          <button class="btn" onclick={stress} title="Builds a document from random library videos, GIFs and images">Create a stress-test document</button>
+          <button class="btn primary" onclick={create}><Icon name="plus" /> New story</button>
+          <button class="btn" onclick={stress} title="Builds a story from random library videos, GIFs and images">Create a stress-test story</button>
         </div>
       </div>
     {:else}

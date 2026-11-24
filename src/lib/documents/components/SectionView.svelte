@@ -70,7 +70,7 @@
     ds.doc.cover = { libraryId: m.libraryId, path: m.path };
     optsFor = null;
     touch();
-    toasts.show('Set as the document cover', 'ok');
+    toasts.show('Set as the story cover', 'ok');
   }
 
   function metaCaption(i: number) {
@@ -92,7 +92,7 @@
 
   function slideTiming() {
     menu = false;
-    const v = prompt('Seconds on screen in timed slideshows (empty = use the document setting)', section.advance ? String(section.advance) : '');
+    const v = prompt('Seconds on screen in timed slideshows (empty = use the story setting)', section.advance ? String(section.advance) : '');
     if (v === null) return;
     const n = parseFloat(v);
     if (isFinite(n) && n > 0) section.advance = n;
@@ -332,7 +332,7 @@
                       <label>End at (s) <input class="input" type="number" min="0" step="0.1" value={m.endAt ?? ''} onchange={(e) => setOpt(i, 'endAt', num(e.currentTarget.value))} /></label>
                       <label class="cb"><input type="checkbox" checked={!!m.muted} onchange={(e) => setOpt(i, 'muted', e.currentTarget.checked)} /> Muted</label>
                       <label class="cb"><input type="checkbox" checked={!!m.loop} onchange={(e) => setOpt(i, 'loop', e.currentTarget.checked)} /> Loop</label>
-                      <label class="cb" title="In the document: plays muted while visible. In presentations videos always start automatically."><input type="checkbox" checked={!!m.autoplay} onchange={(e) => setOpt(i, 'autoplay', e.currentTarget.checked)} /> Autoplay in document</label>
+                      <label class="cb" title="In the story: plays muted while visible. In presentations videos always start automatically."><input type="checkbox" checked={!!m.autoplay} onchange={(e) => setOpt(i, 'autoplay', e.currentTarget.checked)} /> Autoplay in story</label>
                     {/if}
                     <label>Fit in slides
                       <select class="input" value={m.fit ?? 'contain'} onchange={(e) => setOpt(i, 'fit', e.currentTarget.value === 'contain' ? undefined : (e.currentTarget.value as 'cover'))}>

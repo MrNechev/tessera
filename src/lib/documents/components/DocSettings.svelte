@@ -127,7 +127,7 @@
 <div class="backdrop" onclick={onclose}>
   <div class="dialog" onclick={(e) => e.stopPropagation()}>
     <header>
-      <h2>Document settings</h2>
+      <h2>Story settings</h2>
       <button class="icon-btn" onclick={onclose} aria-label="Close"><Icon name="x" /></button>
     </header>
     <div class="body">
@@ -147,7 +147,7 @@
           />
           <datalist id="alltags">{#each allTags as t (t)}<option value={t}></option>{/each}</datalist>
         </div>
-        <p class="muted small">Tags show on the start page, filter the document list and work in the command palette (Ctrl+K).</p>
+        <p class="muted small">Tags show on the start page, filter the story list and work in the command palette (Ctrl+K).</p>
       </section>
 
       <section>

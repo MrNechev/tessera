@@ -215,8 +215,8 @@
 
       <section class="card">
         <h2><Icon name="video" /> Stress test</h2>
-        <p>Builds a document from ~40 random videos, 25 GIFs and 40 images of your library. Scroll it with the performance overlay on: active video elements should stay low and scrolling smooth.</p>
-        <button class="btn" onclick={stress}>Create stress-test document</button>
+        <p>Builds a story from ~40 random videos, 25 GIFs and 40 images of your library. Scroll it with the performance overlay on: active video elements should stay low and scrolling smooth.</p>
+        <button class="btn" onclick={stress}>Create stress-test story</button>
       </section>
 
       <p class="muted ver">Tessera {s.version} · up {s.uptime} · playable codecs: {s.config.playableVideo.join(', ')}</p>

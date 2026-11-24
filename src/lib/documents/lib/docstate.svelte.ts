@@ -94,7 +94,7 @@ export class DocState {
       } catch {}
     } catch (e) {
       this.status = 'error';
-      this.error = e instanceof ApiError && e.status === 404 ? 'Document not found.' : String((e as Error).message);
+      this.error = e instanceof ApiError && e.status === 404 ? 'Story not found.' : String((e as Error).message);
     }
   }
 

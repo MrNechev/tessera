@@ -27,7 +27,7 @@
       <img src="/tessera.svg" alt="" width="40" height="40" />
       <div>
         <h1>Tessera</h1>
-        <p class="muted">collages, documents and presentations from your photos</p>
+        <p class="muted">collages, stories and presentations from your photos</p>
       </div>
     </div>
     <!-- svelte-ignore a11y_autofocus -->

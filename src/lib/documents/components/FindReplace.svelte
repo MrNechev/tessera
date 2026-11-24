@@ -73,7 +73,7 @@
 
 <div class="fr">
   <Icon name="search" size={15} />
-  <input class="input" bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Find in this document" />
+  <input class="input" bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Find in this story" />
   <button class="seg" class:on={opts.caseSensitive} title="Match case" onclick={() => (opts.caseSensitive = !opts.caseSensitive)}>Aa</button>
   <button class="seg" class:on={opts.wholeWord} title="Whole words" onclick={() => (opts.wholeWord = !opts.wholeWord)}>W</button>
   <span class="count muted">{q ? (matches.length ? `${cur + 1} / ${matches.length}` : 'no matches') : ''}</span>

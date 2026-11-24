@@ -28,7 +28,7 @@ export function registerAppCommands(go: (v: View) => void): () => void {
     const views: [View, string, string, string][] = [
       ['home', 'Home', 'home', 'start recent'],
       ['library', 'Library', 'image', 'photos videos files media'],
-      ['documents', 'Documents', 'notes', 'all documents list'],
+      ['documents', 'Stories', 'notes', 'all stories documents diary list'],
       ['convert', 'Convert images', 'refresh', 'format jpeg png webp avif heic'],
       ['compress', 'Compress images', 'package', 'smaller size'],
       ['batch', 'Batch: resize, watermark, rename', 'sliders', 'resize watermark rename bulk'],
@@ -70,8 +70,8 @@ export function registerAppCommands(go: (v: View) => void): () => void {
         id: 'new:doc',
         group: 'New',
         icon: 'file',
-        title: 'Document',
-        keywords: 'new document story chronicle',
+        title: 'Story',
+        keywords: 'new story diary journal document chronicle trip',
         run: async () => {
           const d = await docApi.createDoc('Untitled');
           router.go(`/doc/${d.id}`);
