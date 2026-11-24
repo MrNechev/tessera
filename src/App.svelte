@@ -347,7 +347,7 @@
 {/if}
 
 {#if palette.open}<div class="lt"><CommandPalette /></div>{/if}
-{#if app.newProject}<NewProjectDialog kind={app.newProject} onclose={() => (app.newProject = null)} />{/if}
+{#if app.newProject}<NewProjectDialog kind={app.newProject} initial={app.newProjectPhotos ?? undefined} onclose={() => { app.newProject = null; app.newProjectPhotos = null; }} />{/if}
 {#if app.ready && isTauri && !app.settings.setupDone}<SetupDialog onclose={() => undefined} />{/if}
 {/if}
 

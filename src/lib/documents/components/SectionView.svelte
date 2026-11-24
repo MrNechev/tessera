@@ -12,6 +12,9 @@
   import CompareView from './CompareView.svelte';
   import PhotoDialog, { type PhotoEdit } from './PhotoDialog.svelte';
   import { hasLook } from '../../look/looks.svelte';
+  import { importLibraryRefs, newBlank } from '../../editor/session.svelte';
+  import { editor } from '../../editor/editor.svelte';
+  import { app } from '../../stores/app.svelte';
   import { toasts } from '../lib/toast.svelte';
 
   let {
@@ -167,6 +170,16 @@
     return isFinite(n) && n > 0 ? n : undefined;
   }
 
+  /** Start a quick collage with this section's photos (videos are skipped). */
+  async function collageFromSection() {
+    const ids = await importLibraryRefs(section.media.map((m) => ({ libraryId: m.libraryId, path: m.path, kind: resolver.cache.get(m.libraryId + '\u0000' + m.path)?.file?.kind })));
+    if (!ids.length) return;
+    newBlank();
+    editor.rename(section.title || 'Collage');
+    editor.addToLayout(ids);
+    app.view = 'editor';
+  }
+
   function applyEdit(i: number, e: PhotoEdit) {
     const m = section.media[i];
     for (const k of ['crop', 'adjust', 'filter', 'flipX', 'flipY'] as const) {
@@ -235,6 +248,7 @@
             <button onclick={toggleChapter}><Icon name="chapter" size={15} /> {section.chapter ? 'Make a normal section' : 'Make this a chapter'}</button>
             <button onclick={slideTiming}><Icon name="timer" size={15} /> Slide timing{section.advance ? ` (${section.advance} s)` : '…'}</button>
             <button onclick={() => { ds.duplicateSection(section.id); menu = false; }}><Icon name="copy" size={15} /> Duplicate</button>
+            {#if section.media.length}<button onclick={() => { menu = false; void collageFromSection(); }}><Icon name="layout" size={15} /> Make a collage of these photos</button>{/if}
             <button class="danger" onclick={() => { if (confirm('Delete this section?')) ds.removeSection(section.id); menu = false; }}><Icon name="trash" size={15} /> Delete</button>
           </div>
         {/if}

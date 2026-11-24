@@ -2,7 +2,8 @@
 import { api, deliver, isTauri, pickImages, pickProjectFile, pickSavePath } from '../api/backend';
 import { picker } from '../platform/picker.svelte';
 import { call } from '../api/http';
-import type { ExportFormat } from '../api/types';
+import type { Area, ExportFormat } from '../api/types';
+import { api as docApi } from '../documents/lib/api';
 import { relayout } from '../collage/layout';
 import { createDoc, defaultLayout, createPhoto } from '../model/factory';
 import { presetById, presetSize } from '../model/pages';
@@ -308,6 +309,52 @@ function deliverNow(paths: string[]): void {
   picker.downloadResults = true;
   deliver(paths);
   picker.downloadResults = auto;
+}
+
+/**
+ * Save the collage as JPEG images into Outputs (the save folder) and return
+ * them as library references ({libraryId: 'outputs', path}) once the library
+ * has indexed them, so documents can use them. Null if that isn't possible.
+ */
+export async function exportToOutputs(scope: PageScope = 'all'): Promise<{ libraryId: string; path: string }[] | null> {
+  if (!checkEmpty() || saveState.busy) return null;
+  const areas = await call<Area[]>('areas').catch(() => [] as Area[]);
+  const outputs = areas.find((a) => a.kind === 'outputs');
+  if (!outputs) {
+    toasts.push({ kind: 'warning', title: 'No Outputs folder', message: 'Choose a save folder in Settings → Saving first.' });
+    return null;
+  }
+  const root = outputs.root.replace(/\/+$/, '');
+  const path = joinPath(root, buildFilename(app.settings.filenamePattern, editor.doc.name, 'jpeg'));
+  saveState.busy = true;
+  saveState.progress = 0;
+  saveState.stage = 'Preparing';
+  let results: { path: string }[];
+  try {
+    const onProgress = (p: number, stage: string) => {
+      saveState.progress = p;
+      saveState.stage = stage;
+    };
+    const opts = { path, format: 'jpeg' as ExportFormat, quality: 92, scale: 1, unique: true, onProgress };
+    const pages = pagesFor(scope);
+    results = pages.length === 1 && editor.pageCount === 1 ? [await exportDocument(editor.doc, opts)] : await exportPages(editor.doc, pages, opts);
+  } catch (e) {
+    toasts.push({ kind: 'error', title: 'Saving failed', message: String(e) });
+    return null;
+  } finally {
+    saveState.busy = false;
+  }
+  const refs = results
+    .filter((r) => r.path.startsWith(root + '/'))
+    .map((r) => ({ libraryId: outputs.id, path: r.path.slice(root.length + 1) }));
+  if (!refs.length) return null;
+  // The library watcher indexes new files within a few seconds.
+  for (let i = 0; i < 40; i++) {
+    const res = await docApi.resolve(refs).catch(() => []);
+    if (res.length === refs.length && res.every((r) => r.found && r.file)) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return refs;
 }
 
 /** One-click Save: writes a copy into the default save folder (every page of a multi-page project). */

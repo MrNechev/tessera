@@ -18,6 +18,7 @@
     relinking = false,
     oncancelrelink,
     paletteTarget = true,
+    onselect,
     hint = 'Click to insert · drag into the document · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview',
   }: {
     onpick: (items: FileItem[], newSection: boolean) => void;
@@ -27,6 +28,8 @@
     paletteTarget?: boolean;
     /** The how-to line at the bottom (defaults to the document editor's). */
     hint?: string;
+    /** Called whenever the Ctrl/Shift selection changes; the host then offers its own actions instead of "Insert". */
+    onselect?: (items: FileItem[]) => void;
   } = $props();
 
   const PAGE = 240;
@@ -328,6 +331,12 @@
       return;
     }
     lastClicked = i;
+    if (onselect) {
+      // a host with its own actions (the Library view): a click selects
+      selected.clear();
+      selected.add(itemKey(f));
+      return;
+    }
     onpick([f], e.altKey);
   }
 
@@ -335,6 +344,16 @@
     const out: FileItem[] = [];
     for (const items of pages.values()) for (const f of items) if (selected.has(itemKey(f))) out.push(f);
     return out;
+  }
+
+  $effect(() => {
+    void selected.size;
+    if (onselect) untrack(() => onselect(selectedItems()));
+  });
+
+  /** Clear the Ctrl/Shift selection (from the host's action bar). */
+  export function clearSelection() {
+    selected.clear();
   }
 
   function insertSelected() {
@@ -489,7 +508,7 @@
     <span>{total.toLocaleString()} item{total === 1 ? '' : 's'}</span>
     {#if selected.size}
       <span class="grow"></span>
-      <button class="btn sm primary" onclick={insertSelected}>Insert {selected.size}</button>
+      {#if !onselect}<button class="btn sm primary" onclick={insertSelected}>Insert {selected.size}</button>{:else}<span>{selected.size} selected</span>{/if}
       <button class="btn sm" onclick={() => selected.clear()}>Clear</button>
     {:else}
       <span class="grow"></span>

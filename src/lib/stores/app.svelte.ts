@@ -1,7 +1,7 @@
 /** Global application state: active view, settings, app info, updates. */
 import { api, setImportExtensions } from '../api/backend';
 import { picker } from '../platform/picker.svelte';
-import type { AppInfo, Settings, UpdateInfo } from '../api/types';
+import type { AppInfo, ImportedImage, Settings, UpdateInfo } from '../api/types';
 import { stickers } from './stickers.svelte';
 import { toasts } from './toasts.svelte';
 
@@ -37,6 +37,8 @@ class AppState {
   modals = $state(0);
   /** The "new photo book / calendar" dialog (opened from Home or the command palette). */
   newProject = $state<'book' | 'calendar' | null>(null);
+  /** Photos to start that project with (chosen in the Library). */
+  newProjectPhotos = $state<ImportedImage[] | null>(null);
   /** The template gallery on the Home screen. */
   templateGallery = $state(false);
 

@@ -14,13 +14,15 @@
 
   interface Props {
     kind: 'book' | 'calendar';
+    /** Photos chosen beforehand (in the Library). */
+    initial?: ImportedImage[];
     onclose: () => void;
   }
-  let { kind, onclose }: Props = $props();
+  let { kind, initial, onclose }: Props = $props();
 
   const now = new Date();
-  let source = $state<'library' | 'pick'>(library.items.length ? 'library' : 'pick');
-  let picked = $state<ImportedImage[]>([]);
+  let source = $state<'library' | 'pick'>(untrack(() => (initial?.length ? 'pick' : library.items.length ? 'library' : 'pick')));
+  let picked = $state<ImportedImage[]>(untrack(() => initial ?? []));
   let busy = $state(false);
 
   // Photo book
