@@ -2,12 +2,28 @@
   import { FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Plus, X } from '@lucide/svelte';
   import { fileUrl, pickFolder } from '../../../api/backend';
   import { editor } from '../../../editor/editor.svelte';
-  import { addPhotos } from '../../../editor/session.svelte';
+  import { addPhotos, importLibraryRefs } from '../../../editor/session.svelte';
+  import LibraryPanel from '../../../documents/components/LibraryPanel.svelte';
+  import type { FileItem } from '../../../documents/lib/types';
   import { app } from '../../../stores/app.svelte';
   import { drag } from '../../../stores/drag.svelte';
   import { library } from '../../../stores/library.svelte';
 
   const used = $derived(editor.usedAssets());
+
+  function setSource(v: 'library' | 'collage') {
+    editor.photoSource = v;
+    try {
+      localStorage.setItem('tessera.photoSource', v);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function insertFromLibrary(items: FileItem[]) {
+    const ids = await importLibraryRefs(items);
+    if (ids.length) add(ids);
+  }
   let selected = $state<string[]>([]);
 
   async function addFolder() {
@@ -49,9 +65,24 @@
   }
 </script>
 
+<div class="tabs" role="tablist" aria-label="Photos from">
+  <button role="tab" aria-selected={editor.photoSource === 'library'} class:on={editor.photoSource === 'library'} onclick={() => setSource('library')}>Library</button>
+  <button role="tab" aria-selected={editor.photoSource === 'collage'} class:on={editor.photoSource === 'collage'} onclick={() => setSource('collage')}>
+    In this collage{#if library.items.length}<span class="n">{library.items.length}</span>{/if}
+  </button>
+</div>
+
+{#if editor.photoSource === 'library'}
+  <div class="lt libwrap">
+    <LibraryPanel paletteTarget={false} onpick={(items) => void insertFromLibrary(items)} />
+    <p class="libhint">Drag photos onto the page or a frame · double-click to add · <button class="linkish" onclick={async () => {
+      const ids = await addPhotos();
+      if (ids.length) add(ids);
+    }}>add from {app.isServer ? 'the server or this computer' : 'other folders'}…</button></p>
+  </div>
+{:else}
 <div class="wrap">
   <div class="head">
-    <h3>Photos</h3>
     <p class="hint">Drag photos onto the page or onto a frame. Drop files from your file manager anywhere.</p>
     <div class="row">
       <button class="btn primary grow" onclick={async () => {
@@ -114,6 +145,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 {#if drag.session}
   <div class="ghost" style:left="{drag.session.x}px" style:top="{drag.session.y}px">
@@ -123,6 +155,67 @@
 {/if}
 
 <style>
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin: 12px 12px 8px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .tabs button {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tabs button.on {
+    background: var(--panel-3);
+    color: var(--text);
+  }
+  .n {
+    padding: 0 6px;
+    border-radius: 99px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+  }
+  .libwrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .libwrap :global(.panel) {
+    flex: 1;
+    min-height: 0;
+    background: transparent;
+  }
+  .libhint {
+    margin: 0;
+    padding: 8px 12px 10px;
+    border-top: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: 11.5px;
+  }
+  .linkish {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
   .wrap {
     display: flex;
     flex-direction: column;
@@ -132,9 +225,6 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-  h3 {
-    font-size: 15px;
   }
   .importing {
     display: flex;

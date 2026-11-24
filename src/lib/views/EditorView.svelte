@@ -269,7 +269,7 @@
       {/each}
     </nav>
 
-    <aside class="panel">
+    <aside class="panel" class:wide={editor.tool === 'photos' && editor.photoSource === 'library'}>
       {#if editor.tool === 'photos'}<PhotosPanel />
       {:else if editor.tool === 'layouts'}<LayoutPanel />
       {:else if editor.tool === 'templates'}<TemplatesPanel />
@@ -433,10 +433,17 @@
   .panel {
     width: 300px;
     flex: none;
+    display: flex;
+    flex-direction: column;
     background: var(--panel);
     border-right: 1px solid var(--border);
     overflow-y: auto;
     overflow-x: hidden;
+    transition: width 0.15s;
+  }
+  .panel.wide {
+    width: 380px;
+    overflow: hidden;
   }
   .stage {
     flex: 1;

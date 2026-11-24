@@ -30,6 +30,14 @@ import { AUTO_PLACEHOLDER } from '../templates/instantiate';
 import { library } from '../stores/library.svelte';
 import { boundsOf } from './geometry';
 
+function readPhotoSource(): 'library' | 'collage' {
+  try {
+    return localStorage.getItem('tessera.photoSource') === 'collage' ? 'collage' : 'library';
+  } catch {
+    return 'library';
+  }
+}
+
 export type Tool = 'photos' | 'layouts' | 'templates' | 'text' | 'stickers' | 'shapes' | 'calendar' | 'background' | 'page';
 
 export type Align = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
@@ -48,6 +56,8 @@ class Editor {
   doc = $state.raw<CollageDoc>(createDoc({ width: 3508, height: 2480 }));
   selection = $state<string[]>([]);
   tool = $state<Tool>('photos');
+  /** The Photos panel shows the media library or the photos already in this collage. */
+  photoSource = $state<'library' | 'collage'>(readPhotoSource());
   cropTarget = $state<string | null>(null);
   editingText = $state<string | null>(null);
   zoom = $state(0.2);

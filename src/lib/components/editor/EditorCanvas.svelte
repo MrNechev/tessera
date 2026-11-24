@@ -24,6 +24,8 @@
   import { layoutText } from '../../render/text';
   import { app } from '../../stores/app.svelte';
   import { drag } from '../../stores/drag.svelte';
+  import { hasMedia, readDrop } from '../../documents/lib/dnd.svelte';
+  import { importLibraryRefs } from '../../editor/session.svelte';
   import { library } from '../../stores/library.svelte';
   import { stickers } from '../../stores/stickers.svelte';
   import { AUTO_PLACEHOLDER } from '../../templates/instantiate';
@@ -558,6 +560,34 @@
     }
   }
 
+  /* Library items dragged in from the Library tab (HTML5 drag and drop). */
+  function onMediaDragOver(e: DragEvent) {
+    if (!hasMedia(e)) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'copy';
+    dragOver(e.clientX, e.clientY);
+  }
+  function onMediaDragLeave(e: DragEvent) {
+    if (!hasMedia(e) || (e.relatedTarget && wrap?.contains(e.relatedTarget as Node))) return;
+    dropTargetId = null;
+    requestDraw();
+  }
+  async function onMediaDrop(e: DragEvent) {
+    const refs = readDrop(e);
+    if (!refs) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x = e.clientX;
+    const y = e.clientY;
+    dropTargetId = null;
+    requestDraw();
+    const ids = await importLibraryRefs(refs);
+    if (ids.length && !dropAssets(ids, x, y)) {
+      if (editor.hasLayout) editor.addToLayout(ids);
+      else editor.addFreePhotos(ids);
+    }
+  }
+
   $effect(() => {
     if (!drag.session) return;
     const move = (e: PointerEvent) => {
@@ -875,7 +905,8 @@
   });
 </script>
 
-<div class="wrap" bind:this={wrap}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="wrap" bind:this={wrap} ondragover={onMediaDragOver} ondragleave={onMediaDragLeave} ondrop={onMediaDrop}>
   <canvas
     bind:this={canvas}
     tabindex="0"

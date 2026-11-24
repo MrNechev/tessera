@@ -1,6 +1,7 @@
 /** High-level document actions: new, open, autosave, save image, save as. */
 import { api, deliver, isTauri, pickImages, pickProjectFile, pickSavePath } from '../api/backend';
 import { picker } from '../platform/picker.svelte';
+import { call } from '../api/http';
 import type { ExportFormat } from '../api/types';
 import { relayout } from '../collage/layout';
 import { createDoc, defaultLayout, createPhoto } from '../model/factory';
@@ -77,6 +78,25 @@ export function newFromTemplate(t: TemplateDef, useLibrary = true): void {
 function rememberDir(path: string): void {
   const dir = path.substring(0, path.lastIndexOf('/'));
   if (dir && dir !== app.settings.recentImportDir) void app.saveSettings({ recentImportDir: dir });
+}
+
+/**
+ * Bring library files ({libraryId, path}) into the collage: resolve them to
+ * paths the engine can read and import them. Videos and other non-images are
+ * skipped. Returns the asset ids.
+ */
+export async function importLibraryRefs(refs: { libraryId: string; path: string; kind?: string }[]): Promise<string[]> {
+  const images = refs.filter((r) => !r.kind || r.kind === 'image');
+  if (images.length < refs.length)
+    toasts.push({ kind: 'info', title: `${refs.length - images.length} video${refs.length - images.length === 1 ? '' : 's'} skipped`, message: 'Collages use photos only.' });
+  if (!images.length) return [];
+  try {
+    const paths = await Promise.all(images.map((r) => call<string>('resolve', { libraryId: r.libraryId, path: r.path })));
+    return (await library.import(paths)).map((i) => i.id);
+  } catch (e) {
+    toasts.push({ kind: 'error', title: 'Could not add these photos', message: String(e instanceof Error ? e.message : e) });
+    return [];
+  }
 }
 
 export async function addPhotos(): Promise<string[]> {
