@@ -8,9 +8,7 @@
   import Icon from './Icon.svelte';
   import { fromTemplate, TEMPLATES, type Template } from '../lib/templates';
   import type { SearchHit } from '../lib/types';
-  import ThemeToggle from './ThemeToggle.svelte';
 
-  let { authEnabled }: { authEnabled: boolean } = $props();
   let docs = $state<DocMeta[] | null>(null);
   let filter = $state('');
   let renaming = $state<string | null>(null);
@@ -18,6 +16,7 @@
   let fileInput: HTMLInputElement;
   let tag = $state<string | null>(null);
   let tplOpen = $state(false);
+  let moreOpen = $state(false);
   let hits = $state<SearchHit[]>([]);
   let searchTimer: ReturnType<typeof setTimeout>;
 
@@ -116,11 +115,6 @@
     }
   }
 
-  async function logout() {
-    await api.logout();
-    location.reload();
-  }
-
   function cover(d: DocMeta) {
     if (!d.coverPath) return '';
     const r = resolver.cache.get(d.coverLibraryId + '\u0000' + d.coverPath);
@@ -129,24 +123,26 @@
 </script>
 
 <div class="page">
-  <header class="top">
-    <div class="brand">
-      <img src="/tessera.svg" alt="" width="28" height="28" />
-      <span class="name">Documents</span>
-    </div>
-    <input class="input search" placeholder="Search documents (titles, tags, text)…" bind:value={filter} />
-    <div class="grow"></div>
-    <button class="btn" onclick={() => fileInput.click()} title="Import a document (.json)"><Icon name="upload" /> Import</button>
-    <a class="btn" href="/api/export" title="Download every document (with history) as a zip"><Icon name="download" /> Backup</a>
-    <button class="icon-btn" title="System status" onclick={() => router.go('/system')}><Icon name="activity" /></button>
-    <ThemeToggle />
-    {#if authEnabled}<button class="icon-btn" title="Sign out" onclick={logout}><Icon name="logout" /></button>{/if}
-    <input type="file" accept=".json,application/json" hidden bind:this={fileInput} onchange={importFile} />
-  </header>
-
   <main>
     <div class="head">
-      <h1>Documents</h1>
+      <div class="titles">
+        <h1>Documents</h1>
+        <p class="muted">Long stories, canvases and presentations made from your library.</p>
+      </div>
+      <input class="input search" type="search" placeholder="Search titles, tags and text…" bind:value={filter} />
+      <div class="menuwrap">
+        <button class="icon-btn" title="More" aria-label="More" onclick={() => (moreOpen = !moreOpen)}><Icon name="more" /></button>
+        {#if moreOpen}
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div class="menu-backdrop" onclick={() => (moreOpen = false)}></div>
+          <div class="tpls more-menu">
+            <button onclick={() => { moreOpen = false; fileInput.click(); }}><Icon name="upload" /><span><b>Import a document</b><small>A .json file exported from Tessera or Letopis</small></span></button>
+            <a href="/api/export" onclick={() => (moreOpen = false)}><Icon name="download" /><span><b>Back up every document</b><small>One zip with every document and its history</small></span></a>
+            <button onclick={() => { moreOpen = false; void stress(); }}><Icon name="activity" /><span><b>Create a stress-test document</b><small>Random library media, to check scrolling performance</small></span></button>
+          </div>
+        {/if}
+      </div>
+      <input type="file" accept=".json,application/json" hidden bind:this={fileInput} onchange={importFile} />
       <div class="split">
         <button class="btn primary" onclick={create}><Icon name="plus" /> New document</button>
         <button class="btn primary more" title="Start from a template" onclick={() => (tplOpen = !tplOpen)}><Icon name="chev-down" /></button>
@@ -230,10 +226,6 @@
           </article>
         {/each}
       </div>
-      <p class="foot muted">
-        <button class="linkish" onclick={stress}>Create a stress-test document</button> from random library media to check
-        scrolling performance.
-      </p>
     {/if}
   </main>
 </div>
@@ -346,49 +338,44 @@
     height: 100%;
     overflow: auto;
   }
-  .top {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: color-mix(in srgb, var(--bg) 85%, transparent);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--line);
+  .titles {
+    flex: 1;
+    min-width: 0;
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-right: 14px;
-  }
-  .name {
-    font: 650 18px var(--serif);
+  .titles p {
+    margin: 4px 0 0;
   }
   .search {
-    width: 260px;
+    width: 280px;
   }
-  .grow {
-    flex: 1;
+  .menuwrap {
+    position: relative;
   }
-  a.btn {
+  .more-menu a {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--text);
     text-decoration: none;
   }
+  .more-menu a:hover {
+    background: var(--surface-2);
+  }
   main {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 28px 20px 60px;
+    padding: 36px 44px 60px;
   }
   .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
+    gap: 10px;
+    margin-bottom: 24px;
   }
   h1 {
-    font: 650 30px var(--serif);
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
     margin: 0;
   }
   .grid {
@@ -433,7 +420,8 @@
     padding: 12px 14px 4px;
   }
   .title {
-    font: 600 16px var(--serif);
+    font-weight: 650;
+    font-size: 15px;
     color: var(--text);
     text-decoration: none;
     display: block;
@@ -460,24 +448,13 @@
     border-radius: 16px;
   }
   .empty h2 {
-    font: 600 22px var(--serif);
+    font-size: 20px;
+    font-weight: 700;
     margin: 0 0 8px;
   }
   .row {
     display: flex;
     gap: 10px;
     margin-top: 16px;
-  }
-  .foot {
-    margin-top: 28px;
-    font-size: 13px;
-  }
-  .linkish {
-    background: none;
-    border: none;
-    color: var(--blue);
-    padding: 0;
-    cursor: pointer;
-    text-decoration: underline;
   }
 </style>

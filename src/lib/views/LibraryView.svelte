@@ -12,8 +12,23 @@
   import { app } from '../stores/app.svelte';
   import { compressQueue, convertQueue, toolsQueue } from '../stores/batch.svelte';
   import { toasts } from '../stores/toasts.svelte';
+  import { palette } from '../documents/lib/palette.svelte';
 
   let picked = $state<FileItem[]>([]);
+
+  // Ctrl+K: actions on the selection.
+  $effect(() =>
+    palette.register('library', () => {
+      if (!images.length) return [];
+      const n = `${images.length} photo${images.length === 1 ? '' : 's'}`;
+      return [
+        { id: 'lib:collage', group: 'Selection', icon: 'layout', title: `Make a collage from ${n}`, run: () => use('collage') },
+        { id: 'lib:convert', group: 'Selection', icon: 'refresh', title: `Convert ${n}`, run: () => use('convert') },
+        { id: 'lib:compress', group: 'Selection', icon: 'package', title: `Compress ${n}`, run: () => use('compress') },
+        { id: 'lib:batch', group: 'Selection', icon: 'sliders', title: `Resize, watermark or rename ${n}`, run: () => use('batch') },
+      ];
+    }),
+  );
   let busy = $state(false);
 
   const images = $derived(picked.filter((f) => f.kind === 'image'));

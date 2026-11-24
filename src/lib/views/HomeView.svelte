@@ -1,6 +1,5 @@
 <script lang="ts">
   import { ArrowLeftRight, BookOpen, CalendarDays, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
-  import NewProjectDialog from '../components/NewProjectDialog.svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
@@ -17,10 +16,8 @@
   import type { TemplateDef } from '../templates/types';
 
   let projects = $state<ProjectSummary[]>([]);
-  let gallery = $state(false);
   let chosen = $state<TemplateDef | null>(null);
   let useLibrary = $state(true);
-  let newProject = $state<'book' | 'calendar' | null>(null);
   let deleting = $state<ProjectSummary | null>(null);
 
   const featured = ['letters-love', 'cal-photo-month', 'love-be-mine', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
@@ -49,7 +46,7 @@
   }
 
   function pickTemplate(t: TemplateDef) {
-    gallery = false;
+    app.templateGallery = false;
     if (library.items.length) chosen = t;
     else newFromTemplate(t, false);
   }
@@ -80,7 +77,7 @@
         <span class="t">Quick collage</span>
         <span class="d">Pick photos, get a perfect layout. Regenerate until you love it.</span>
       </button>
-      <button class="action a2" onclick={() => (gallery = true)}>
+      <button class="action a2" onclick={() => (app.templateGallery = true)}>
         <span class="ico"><LayoutTemplate size={22} /></span>
         <span class="t">From a template</span>
         <span class="d">Valentine’s, Christmas, birthdays, weddings, travel & more.</span>
@@ -92,11 +89,11 @@
       </button>
     </div>
     <div class="projects">
-      <button class="project" onclick={() => (newProject = 'book')}>
+      <button class="project" onclick={() => (app.newProject = 'book')}>
         <BookOpen size={20} />
         <span><b>Photo book</b><span class="hint">Every photo on its own pages — cover, layouts, page numbers. Print it or save a PDF.</span></span>
       </button>
-      <button class="project" onclick={() => (newProject = 'calendar')}>
+      <button class="project" onclick={() => (app.newProject = 'calendar')}>
         <CalendarDays size={20} />
         <span><b>Photo calendar</b><span class="hint">A cover and twelve months with your photos. Mark birthdays and holidays.</span></span>
       </button>
@@ -120,7 +117,7 @@
   <section>
     <div class="sec-head">
       <h2>Made for the moment</h2>
-      <button class="btn ghost" onclick={() => (gallery = true)}>All templates →</button>
+      <button class="btn ghost" onclick={() => (app.templateGallery = true)}>All templates →</button>
     </div>
     <div class="featured">
       {#each featured as t (t.id)}
@@ -157,14 +154,10 @@
   </section>
 </div>
 
-{#if gallery}
-  <Modal title="Templates" width={1100} onclose={() => (gallery = false)}>
+{#if app.templateGallery}
+  <Modal title="Templates" width={1100} onclose={() => (app.templateGallery = false)}>
     <TemplatesPanel wide onpick={pickTemplate} />
   </Modal>
-{/if}
-
-{#if newProject}
-  <NewProjectDialog kind={newProject} onclose={() => (newProject = null)} />
 {/if}
 
 {#if deleting}

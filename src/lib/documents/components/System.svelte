@@ -72,7 +72,6 @@
 
 <div class="page">
   <header class="top">
-    <button class="icon-btn" onclick={() => router.go('/')} title="Documents"><Icon name="home" /></button>
     <h1>System</h1>
     <div class="grow"></div>
     <label class="cb"><input type="checkbox" checked={debug} onchange={ontoggledebug} /> Performance overlay <span class="kbd">Ctrl+Shift+D</span></label>
@@ -231,19 +230,16 @@
     overflow: auto;
   }
   .top {
-    position: sticky;
-    top: 0;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 20px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--line);
-    z-index: 2;
+    padding: 36px 44px 4px;
   }
   h1 {
     margin: 0;
-    font: 650 20px var(--serif);
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
   }
   .grow {
     flex: 1;
@@ -255,9 +251,8 @@
     font-size: 13px;
   }
   main {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 24px 20px 60px;
+    max-width: 1040px;
+    padding: 20px 44px 60px;
     display: flex;
     flex-direction: column;
     gap: 16px;

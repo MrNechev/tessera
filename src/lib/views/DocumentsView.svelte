@@ -4,7 +4,6 @@
   import Editor from '../documents/components/Editor.svelte';
   import { router } from '../documents/lib/router.svelte';
 
-  let { authEnabled }: { authEnabled: boolean } = $props();
 </script>
 
 <div class="lt documents-view">
@@ -12,7 +11,7 @@
     {#if router.route.name === 'doc'}
       <Editor id={router.route.id} />
     {:else}
-      <DocList {authEnabled} />
+      <DocList />
     {/if}
   {/key}
 </div>

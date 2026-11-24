@@ -15,7 +15,9 @@ class Palette {
   open = $state(false);
   private providers = new Map<string, () => Command[]>();
   /** set by the library panel while it is on screen */
-  openFolder: ((libraryId: string, path: string) => void) | null = null;
+  openFolder: ((libraryId: string, path: string, search?: string) => void) | null = null;
+  /** A folder (and search) for the next library panel that mounts to open. */
+  pendingFolder: { libraryId: string; path: string; search?: string } | null = null;
 
   register(name: string, fn: () => Command[]) {
     this.providers.set(name, fn);

@@ -35,6 +35,10 @@ class AppState {
   ready = $state(false);
   /** Number of open modal dialogs; editor shortcuts stay quiet while one is up. */
   modals = $state(0);
+  /** The "new photo book / calendar" dialog (opened from Home or the command palette). */
+  newProject = $state<'book' | 'calendar' | null>(null);
+  /** The template gallery on the Home screen. */
+  templateGallery = $state(false);
 
   async init(): Promise<void> {
     void stickers.load();

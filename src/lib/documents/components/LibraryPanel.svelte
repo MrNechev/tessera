@@ -16,10 +16,13 @@
     onpick,
     relinking = false,
     oncancelrelink,
+    paletteTarget = true,
   }: {
     onpick: (items: FileItem[], newSection: boolean) => void;
     relinking?: boolean;
     oncancelrelink?: () => void;
+    /** Ctrl+K "open folder" opens folders here (off for panels that may be hidden). */
+    paletteTarget?: boolean;
   } = $props();
 
   const PAGE = 240;
@@ -204,14 +207,21 @@
   onMount(() => {
     loadLibraries().catch((e) => toasts.error((e as Error).message));
     prefs.load();
-    const open = (l: string, p: string) => {
+    const open = (l: string, p: string, find?: string) => {
       libId = l;
       source = 'browse';
       showTree = true;
       selectDir(p);
+      if (find) search = q = find;
       const parts = p.split('/');
       for (let i = 1; i < parts.length; i++) expanded.add(parts.slice(0, i).join('/'));
     };
+    if (palette.pendingFolder) {
+      const f = palette.pendingFolder;
+      palette.pendingFolder = null;
+      open(f.libraryId, f.path, f.search);
+    }
+    if (!paletteTarget) return;
     palette.openFolder = open;
     return () => {
       if (palette.openFolder === open) palette.openFolder = null;

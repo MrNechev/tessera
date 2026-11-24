@@ -44,6 +44,7 @@
   import { describePage } from '../model/pages';
   import { app } from '../stores/app.svelte';
   import { onMount } from 'svelte';
+  import { palette } from '../documents/lib/palette.svelte';
 
   let canvasRef: EditorCanvas | undefined = $state();
   let exportOpen = $state(false);
@@ -179,12 +180,29 @@
     }
   }
 
+  // Ctrl+K: the collage's own commands while the editor is on screen.
+  const unregisterCommands = palette.register('collage', () =>
+    app.view !== 'editor'
+      ? []
+      : [
+          { id: 'co:save', group: 'This collage', icon: 'download', title: 'Save image', shortcut: 'Ctrl S', run: () => void quickSave() },
+          { id: 'co:saveas', group: 'This collage', icon: 'download', title: 'Save image as…', shortcut: 'Ctrl ⇧ S', run: () => void (exportOpen = true) },
+          { id: 'co:print', group: 'This collage', icon: 'file-pdf', title: 'Print…', shortcut: 'Ctrl P', run: () => void printProject('all') },
+          { id: 'co:project', group: 'This collage', icon: 'folder', title: 'Save project as…', run: () => void saveProjectAs() },
+          ...(editor.hasLayout ? [{ id: 'co:regen', group: 'This collage', icon: 'refresh', title: 'Regenerate the layout', shortcut: 'Ctrl R', run: () => editor.regenerate() }] : []),
+          { id: 'co:page', group: 'This collage', icon: 'plus', title: 'Add a page', run: () => editor.addPage() },
+          { id: 'co:fit', group: 'This collage', icon: 'maximize', title: 'Fit to window', shortcut: 'Ctrl 0', run: () => canvasRef?.fitView() },
+          ...tools.map((t) => ({ id: 'co:tool:' + t.id, group: 'This collage', icon: 'sliders', title: `Show ${t.label.toLowerCase()} panel`, run: () => void (editor.tool = t.id) })),
+        ],
+  );
+
   onMount(() => {
     const close = () => (fileMenu = false);
     window.addEventListener('click', close);
     // Letter layouts are shaped by a font: re-run them once it has loaded.
     const offFonts = onFontsLoaded(() => editor.refreshLayoutQuietly());
     return () => {
+      unregisterCommands();
       window.removeEventListener('click', close);
       offFonts();
     };

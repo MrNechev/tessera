@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Activity, ArrowLeftRight, BookOpen, House, Images, LayoutDashboard, Minimize2, Settings, Wand } from '@lucide/svelte';
+  import { Activity, ArrowLeftRight, BookOpen, House, Images, LayoutDashboard, LogOut, Minimize2, Moon, Settings, Sun, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { isTauri } from './lib/api/backend';
   import ServerPicker from './lib/components/ServerPicker.svelte';
@@ -33,6 +33,8 @@
   import RemoteView from './lib/documents/components/RemoteView.svelte';
   import CommandPalette from './lib/documents/components/CommandPalette.svelte';
   import SetupDialog from './lib/components/SetupDialog.svelte';
+  import NewProjectDialog from './lib/components/NewProjectDialog.svelte';
+  import { registerAppCommands } from './lib/commands';
   import './lib/documents/documents.css';
 
   let editorView: EditorView | undefined = $state();
@@ -83,6 +85,22 @@
       default:
         await newQuickCollage(paths);
     }
+  }
+
+  /** The theme actually shown (the setting may be "system"). */
+  let shownTheme = $state<'dark' | 'light'>('dark');
+  $effect(() => {
+    void app.settings.theme;
+    shownTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  });
+  function toggleTheme() {
+    void app.saveSettings({ theme: shownTheme === 'dark' ? 'light' : 'dark' });
+    shownTheme = shownTheme === 'dark' ? 'light' : 'dark';
+  }
+
+  async function signOut() {
+    await docApi.logout().catch(() => undefined);
+    location.reload();
   }
 
   function go(view: View) {
@@ -146,6 +164,7 @@
   }
 
   onMount(() => {
+    const unregister = registerAppCommands(go);
     setUnauthorizedHandler(() => (phase = 'login'));
     const unauthorized = () => (phase = 'login');
     window.addEventListener('tessera:unauthorized', unauthorized);
@@ -174,6 +193,7 @@
       window.addEventListener('dragleave', dragleave);
       window.addEventListener('drop', handleWebDrop);
       return () => {
+        unregister();
         window.removeEventListener('tessera:unauthorized', unauthorized);
         window.removeEventListener('keydown', onKey);
         window.removeEventListener('pagehide', flush);
@@ -212,6 +232,7 @@
       });
     });
     return () => {
+      unregister();
       window.removeEventListener('tessera:unauthorized', unauthorized);
       window.removeEventListener('keydown', onKey);
       unlisten?.();
@@ -279,6 +300,14 @@
       <Settings size={20} />
       <span>Settings</span>
     </button>
+    <div class="mini">
+      <button class="mini-btn" title="Switch to the {shownTheme === 'dark' ? 'light' : 'dark'} theme" aria-label="Switch theme" onclick={toggleTheme}>
+        {#if shownTheme === 'dark'}<Sun size={16} />{:else}<Moon size={16} />{/if}
+      </button>
+      {#if authEnabled}
+        <button class="mini-btn" title="Sign out" aria-label="Sign out" onclick={() => void signOut()}><LogOut size={16} /></button>
+      {/if}
+    </div>
   </nav>
 
   <main class="view">
@@ -292,7 +321,7 @@
       {:else if app.view === 'batch'}<BatchView />
       {:else if app.view === 'settings'}<SettingsView />
       {:else if app.view === 'library'}<LibraryView />
-      {:else if app.view === 'documents'}<DocumentsView {authEnabled} />
+      {:else if app.view === 'documents'}<DocumentsView />
       {:else if app.view === 'system'}<SystemView />
       {/if}
     {/if}
@@ -316,6 +345,7 @@
 {/if}
 
 {#if palette.open}<div class="lt"><CommandPalette /></div>{/if}
+{#if app.newProject}<NewProjectDialog kind={app.newProject} onclose={() => (app.newProject = null)} />{/if}
 {#if app.ready && isTauri && !app.settings.setupDone}<SetupDialog onclose={() => undefined} />{/if}
 {/if}
 
@@ -346,6 +376,28 @@
     padding: 12px 0;
     background: var(--bg);
     border-right: 1px solid var(--border);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .mini {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .mini-btn {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+  }
+  .mini-btn:hover {
+    color: var(--text);
+    background: var(--hover);
   }
   .logo {
     width: 36px;

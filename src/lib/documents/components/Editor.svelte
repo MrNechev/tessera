@@ -22,7 +22,6 @@
   import LibraryPanel from './LibraryPanel.svelte';
   import Outline from './Outline.svelte';
   import SectionView from './SectionView.svelte';
-  import ThemeToggle from './ThemeToggle.svelte';
 
   let { id }: { id: string } = $props();
   const ds = new DocState();
@@ -481,7 +480,7 @@
 
 <div class="editor" style="--lib-w:{showLibrary ? libWidth : 0}px">
   <header class="top">
-    <button class="icon-btn" title="All documents" onclick={() => router.go('/')}><Icon name="home" /></button>
+    <button class="btn ghost back" title="All documents" onclick={() => router.go('/')}><Icon name="chev-left" /> Documents</button>
     <button class="icon-btn" class:on={showLibrary} title="Library" onclick={() => { showLibrary = !showLibrary; setPref('library', showLibrary ? '1' : '0'); }}><Icon name="panel-left" /></button>
     {#if ds.doc}
       <input class="doc-title" bind:value={ds.doc.title} oninput={() => ds.touch()} placeholder="Untitled" />
@@ -527,7 +526,6 @@
     {:else}
       <button class="icon-btn" class:on={showOutline} title="Outline" onclick={() => { showOutline = !showOutline; setPref('outline', showOutline ? '1' : '0'); }}><Icon name="outline" /></button>
     {/if}
-    <ThemeToggle />
     <button
       class="btn primary"
       title={view === 'canvas' ? 'Present the canvas frames (F5) · Shift+F5 from the selected frame' : 'Present (F5) · Shift+F5 from the selected section'}
@@ -683,7 +681,8 @@
     border-radius: 6px;
     background: none;
     outline: none;
-    font: 650 18px var(--serif);
+    font-weight: 650;
+    font-size: 16px;
     padding: 4px 8px;
   }
   .doc-title:hover,

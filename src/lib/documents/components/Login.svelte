@@ -67,7 +67,8 @@
   }
   h1 {
     margin: 0;
-    font: 650 24px/1.1 var(--serif);
+    font: 800 26px/1.1 var(--ui);
+    letter-spacing: -0.02em;
   }
   p {
     margin: 2px 0 0;

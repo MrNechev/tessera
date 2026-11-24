@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { app } from '../../stores/app.svelte';
   import { onMount, tick } from 'svelte';
   import { api } from '../lib/api';
   import { palette, score, type Command } from '../lib/palette.svelte';
   import { router } from '../lib/router.svelte';
   import { toasts } from '../lib/toast.svelte';
-  import type { DirNode, DocMeta, SearchHit } from '../lib/types';
+  import type { DirNode, DocMeta, FileItem, SearchHit } from '../lib/types';
+  import { api as tApi } from '../../api/backend';
+  import type { ProjectSummary } from '../../api/types';
+  import { openProjectPath } from '../../editor/session.svelte';
+  import { openInLibrary } from '../../commands';
   import Icon from './Icon.svelte';
 
   let q = $state('');
@@ -15,6 +18,8 @@
   let docs = $state<DocMeta[]>([]);
   let folders = $state<{ libraryId: string; libName: string; path: string; count: number }[]>([]);
   let hits = $state<SearchHit[]>([]);
+  let files = $state<FileItem[]>([]);
+  let projects = $state<ProjectSummary[]>([]);
   let searchTimer: ReturnType<typeof setTimeout>;
 
   // folders are cached for the session (a big library has thousands)
@@ -29,6 +34,7 @@
 
   onMount(() => {
     api.docs().then((d) => (docs = d)).catch(() => {});
+    tApi.listProjects().then((p) => (projects = p)).catch(() => {});
     if (folderCache) folders = folderCache;
     else
       api.libraries().then(async (libs) => {
@@ -43,31 +49,33 @@
     tick().then(() => input?.focus());
   });
 
-  function themeToggle() {
-    const cur = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-    void app.saveSettings({ theme: cur === 'dark' ? 'light' : 'dark' });
-  }
-
-  const base: Command[] = [
-    { id: 'new-doc', group: 'Actions', icon: 'plus', title: 'New document', run: async () => router.go(`/doc/${(await api.createDoc('Untitled')).id}`) },
-    { id: 'home', group: 'Actions', icon: 'home', title: 'All documents', run: () => router.go('/') },
-    { id: 'system', group: 'Actions', icon: 'activity', title: 'System page', keywords: 'status queues gpu cache', run: () => router.go('/system') },
-    { id: 'theme', group: 'Actions', icon: 'moon', title: 'Switch light / dark theme', run: themeToggle },
-  ];
-
   $effect(() => {
     const s = q.trim();
     clearTimeout(searchTimer);
     if (s.length < 3) {
       hits = [];
+      files = [];
       return;
     }
-    searchTimer = setTimeout(() => api.search(s).then((h) => (hits = h.slice(0, 30))).catch(() => {}), 200);
+    searchTimer = setTimeout(() => {
+      api.search(s).then((h) => (hits = h.slice(0, 30))).catch(() => {});
+      api.files({ q: s, limit: 8, sort: 'mtime', desc: true }).then((r) => (files = r.items)).catch(() => {});
+    }, 200);
   });
 
   const results = $derived.by(() => {
     const s = q.trim().toLowerCase();
-    const all: Command[] = [...palette.commands(), ...base];
+    const all: Command[] = palette.commands();
+    for (const p of projects)
+      all.push({
+        id: 'proj:' + p.id,
+        group: 'Collages',
+        icon: 'layout',
+        title: p.name,
+        subtitle: `${p.width}×${p.height} · ${new Date(p.modified).toLocaleDateString()}`,
+        keywords: 'collage project',
+        run: () => openProjectPath(p.path, false),
+      });
     for (const d of docs)
       all.push({
         id: 'doc:' + d.id,
@@ -78,7 +86,7 @@
         keywords: d.tags?.join(' '),
         run: () => router.go(`/doc/${d.id}`),
       });
-    if (palette.openFolder && s)
+    if (s)
       for (const f of folders)
         all.push({
           id: 'dir:' + f.libraryId + f.path,
@@ -87,13 +95,22 @@
           title: f.path.split('/').pop()!,
           subtitle: `${f.libName} / ${f.path} · ${f.count}`,
           keywords: f.path,
-          run: () => palette.openFolder?.(f.libraryId, f.path),
+          run: () => openInLibrary(f.libraryId, f.path),
         });
     const scored = all
       .map((c) => ({ c, sc: Math.max(score(c.title, s), score((c.keywords ?? '') + ' ' + (c.subtitle ?? ''), s) - 300) }))
       .filter((x) => x.sc > 0);
     scored.sort((a, b) => b.sc - a.sc);
     const top = scored.slice(0, s ? 60 : 40).map((x) => x.c);
+    for (const f of files)
+      top.push({
+        id: 'file:' + f.libraryId + f.path,
+        group: 'Library files',
+        icon: f.kind === 'video' ? 'video' : 'image',
+        title: f.name,
+        subtitle: f.dir,
+        run: () => openInLibrary(f.libraryId, f.dir, f.name),
+      });
     for (const h of hits)
       top.push({
         id: 'hit:' + h.docId + h.section + h.field + h.snippet.slice(0, 20),
@@ -147,7 +164,7 @@
   <div class="pal" onclick={(e) => e.stopPropagation()}>
     <div class="in">
       <Icon name="search" />
-      <input bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Jump to a section, document, folder… or search text" spellcheck="false" />
+      <input bind:this={input} bind:value={q} onkeydown={onKey} placeholder="Search commands, collages, documents, library files…" spellcheck="false" />
       <span class="kbd">Esc</span>
     </div>
     <div class="list" bind:this={list}>

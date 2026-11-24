@@ -170,7 +170,7 @@
   }
   .pvhead h3 {
     margin: 0;
-    font: 600 18px var(--serif);
+    font: 650 17px var(--ui);
   }
   .ps {
     border: 1px solid var(--line);
