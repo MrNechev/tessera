@@ -24,6 +24,7 @@ use everywhere"), then grows the server side and the library.
 |---|---|---|
 | ✅ | 0.1–0.5.1 | Collage studio, templates, stickers, RAW/colour management, convert/compress/batch, multi-page projects, photo books, calendars, printing |
 | ✅ | 0.6.0 | Letopis merged in: library, documents, canvas, presentations, exports; Tessera as a Docker web app; write guard; desktop library setup |
+| ✅ | unreleased | One home screen, one header style, Ctrl+K everywhere, library in the collage editor, settings in one place, photo looks for documents, memes |
 
 ---
 
@@ -33,14 +34,14 @@ The seams of the merge, visible today.
 
 | | Item | Why / what | Size |
 |---|---|---|---|
-| 📋 | **One home screen** | Home shows *Recent collages* only; documents live behind their own start page. Merge them: one "Recent" list (collages and documents, with thumbnails), one "New…" menu (collage, photo book, calendar, document, canvas, from template), templates of both kinds. | M |
-| 📋 | **One header style** | The Documents page and the document editor still carry Letopis's top bar (its own logo, a home button, a System button, a theme toggle) next to Tessera's rail. Drop the duplicates, use Tessera's typography and button style in the documents views, keep Import/Backup in a "…" menu. | M |
-| 📋 | **Command palette everywhere** | <kbd>Ctrl</kbd>+<kbd>K</kbd> only knows document actions. Add Tessera's: new collage/photo book/calendar, open a recent project, go to any view, convert/compress the selection, open Settings, search library files. | S |
-| 📋 | **Library inside the collage editor** | The collage editor's Photos panel still adds photos through a file dialog. Add the library panel there (as in the document editor): search, filters, drag photos onto the page. Keep "Add from computer" for files outside the library. | M |
+| ✅ | **One home screen** | Home shows *Recent collages* only; documents live behind their own start page. Merge them: one "Recent" list (collages and documents, with thumbnails), one "New…" menu (collage, photo book, calendar, document, canvas, from template), templates of both kinds. | M |
+| ✅ | **One header style** | The Documents page and the document editor still carry Letopis's top bar (its own logo, a home button, a System button, a theme toggle) next to Tessera's rail. Drop the duplicates, use Tessera's typography and button style in the documents views, keep Import/Backup in a "…" menu. | M |
+| ✅ | **Command palette everywhere** | <kbd>Ctrl</kbd>+<kbd>K</kbd> only knows document actions. Add Tessera's: new collage/photo book/calendar, open a recent project, go to any view, convert/compress the selection, open Settings, search library files. | S |
+| ✅ | **Library inside the collage editor** | The collage editor's Photos panel still adds photos through a file dialog. Add the library panel there (as in the document editor): search, filters, drag photos onto the page. Keep "Add from computer" for files outside the library. | M |
 | 📋 | **A better server file picker** (web) | Show folder and library names instead of raw paths (`/libraries/nextcloud` → *Nextcloud*), thumbnails for images, a search box, remember the last folder per purpose, and shift-click range selection. | M |
 | 📋 | **Upload progress** (web) | A progress panel for big uploads (per file and total, speed, cancel, resume after a dropped connection) instead of a line of text. | S |
 | 📋 | **Outputs tidy-up** | Save results into dated subfolders (`Outputs/2026-11/…`) or per tool; "Open in Library" after saving; a size meter and "delete old results" for Outputs on the System page (Outputs only, never libraries). | S |
-| 📋 | **Settings in one place** | Letopis's preferences (transitions, hidden folders, favourites, blur, library tile size) are scattered in menus. Give them a *Documents & library* section in Settings, next to Saving and Libraries. | S |
+| ✅ | **Settings in one place** | Letopis's preferences (transitions, hidden folders, favourites, blur, library tile size) are scattered in menus. Give them a *Documents & library* section in Settings, next to Saving and Libraries. | S |
 | 📋 | **Per-browser video support** | The server decides "can this video play?" from a fixed list (`PLAYABLE_VIDEO_CODECS`). Ask each browser/window what it can play (`canPlayType`) and serve the original or a proxy per client. Fixes HEVC in browsers that can play it, and the desktop window on systems with fewer codecs. | M |
 | 📋 | **ffmpeg in the Flatpak** | Build a small ffmpeg (decoders + VP9/AV1 encoders) into the Flatpak so library video thumbnails, previews and proxies work there too. | M |
 | 📋 | **Web-app tests in CI** | Run a headless Chromium (Playwright) against the Docker image in CI: login, library, documents, collage via the server picker, save + download, tools. The desktop already has its autotest. | M |
@@ -54,7 +55,7 @@ What the merge was for: features written once, used by collages and documents al
 |---|---|---|---|
 | 📋 | **Collages from the library** | Select photos in the Library → *Make a collage / photo book / calendar* with the layout engines and templates (the first step shipped in 0.6.0: quick collage from a selection). | S |
 | 📋 | **A collage inside a document** | A section (or canvas card, or slide) can be a Tessera collage page: edit it in the collage editor, it renders live in the document and the presentation, and exports to PDF/PPTX. | L |
-| 📋 | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. | L |
+| 📋 | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. *Done: filters, adjustments, flips and crop for document/canvas media (Edit photo). Open: rotation, frames, and the same dialog in the collage editor.* | L |
 | 📋 | **One image engine** | Library thumbnails, previews and RAW/HEIC decoding move to `tessera-imaging` (colour-managed, real RAW development, no libvips needed); the collage editor uses the library's cached previews instead of making its own. One cache, less disk, less work. | L |
 | 📋 | **Tools on library selections** | Convert / compress / batch photos picked in the Library; results land in Outputs and can be inserted into the open document in one click. | M |
 | 📋 | **One project store** | Collages get what documents have: version history, restore, conflict detection when the same project is open in two places (two browser tabs, two computers), trash, and backup in the same zip. | M |

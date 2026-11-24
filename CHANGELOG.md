@@ -4,6 +4,41 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+**Feels like one app.** The seams between the collage studio and the documents
+are closing, and the two start sharing their tools.
+
+### Added
+- **One home screen**: one *Recent* list for collages and documents (with
+  covers; All / Collages / Documents), one set of *New* actions (quick
+  collage, template, document, blank design, photo book, calendar, canvas,
+  from the library), collage and document templates side by side.
+- **Library inside the collage editor**: the Photos panel has a *Library* tab
+  (folders, search, filters, favourites); click to add, or drag thumbnails
+  onto the page or onto a frame.
+- **One photo toolkit**: photos and videos in documents, on the canvas and in
+  presentations get the collage editor's filters and adjustments (brightness,
+  contrast, saturation, warmth, fade, vignette, B&W, sepia) and flips, in a
+  new *Edit photo* dialog that also crops. Non-destructive; PowerPoint export
+  bakes them in, print layouts show them.
+- **Memes**: a *Memes & fun* template category (classic top/bottom text,
+  caption bar, motivational poster, expectation vs reality, nope/yes, four
+  panels), a *Meme* text style and the Anton font.
+- **Command palette everywhere** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): go to any
+  view, start any kind of project, open recent collages, find library files
+  and folders, the collage editor's commands, actions on the Library selection.
+- **Settings → Documents & library**: slide transition, library thumbnail
+  size and blur, hidden folders, favourite folders, recently inserted media.
+
+### Changed
+- Theme switch and *Sign out* live in the left rail, on every screen. The
+  documents' own top-bar logo, home, System and theme buttons are gone; the
+  Documents and System pages use Tessera's headers, Import/Backup moved into
+  a … menu. Clicking *Documents* in the rail inside a document returns to the
+  list.
+- Photos added to a template fill its empty frames first.
+
 ## [0.6.0] — 2026-11-24
 
 **Letopis joins Tessera.** Tessera gains a media library, long documents, a
