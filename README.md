@@ -8,8 +8,10 @@
 
 Quick automatic collages, hand-crafted designs and templates for every occasion;
 a converter and a smart compressor that keep the metadata you care about; and a
-media library with long documents, a canvas and presentations made from the
-photos and videos already in your folders.
+media library with stories — diaries, trips, chronicles — a canvas and
+presentations made from the photos and videos already in your folders. One
+photo toolkit (filters, adjustments, crops, frames, cut-outs) works in every
+editor.
 Install it as a **desktop app**, or run it on a server as a **web app in Docker**.
 Free and open source. No accounts, no watermarks, no paywall.
 
@@ -42,7 +44,7 @@ your computer and shows it in a window, the web app serves it to browsers.
 
 ## What it does
 
-### Library, documents and presentations
+### Library, stories and presentations
 
 *(Formerly the separate app Letopis, now part of Tessera.)*
 
@@ -53,25 +55,43 @@ your computer and shows it in a window, the web app serves it to browsers.
   videos, live/motion photos and a full-screen viewer. Pick photos to start a
   collage or send them to the image tools.
 - **Your files stay where they are.** Libraries are **read-only** by default:
-  documents only reference the files, and the image tools save to your
+  stories only reference the files, and the image tools save to your
   Outputs folder unless you make a library read-write.
-- **Documents** — long, chaptered documents that mix rich text with photos and
-  videos: seven section layouts, captions, cropping, before/after comparisons,
-  video clip ranges, embeds (YouTube, maps), templates, tags, find & replace,
-  full version history and conflict detection.
-- **Canvas** — the same document as an infinite whiteboard: cards, notes,
-  shapes, arrows, frames, pen drawings, groups, a minimap and auto-arrange.
+- **Stories** — diaries, trip logs and chronicles that mix rich text with
+  photos, videos and **live collages**: seven section layouts, captions,
+  before/after comparisons, video clip ranges, embeds (YouTube, maps),
+  templates, tags, styled titles, find & replace, full version history and
+  conflict detection.
+- **Diary** — a *Today* entry with today's photos, a calendar of stories and
+  photos per day, *On this day*, and a story drafted from a trip or a date
+  range (a chapter per day, the best photos, captions with date and place).
+- **Canvas** — the same story as an infinite whiteboard: cards, notes, text
+  in Tessera's styles, stickers, shapes, arrows, frames, pen drawings, groups,
+  a minimap and auto-arrange.
 - **Presentations** — any document or canvas becomes a slideshow with
   transitions, an overview, a speaker-notes window, timed or looping playback,
   a laser pointer and drawing, background music, rehearsal timing and a phone
   remote (web app).
-- **Exports** — PDF, PowerPoint (PPTX), Markdown, an offline package, and a
-  backup of every document.
+- **Exports** — PDF, PowerPoint (PPTX), Markdown, an **MP4 slideshow video**
+  (also from Library photos or a collage), an offline package, and a backup of
+  every story.
 - **Video** — every common format plays; videos the viewer can't play (HEVC
   phone clips in some browsers, MKV, AVI…) and very large ones get proxies,
   made on the GPU where possible (VAAPI). GIFs become small looping videos.
 - **System** page — indexing queues, cache, GPU status and a stress test;
   <kbd>Ctrl</kbd>+<kbd>K</kbd> opens a command palette everywhere.
+
+### One photo toolkit, everywhere
+
+The same tools in the collage editor, in stories, on the canvas and in the
+Library (*Edit a copy* saves a new file and never touches the original):
+one-click **Auto**, 20 filter presets, exposure, contrast, highlights and
+shadows, vibrance, warmth and tint, clarity, sharpen, blur, grain, fade,
+vignette, **duotone** and **colour pop**; crop, turn, straighten and mirror;
+**hide faces or number plates** (blur or pixelate); frames (polaroid, film,
+tape…), shapes, borders and shadows; and **cut-outs** — remove a photo's
+background on your own device and use it as a sticker. Plus memes in one
+click, and page sizes for every social network.
 
 ### Collages
 
@@ -303,13 +323,13 @@ The full plan, with sizes and reasons, is in **[ROADMAP.md](ROADMAP.md)**. In sh
    projects, printing (0.1–0.5).
 2. ✅ **Letopis joins Tessera**: media library, documents, canvas and
    presentations; Tessera as a self-hosted web app in Docker (0.6.0).
-3. **Feel like one app** (0.6.x): one home screen and header style, the library
-   inside the collage editor, a command palette for everything, a better server
-   file picker, upload progress, per-browser video support, ffmpeg in the Flatpak.
-4. **Build once, use everywhere** (0.7): collages inside documents and
-   presentations, one photo editing toolkit (crop, adjustments, filters, frames)
-   for collages and documents, one image engine and cache, tools on library
-   selections, version history for collages.
+3. ✅ **One app, one toolkit** (0.7.0): one home screen, the library inside the
+   collage editor, a command palette for everything, Stories with diary
+   features and live collages, one photo toolkit in every editor, cut-outs,
+   memes, MP4 slideshows.
+4. **Still open from 0.6.x/0.7**: a better server file picker, upload
+   progress, per-browser video support, ffmpeg in the Flatpak, one image
+   engine and cache, version history for collages, a shared interaction layer.
 5. **Tessera on a server** (0.8): install as an app, phones and tablets,
    read-only share links, built-in backups, update notices, real HTTPS certificates.
 6. **A smarter library** (0.9): more libraries (Immich), a places map, smart

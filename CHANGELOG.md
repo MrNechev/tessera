@@ -4,52 +4,71 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] — 2026-11-24
 
-**Feels like one app.** The seams between the collage studio and the documents
-are closing, and the two start sharing their tools.
+**One app, one toolkit.** The collage studio and the former documents (now
+**Stories**) feel like one application and share their tools: whatever you can
+do to a photo in one editor, you can do in all of them.
 
-### Added
-- **Cut-out stickers**: remove the background of any photo on your own
-  machine (U²-Netp in a Web Worker, nothing is uploaded anywhere) — from the
-  Library (*Cut out background*), a collage photo (*Cut out…* in the
-  Inspector, scissors in the Photos panel) or a story's media options. Refine
-  the edge with threshold, softness and an erase/restore brush; the result is
-  a transparent PNG in *Outputs › Cut-outs*, listed under *My cut-outs* in
-  the Stickers panel and usable in stories like any library photo.
-- **One home screen**: one *Recent* list for collages and documents (with
-  covers; All / Collages / Documents), one set of *New* actions (quick
-  collage, template, document, blank design, photo book, calendar, canvas,
-  from the library), collage and document templates side by side.
-- **Library inside the collage editor**: the Photos panel has a *Library* tab
-  (folders, search, filters, favourites); click to add, or drag thumbnails
-  onto the page or onto a frame.
-- **One photo toolkit**: photos and videos in documents, on the canvas and in
-  presentations get the collage editor's filters and adjustments (brightness,
-  contrast, saturation, warmth, fade, vignette, B&W, sepia) and flips, in a
-  new *Edit photo* dialog that also crops. Non-destructive; PowerPoint export
-  bakes them in, print layouts show them.
-- **Memes**: a *Memes & fun* template category (classic top/bottom text,
-  caption bar, motivational poster, expectation vs reality, nope/yes, four
-  panels), a *Meme* text style and the Anton font.
-- **Command palette everywhere** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): go to any
-  view, start any kind of project, open recent collages, find library files
-  and folders, the collage editor's commands, actions on the Library selection.
-- **Collages and documents use each other**: select photos in the Library
-  (click, Ctrl/Shift+click) and make a collage, photo book or calendar;
-  *File → Add to a document…* in the collage editor saves the pages into
-  Outputs and adds them as a section of a new or existing document; a
-  document section's … menu has *Make a collage of these photos*.
-- **Settings → Documents & library**: slide transition, library thumbnail
-  size and blur, hidden folders, favourite folders, recently inserted media.
+### Added — one photo toolkit, in every editor
+- **Edit photo** in the collage editor, in stories, on the canvas and in the
+  Library (*Edit a copy*: saved as a new file in Outputs/Edited, rendered at
+  full resolution, RAW and HEIC included). Originals are never changed.
+- New adjustments: exposure, tint, highlights, shadows, vibrance, clarity,
+  sharpen, blur, grain; **duotone**, **colour pop**, one-click **Auto**; new
+  presets (Crisp, Film, Golden hour, Moody, two duotones, Red pop); presets are
+  previewed on the photo itself.
+- Crop, quarter turns, straighten and mirror; **hide areas** (blur or pixelate
+  faces, number plates, screens); frames (polaroid, instant, mat, film, tape),
+  shapes (circle, heart, star…), borders and shadows for story photos.
+- One pixel pipeline (`render/look.ts`) shared by the collage renderer, stories,
+  exports and copies; videos get an exact SVG twin of the colour stages.
+  Crops now also work in presentations in the desktop app.
+- **Cut-outs**: remove a photo's background on your own device (U²-Netp, ONNX
+  Runtime Web; nothing is uploaded), touch up with a brush, save a transparent
+  PNG to Outputs/Cut-outs and use it as a sticker in collages ("My cut-outs"),
+  in stories and on the canvas.
+- **Memes**: a Memes & fun template category, a Meme text style (Anton), and
+  *Meme* from any Library photo. More social page sizes (YouTube thumbnail, X,
+  Pinterest, LinkedIn, profile picture, chat sticker).
+- **Video out**: an MP4 slideshow (16:9, 9:16 or 1:1; slow zoom and pan,
+  crossfades, title cards, music from the library) from Library photos and
+  clips, a story or a multi-page collage; saved to Outputs/Videos (H.264 via
+  VA-API, x264 or OpenH264).
+
+### Added — Stories (formerly Documents)
+- **Live collages** in stories: a section shows a collage project and stays
+  editable (*Edit collage* → back to the story); presentations, print/PDF and
+  PowerPoint include it. *Add to a story* from the collage editor adds it live
+  or as an image; a story section can start a collage of its photos.
+- **Diary**: *Today* (today's photos into the diary story, a chapter per day),
+  a **calendar** of stories and photos per day, **On this day** (Stories page
+  and Home), and a **story starter** that drafts a story from a trip or date
+  range (chapters per day, the best photos without near-duplicates, captions
+  with date and place). Stories and sections can carry a date and place.
+- On the **canvas**: stickers, and text in Tessera's styles (fonts, outline,
+  shadow, pill); styled section titles (Script, Poster, Handwritten, Meme…).
+
+### Added — one app
+- **One home screen**: one *Recent* list for collages and stories, one set of
+  *New* actions, collage and story templates side by side.
+- **Library inside the collage editor** (Photos → Library tab): click to add,
+  drag onto the page or a frame. Photos fill a template's empty frames first.
+- **Library selection** → collage, photo book, calendar, meme, video, cut-out,
+  edited copy, convert, compress, batch.
+- **Command palette everywhere** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): any view, any
+  kind of new project, recent collages, library files and folders, the collage
+  editor's commands, actions on the Library selection.
+- **Settings → Stories & library**: slide transition, thumbnail size and blur,
+  hidden and favourite folders, recently inserted media.
+- Docker: `ghcr.io/mrnechev/tessera:edge` follows `main` (Settings shows the
+  build); releases stay `:<version>` and `:latest`.
 
 ### Changed
-- Theme switch and *Sign out* live in the left rail, on every screen. The
-  documents' own top-bar logo, home, System and theme buttons are gone; the
-  Documents and System pages use Tessera's headers, Import/Backup moved into
-  a … menu. Clicking *Documents* in the rail inside a document returns to the
-  list.
-- Photos added to a template fill its empty frames first.
+- *Documents* are called **Stories** in the interface (files, API and data
+  folder unchanged, no migration).
+- Theme switch and *Sign out* live in the rail; the old Letopis top bars are
+  gone; the Stories and System pages use Tessera's headers.
 
 ## [0.6.0] — 2026-11-24
 

@@ -24,7 +24,7 @@ use everywhere"), then grows the server side and the library.
 |---|---|---|
 | ✅ | 0.1–0.5.1 | Collage studio, templates, stickers, RAW/colour management, convert/compress/batch, multi-page projects, photo books, calendars, printing |
 | ✅ | 0.6.0 | Letopis merged in: library, documents, canvas, presentations, exports; Tessera as a Docker web app; write guard; desktop library setup |
-| ✅ | unreleased | One home screen, one header style, Ctrl+K everywhere, library in the collage editor, settings in one place, photo looks for documents, memes |
+| ✅ | 0.7.0 | One app: home, headers, Ctrl+K, library in the collage editor, settings; Stories (diary, calendar, on this day, story starter, live collages); one photo toolkit everywhere; cut-outs; memes; MP4 slideshows; `:edge` image |
 
 ---
 
@@ -54,8 +54,8 @@ What the merge was for: features written once, used by collages and documents al
 | | Item | Why / what | Size |
 |---|---|---|---|
 | ✅ | **Collages from the library** | Select photos in the Library → *Make a collage / photo book / calendar* with the layout engines and templates. Also: *Add to a document* from the collage editor, *Make a collage* from a document section. | S |
-| 📋 | **A collage inside a document** | A section (or canvas card, or slide) can be a Tessera collage page: edit it in the collage editor, it renders live in the document and the presentation, and exports to PDF/PPTX. | L |
-| 📋 | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. *Done: filters, adjustments, flips and crop for document/canvas media (Edit photo). Open: rotation, frames, and the same dialog in the collage editor.* | L |
+| ✅ | **A collage inside a document** | A section (or canvas card, or slide) can be a Tessera collage page: edit it in the collage editor, it renders live in the document and the presentation, and exports to PDF/PPTX. | L |
+| ✅ | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. *Done in 0.7.0, plus hide areas, duotone, colour pop, cut-outs and Edit a copy.* | L |
 | 📋 | **One image engine** | Library thumbnails, previews and RAW/HEIC decoding move to `tessera-imaging` (colour-managed, real RAW development, no libvips needed); the collage editor uses the library's cached previews instead of making its own. One cache, less disk, less work. | L |
 | 📋 | **Tools on library selections** | Convert / compress / batch photos picked in the Library; results land in Outputs and can be inserted into the open document in one click. | M |
 | 📋 | **One project store** | Collages get what documents have: version history, restore, conflict detection when the same project is open in two places (two browser tabs, two computers), trash, and backup in the same zip. | M |
@@ -85,7 +85,7 @@ For the Docker web app (the part used every day on slavlab).
 | 📋 | **More libraries** | An Immich library (read its folders the same way), and more slots in the compose file. | S |
 | 📋 | **Places map** | Photos and videos on a map (GPS is already indexed); pick a region → collage or document. | M |
 | 📋 | **Smart collections** | Saved searches ("2025 · Canon · videos > 1 min"), On this day, and per-trip groups made from dates and places. | M |
-| 📋 | **Story starter** | From a trip or a date range, Tessera drafts a document (sections by day, best photos, captions with places and dates) for you to edit. | M |
+| ✅ | **Story starter** | From a trip or a date range, Tessera drafts a document (sections by day, best photos, captions with places and dates) for you to edit. | M |
 | 💡 | **Face and object search** | Local models only (nothing leaves the machine): "people", "beach", "dog". | L |
 | 💡 | **Unreadable files report** | List files the server can't read (permissions) with a hint how to fix them. | S |
 
