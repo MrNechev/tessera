@@ -35,6 +35,7 @@
   import SetupDialog from './lib/components/SetupDialog.svelte';
   import NewProjectDialog from './lib/components/NewProjectDialog.svelte';
   import LookFilters from './lib/look/LookFilters.svelte';
+  import CutoutHost from './lib/cutout/CutoutHost.svelte';
   import { registerAppCommands } from './lib/commands';
   import './lib/documents/documents.css';
 
@@ -351,6 +352,7 @@
 {#if app.ready && isTauri && !app.settings.setupDone}<SetupDialog onclose={() => undefined} />{/if}
 {/if}
 
+<CutoutHost />
 <Toasts />
 <LookFilters />
 {#if picker.current}<ServerPicker />{/if}

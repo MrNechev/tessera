@@ -4,7 +4,7 @@
    * libraries, with search, filters, duplicates and previews. Picked items can
    * start a collage or go to the image tools.
    */
-  import { ArrowLeftRight, BookOpen, CalendarDays, LayoutDashboard, Minimize2, Wand, X } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, CalendarDays, LayoutDashboard, Minimize2, Scissors, Wand, X } from '@lucide/svelte';
   import LibraryPanel from '../documents/components/LibraryPanel.svelte';
   import type { FileItem } from '../documents/lib/types';
   import { call } from '../api/http';
@@ -14,6 +14,7 @@
   import { compressQueue, convertQueue, toolsQueue } from '../stores/batch.svelte';
   import { toasts } from '../stores/toasts.svelte';
   import { palette } from '../documents/lib/palette.svelte';
+  import { openCutout } from '../cutout/open.svelte';
 
   let picked = $state<FileItem[]>([]);
   let panel: LibraryPanel | undefined = $state();
@@ -35,6 +36,7 @@
         { id: 'lib:convert', group: 'Selection', icon: 'refresh', title: `Convert ${n}`, run: () => use('convert') },
         { id: 'lib:compress', group: 'Selection', icon: 'package', title: `Compress ${n}`, run: () => use('compress') },
         { id: 'lib:batch', group: 'Selection', icon: 'sliders', title: `Resize, watermark or rename ${n}`, run: () => use('batch') },
+        ...(images.length === 1 ? [{ id: 'lib:cutout', group: 'Selection', icon: 'image', title: 'Cut out the background', run: cutOut }] : []),
       ];
     }),
   );
@@ -44,6 +46,12 @@
 
   async function paths(items: FileItem[]): Promise<string[]> {
     return Promise.all(items.map((f) => call<string>('resolve', { libraryId: f.libraryId, path: f.path })));
+  }
+
+  /** Remove the background of the one selected photo; the PNG lands in Outputs/Cut-outs. */
+  function cutOut() {
+    const f = images[0];
+    if (f) openCutout({ source: { libraryId: f.libraryId, path: f.path, name: f.name }, actions: [{ id: 'save', label: 'Save to Outputs' }] });
   }
 
   async function use(target: 'collage' | 'book' | 'calendar' | 'convert' | 'compress' | 'batch') {
@@ -82,6 +90,7 @@
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('convert')}><ArrowLeftRight size={15} /> Convert</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('compress')}><Minimize2 size={15} /> Compress</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('batch')}><Wand size={15} /> Batch</button>
+      {#if images.length === 1}<button class="btn" title="Remove the background (on this device); saved as a transparent PNG in Outputs › Cut-outs" disabled={busy} onclick={cutOut}><Scissors size={15} /> Cut out background</button>{/if}
       <button class="icon-btn" title="Clear" onclick={clear}><X size={16} /></button>
     </div>
   {/if}

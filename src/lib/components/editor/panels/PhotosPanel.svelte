@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Plus, X } from '@lucide/svelte';
+  import { FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Plus, Scissors, X } from '@lucide/svelte';
   import { fileUrl, pickFolder } from '../../../api/backend';
   import { editor } from '../../../editor/editor.svelte';
   import { addPhotos, importLibraryRefs } from '../../../editor/session.svelte';
@@ -8,6 +8,7 @@
   import { app } from '../../../stores/app.svelte';
   import { drag } from '../../../stores/drag.svelte';
   import { library } from '../../../stores/library.svelte';
+  import { cutOutImported } from '../../../cutout/collage';
 
   const used = $derived(editor.usedAssets());
 
@@ -130,6 +131,7 @@
           <img src={fileUrl(item.thumb)} alt={item.name} draggable="false" loading="lazy" />
           {#if used.has(item.id)}<span class="badge">✓</span>{/if}
           <button class="add" title="Add to collage" onpointerdown={(e) => e.stopPropagation()} onclick={() => add([item.id])}><Plus size={14} /></button>
+          <button class="cut" title="Cut out the subject (remove the background)" onpointerdown={(e) => e.stopPropagation()} onclick={() => cutOutImported(item)}><Scissors size={13} /></button>
           <button
             class="remove"
             title="Remove from library"
@@ -285,6 +287,7 @@
     font-weight: 700;
   }
   .add,
+  .cut,
   .remove {
     position: absolute;
     display: none;
@@ -301,6 +304,13 @@
     height: 24px;
     background: var(--accent);
   }
+  .cut {
+    left: 5px;
+    bottom: 5px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.6);
+  }
   .remove {
     right: 4px;
     top: 4px;
@@ -309,6 +319,7 @@
     background: rgba(0, 0, 0, 0.6);
   }
   .item:hover .add,
+  .item:hover .cut,
   .item:hover .remove {
     display: grid;
   }

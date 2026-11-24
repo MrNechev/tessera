@@ -15,6 +15,7 @@
     Italic,
     Lock,
     LockOpen,
+    Scissors,
     TextAlignCenter,
     TextAlignEnd,
     TextAlignStart,
@@ -33,6 +34,7 @@
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import Layers from './Layers.svelte';
+  import { cutOutPhoto } from '../../cutout/collage';
 
   let tab = $state<'props' | 'layers'>('props');
   const el = $derived(editor.single);
@@ -121,6 +123,7 @@
           <button class="icon-btn" title="Flip vertically" onclick={() => patch({ flipY: !p.flipY })}><FlipVertical size={16} /></button>
         </div>
         <p class="hint">{editor.doc.assets[p.asset]?.name ?? ''}</p>
+        {#if !p.cutout}<button class="btn small" title="Remove the background (on this device)" onclick={() => cutOutPhoto(p)}><Scissors size={13} /> Cut out…</button>{/if}
       {:else}
         <p class="hint">Empty frame — drag a photo from the Photos tab onto it, or double-click it.</p>
       {/if}

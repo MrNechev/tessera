@@ -163,6 +163,12 @@ function drawCover(c: AnyCtx, img: ImageEntry, win: Rect, crop: Crop, source: Ca
   c.drawImage(source, r.x, r.y, r.w, r.h);
 }
 
+/** Whether `r` lies within `win` (up to rounding). */
+function fitsInside(r: Rect, win: Rect): boolean {
+  const e = 0.5;
+  return r.x >= win.x - e && r.y >= win.y - e && r.x + r.w <= win.x + win.w + e && r.y + r.h <= win.y + win.h + e;
+}
+
 function drawPlaceholder(c: AnyCtx, win: Rect, editor: boolean): void {
   c.fillStyle = editor ? '#e6e2ee' : '#dcd8e3';
   c.fillRect(win.x, win.y, win.w, win.h);
@@ -190,6 +196,9 @@ function drawPhoto(c: AnyCtx, el: PhotoElement, doc: CollageDoc, opts: RenderOpt
   const frame = el.frame && el.frame.style !== 'none' ? el.frame : null;
   const win = photoWindow(frame, w, h);
   const mask = maskPath(el.mask, win.w, win.h, win.x, win.y);
+  // A cut-out (transparent PNG) without a frame: its shadow follows the
+  // subject's outline and nothing is drawn behind it, not even while loading.
+  const cutout = !!el.cutout && !frame;
 
   // Frame body or drop shadow.
   if (frame && frame.style !== 'tape') {
@@ -214,7 +223,7 @@ function drawPhoto(c: AnyCtx, el: PhotoElement, doc: CollageDoc, opts: RenderOpt
       c.lineWidth = Math.max(1, Math.min(w, h) * 0.004);
       c.strokeRect(win.x - c.lineWidth * 2, win.y - c.lineWidth * 2, win.w + c.lineWidth * 4, win.h + c.lineWidth * 4);
     }
-  } else if (el.shadow) {
+  } else if (el.shadow && !cutout) {
     c.save();
     applyShadow(c, el.shadow, opts.scale, S);
     c.fillStyle = '#808080';
@@ -224,9 +233,10 @@ function drawPhoto(c: AnyCtx, el: PhotoElement, doc: CollageDoc, opts: RenderOpt
 
   // The photo itself.
   c.save();
-  c.clip(mask);
   const need = Math.max(win.w, win.h) * Math.max(1, el.crop.zoom) * opts.scale * 1.1;
   const img = el.asset ? opts.resources.image(el.asset, need) : null;
+  // A cut-out that fits its box exactly needs no clip, which would cut off its shadow.
+  if (!(cutout && img && el.mask.shape === 'rect' && !el.mask.radius && fitsInside(coverRect(img.width, img.height, win, el.crop), win))) c.clip(mask);
   if (img) {
     let source: CanvasImageSource = img.source;
     if (hasPixelAdjust(el.adjust)) {
@@ -239,11 +249,15 @@ function drawPhoto(c: AnyCtx, el: PhotoElement, doc: CollageDoc, opts: RenderOpt
       c.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
       c.translate(-(win.x + win.w / 2), -(win.y + win.h / 2));
     }
+    if (cutout) applyShadow(c, el.shadow, opts.scale, S);
     drawCover(c, img, win, el.crop, source);
-  } else {
+    clearShadow(c);
+  } else if (!cutout) {
     drawPlaceholder(c, win, opts.placeholders);
   }
   if (el.adjust && el.adjust.vignette > 0) {
+    // On a cut-out only the subject darkens, not the transparent surroundings.
+    if (cutout) c.globalCompositeOperation = 'source-atop';
     const g = c.createRadialGradient(
       win.x + win.w / 2,
       win.y + win.h / 2,

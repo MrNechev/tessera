@@ -28,6 +28,11 @@ export default defineConfig({
     ),
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
+  // The cut-out worker (src/lib/cutout) is an ES module worker: it imports
+  // onnxruntime-web, which loads its WebAssembly from a URL Vite emits.
+  worker: { format: 'es' },
+  // Pre-bundling would move onnxruntime-web away from its .wasm file in dev.
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
   build: {
     // WebKitGTK 2.40+ / Safari 16+ level features are fine.
     target: 'safari16',

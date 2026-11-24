@@ -119,6 +119,11 @@ export interface PhotoElement extends ElementBase {
   filter?: string | null;
   /** Set when the element is managed by the document's auto-layout. */
   slot?: boolean;
+  /**
+   * A cut-out (transparent PNG from Outputs/Cut-outs) used like a sticker:
+   * its shadow follows the subject and no placeholder is drawn behind it.
+   */
+  cutout?: boolean;
 }
 
 export type TextAlign = 'left' | 'center' | 'right';

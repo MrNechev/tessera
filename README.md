@@ -329,6 +329,9 @@ later version.
   with them is entirely yours.
 - Fonts are licensed under the SIL Open Font License 1.1 or Apache 2.0 — see
   [`public/fonts/licenses`](public/fonts/licenses).
+- Cut-outs use the U²-Netp model by Xuebin Qin et al. (Apache 2.0, see
+  [`public/models`](public/models/LICENSE.md)) on
+  [onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT).
 - The *Classic* layout is a port of the algorithm from
   [PhotoCollage](https://github.com/adrienverge/PhotoCollage) by Adrien Vergé
   (GPL-2.0-or-later), which inspired this project.

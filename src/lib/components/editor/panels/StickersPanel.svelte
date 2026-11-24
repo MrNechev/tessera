@@ -3,6 +3,7 @@
   import { editor } from '../../../editor/editor.svelte';
   import { createSticker } from '../../../model/factory';
   import { stickers, type StickerInfo } from '../../../stores/stickers.svelte';
+  import CutoutStickers from '../../../cutout/CutoutStickers.svelte';
 
   let query = $state('');
   let category = $state('all');
@@ -38,6 +39,7 @@
     <input type="search" placeholder="Search hearts, snow, balloons…" bind:value={query} />
   </div>
 </div>
+<CutoutStickers />
 <div class="chips">
   <button class="chip" class:on={category === 'all'} onclick={() => (category = 'all')}>All</button>
   {#each stickers.categories as c (c.id)}
