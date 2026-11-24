@@ -297,24 +297,24 @@ The Flatpak is built from [`packaging/flatpak`](packaging/flatpak). See
 
 ## Roadmap
 
-Priorities for the next releases, in order:
+The full plan, with sizes and reasons, is in **[ROADMAP.md](ROADMAP.md)**. In short:
 
-1. ✅ **More templates, stickers and layouts** — photos arranged into letters,
-   numbers and words; photo calendars; new occasions and sticker sets (0.2.0).
-2. ✅ **RAW camera formats and colour management** (ICC conversion) (0.3.0).
-3. ✅ **Batch watermark, resize and rename tools** (0.4.0).
-4. ✅ **Printing and multi-page projects** (photo books, calendars) (0.5.0).
-5. Bug fixing, polish and performance across all of the above — ongoing;
-   the first round shipped in 0.5.1.
-6. ✅ **Letopis joins Tessera**: media library, documents, canvas and
-   presentations, and Tessera as a self-hosted web app in Docker (0.6.0).
-7. **Build once, use everywhere** — collages from library selections inside
-   documents, a collage page as a slide or canvas card, one set of photo
-   adjustments (crop, filters) for collages and documents.
-
-Planned for later: ffmpeg in the Flatpak, a "share on my network" option for
-the desktop app, in-app updates for the AppImage, a Flathub listing,
-translations, and Windows and macOS builds.
+1. ✅ Collages, templates, RAW and colour management, image tools, multi-page
+   projects, printing (0.1–0.5).
+2. ✅ **Letopis joins Tessera**: media library, documents, canvas and
+   presentations; Tessera as a self-hosted web app in Docker (0.6.0).
+3. **Feel like one app** (0.6.x): one home screen and header style, the library
+   inside the collage editor, a command palette for everything, a better server
+   file picker, upload progress, per-browser video support, ffmpeg in the Flatpak.
+4. **Build once, use everywhere** (0.7): collages inside documents and
+   presentations, one photo editing toolkit (crop, adjustments, filters, frames)
+   for collages and documents, one image engine and cache, tools on library
+   selections, version history for collages.
+5. **Tessera on a server** (0.8): install as an app, phones and tablets,
+   read-only share links, built-in backups, update notices, real HTTPS certificates.
+6. **A smarter library** (0.9): more libraries (Immich), a places map, smart
+   collections, a story starter.
+7. **1.0**: stable formats, translations, Flathub, AppImage updates.
 
 Ideas and bug reports are very welcome — [open an issue](https://github.com/MrNechev/tessera/issues).
 
