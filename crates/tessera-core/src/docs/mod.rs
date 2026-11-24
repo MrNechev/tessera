@@ -834,6 +834,41 @@ mod tests {
         assert!(normalize(&mut doc).is_ok(), "null canvas rejected");
     }
 
+    /// Canvas items are free-form JSON to the store: stickers and styled text (added
+    /// after the canvas itself) and a section's title style round-trip untouched.
+    #[test]
+    fn canvas_stickers_and_text_styles_survive() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = new_store(dir.path());
+        let canvas: Value = serde_json::from_str(
+            r##"{"items":[
+            {"id":"st1","type":"sticker","sticker":"birthday-cake","x":5,"y":6,"w":160,"h":120,"rotation":-12.5,"flipX":true,"reveal":2},
+            {"id":"t1","type":"note","x":0,"y":0,"w":300,"h":60,"text":"TOP TEXT","color":"none","size":56,"autoW":true,
+             "look":{"font":"anton","uppercase":true,"fill":"#ffffff","stroke":{"width":0.085,"color":"#000000"},
+                     "shadow":{"x":0.04,"y":0.06,"blur":0.12,"color":"#00000088"},"letterSpacing":0.05,
+                     "background":{"color":"#ff5d8f","padding":0.45,"radius":1}}}]}"##,
+        )
+        .unwrap();
+        let mut sec: Section =
+            serde_json::from_str(r#"{"id":"s1","layout":"text-only","media":[],"slide":true,"title":"Hello","titleStyle":"script"}"#).unwrap();
+        sec.canvas = Some(serde_json::json!({"x":0,"y":0,"w":480,"h":300}));
+        let d = s
+            .create(Document {
+                title: "Board".into(),
+                canvas: Some(canvas.clone()),
+                sections: vec![sec],
+                ..Default::default()
+            })
+            .unwrap();
+        let got = s.get(&d.id).unwrap();
+        assert_eq!(got.canvas.as_ref(), Some(&canvas));
+        let out = serde_json::to_string(&got.sections[0]).unwrap();
+        assert!(
+            out.contains(r#""titleStyle":"script""#),
+            "lost the title style in {out}"
+        );
+    }
+
     #[test]
     fn unknown_fields_survive() {
         let input = r#"{"id":"abcdefgh1","title":"T","createdAt":"","updatedAt":"","version":1,"futureDoc":{"a":1},

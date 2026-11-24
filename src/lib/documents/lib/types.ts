@@ -1,4 +1,5 @@
 import type { Look } from '../../look/looks.svelte';
+import type { TextLook } from '../../text/styles';
 
 export type Kind = 'image' | 'gif' | 'video' | 'audio';
 
@@ -57,6 +58,8 @@ export interface Section {
   advance?: number;
   /** last rehearsal: seconds spent on this slide */
   rehearsal?: number;
+  /** look of the title (an id from text/styles.ts TITLE_STYLES; none = classic serif) */
+  titleStyle?: string;
 }
 
 export interface Rect {
@@ -98,6 +101,8 @@ export interface NoteItem extends Rect, BoxFlags {
   color: string;
   size: number;
   align?: 'left' | 'center' | 'right';
+  /** Tessera text style (font, fill, outline, shadow, pill…); none = the UI font */
+  look?: TextLook;
 }
 
 export interface ShapeItem extends Rect, BoxFlags {
@@ -142,7 +147,17 @@ export interface PathItem extends Rect, BoxFlags {
   highlighter?: boolean;
 }
 
-export type BoxItem = NoteItem | ShapeItem | FrameItem | PathItem;
+/** a sticker from Tessera's catalogue (public/stickers); rotation in degrees around the centre */
+export interface StickerItem extends Rect, BoxFlags {
+  id: string;
+  type: 'sticker';
+  sticker: string;
+  rotation?: number;
+  flipX?: boolean;
+  flipY?: boolean;
+}
+
+export type BoxItem = NoteItem | ShapeItem | FrameItem | PathItem | StickerItem;
 export type CanvasItem = BoxItem | ArrowItem;
 
 export interface DocCanvas {
