@@ -27,8 +27,8 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
 use super::{
-    batch, batch_tools, export, images, paths, projects, settings, system, transfer, CmdResult,
-    Tools,
+    batch, batch_tools, export, images, paths, projects, settings, system, transfer, video,
+    CmdResult, Tools,
 };
 
 type Shared = Arc<Tools>;
@@ -127,7 +127,7 @@ fn to<T: Serialize>(v: T) -> CmdResult<Value> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-fn dispatch(t: &Tools, cmd: &str, a: &Value) -> CmdResult<Value> {
+fn dispatch(t: &Shared, cmd: &str, a: &Value) -> CmdResult<Value> {
     match cmd {
         "app_info" => to(system::app_info(t)),
         "ensure_dir" => to(system::ensure_dir(t, arg::<PathArg>(a)?.path)?),
@@ -282,6 +282,19 @@ fn dispatch(t: &Tools, cmd: &str, a: &Value) -> CmdResult<Value> {
             let A { library_id, path } = arg(a)?;
             to(transfer::resolve_ref(t, &library_id, &path)?)
         }
+        "video_support" => to(video::video_support(t)),
+        "video_start" => {
+            #[derive(Deserialize)]
+            struct A {
+                items: Vec<video::VideoItem>,
+                #[serde(default)]
+                options: video::VideoOptions,
+            }
+            let A { items, options } = arg(a)?;
+            to(video::video_start(t, items, options)?)
+        }
+        "video_status" => to(video::video_status(t, arg::<JobArg>(a)?.job)?),
+        "video_cancel" => to(video::video_cancel(t, arg::<JobArg>(a)?.job)?),
         "writable" => {
             let p = arg::<PathArg>(a)?.path;
             to(t.guard.writable(&paths::expand(&p)).is_ok())

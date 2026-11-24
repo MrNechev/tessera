@@ -175,6 +175,11 @@ impl Manager {
         (&self.hw, &self.hw_note)
     }
 
+    /// The VA-API device used for GPU encoding.
+    pub fn vaapi_device(&self) -> &str {
+        &self.cfg.vaapi_device
+    }
+
     pub fn has_vips(&self) -> bool {
         self.has_vips
     }

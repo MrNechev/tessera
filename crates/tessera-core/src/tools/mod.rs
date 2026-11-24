@@ -15,10 +15,11 @@ pub mod projects;
 pub mod settings;
 pub mod system;
 pub mod transfer;
+pub mod video;
 
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use serde::Serialize;
 
@@ -63,6 +64,10 @@ pub struct Tools {
     pub guard: Guard,
     pub exports: Mutex<export::Jobs>,
     pub cancel_batch: AtomicBool,
+    /// The engine's media manager (ffmpeg, GPU encoding, worker pools), attached once
+    /// the engine has started; video out needs it.
+    pub media: OnceLock<Arc<crate::media::Manager>>,
+    pub videos: video::Videos,
     on_settings: RwLock<Option<SettingsHook>>,
 }
 
@@ -85,6 +90,8 @@ impl Tools {
             guard,
             exports: Mutex::default(),
             cancel_batch: AtomicBool::new(false),
+            media: OnceLock::new(),
+            videos: video::Videos::default(),
             on_settings: RwLock::new(None),
             cfg,
         };
@@ -94,6 +101,11 @@ impl Tools {
             tools.cfg.uploads_dir.clone(),
         ]);
         tools
+    }
+
+    /// Give the tools the engine's media manager (call after `Core::start`).
+    pub fn attach_media(&self, m: Arc<crate::media::Manager>) {
+        let _ = self.media.set(m);
     }
 
     pub fn on_settings_saved(&self, hook: SettingsHook) {

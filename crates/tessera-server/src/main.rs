@@ -109,6 +109,7 @@ async fn run() -> anyhow::Result<()> {
     }));
     let core: Arc<Core> = Core::start(cfg).await?;
     tools.guard.set_areas(tools::areas_for(&core.libraries()));
+    tools.attach_media(core.media.clone());
     tools::api::spawn_cleanup(tools.clone());
     let router = core.router_with(tools::api::routes(tools));
     let res = core.serve(router, shutdown_signal()).await;
