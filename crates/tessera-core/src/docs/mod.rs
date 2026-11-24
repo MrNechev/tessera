@@ -245,6 +245,8 @@ const LAYOUTS: &[&str] = &[
     "text-only",
     "gallery",
     "compare",
+    // a live collage: `collage: {projectId, page}`, kept by the section's `extra`
+    "collage",
 ];
 
 /// A previous version in the history list.
@@ -848,6 +850,20 @@ mod tests {
         ] {
             assert!(out.contains(want), "lost {want} in {out}");
         }
+    }
+
+    #[test]
+    fn collage_sections_survive() {
+        let input = r#"{"id":"abcdefgh1","title":"T","createdAt":"","updatedAt":"","version":1,
+		"sections":[{"id":"s1","layout":"collage","media":[],"slide":true,"collage":{"projectId":"p-1","page":2}}]}"#;
+        let mut d: Document = serde_json::from_str(input).unwrap();
+        normalize(&mut d).unwrap();
+        assert_eq!(d.sections[0].layout, "collage");
+        let out = serde_json::to_value(&d).unwrap();
+        assert_eq!(
+            out["sections"][0]["collage"],
+            serde_json::json!({"projectId": "p-1", "page": 2})
+        );
     }
 
     #[test]
