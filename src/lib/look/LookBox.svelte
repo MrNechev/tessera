@@ -92,6 +92,14 @@
   .lb-outer.frame-tape {
     background: transparent;
   }
+  /* paper frames need an edge, or a white frame vanishes on a white page */
+  .lb-outer.frame-polaroid,
+  .lb-outer.frame-instant,
+  .lb-outer.frame-mat {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.16);
+  }
   .lb-outer.fill {
     position: absolute;
     left: 50%;
