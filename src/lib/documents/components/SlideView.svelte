@@ -4,6 +4,7 @@
   import { resolver } from '../lib/resolver.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
   import type { Section } from '../lib/types';
+  import { titleCss } from '../../text/styles';
   import MediaView from './MediaView.svelte';
   import CompareView from './CompareView.svelte';
 
@@ -39,7 +40,7 @@
 
 <div class="slide layout-{layout}" class:has-title={!!section.title} class:has-text={hasText}>
   {#if section.title && layout !== 'media-full'}
-    <h1 class="stitle">{section.title}</h1>
+    <h1 class="stitle" style={titleCss(section.titleStyle)}>{section.title}</h1>
   {/if}
   {#if layout === 'chapter'}
     <div class="chapmark">Chapter</div>
@@ -71,7 +72,7 @@
   {/if}
   {#if hasText || (layout === 'media-full' && section.title)}
     <div class="stext">
-      {#if layout === 'media-full' && section.title}<h1 class="stitle">{section.title}</h1>{/if}
+      {#if layout === 'media-full' && section.title}<h1 class="stitle" style={titleCss(section.titleStyle)}>{section.title}</h1>{/if}
       {#if hasText}<div class="prose">{@html toHTML(section.text)}</div>{/if}
     </div>
   {/if}
@@ -93,7 +94,8 @@
   .stitle {
     grid-area: title;
     margin: 0;
-    font: 650 calc(var(--fs) * 2) / 1.15 var(--serif);
+    /* --tscale: size factor of the section's title style (text/styles.ts) */
+    font: 650 calc(var(--fs) * 2 * var(--tscale, 1)) / 1.15 var(--serif);
     letter-spacing: -0.01em;
   }
   .smedia {
@@ -162,7 +164,7 @@
     color: #e8b04b;
   }
   .layout-chapter .stitle {
-    font-size: calc(var(--fs) * 3.2);
+    font-size: calc(var(--fs) * 3.2 * var(--tscale, 1));
   }
   .layout-chapter .stext {
     max-width: 60ch;
@@ -176,7 +178,7 @@
     padding: 8vmin 10vmin;
   }
   .layout-text-only .stitle {
-    font-size: calc(var(--fs) * 2.6);
+    font-size: calc(var(--fs) * 2.6 * var(--tscale, 1));
     text-align: center;
   }
   .layout-text-only .stext {

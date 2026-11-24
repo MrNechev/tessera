@@ -3,40 +3,14 @@
   import { editor } from '../../../editor/editor.svelte';
   import type { TextElement } from '../../../model/types';
   import { naturalTextWidth } from '../../../render/text';
+  import { presetElement, TEXT_PRESETS as presets, type TextPreset } from '../../../text/styles';
 
-  interface Preset {
-    label: string;
-    sample: string;
-    el: Partial<TextElement>;
-    /** Size as a fraction of the page's short side. */
-    size: number;
-    /** Outline width as a fraction of the font size. */
-    strokeK?: number;
-  }
-
-  const presets: Preset[] = [
-    { label: 'Heading', sample: 'Add a heading', size: 0.09, el: { font: 'playfair-display', weight: 700, text: 'Add a heading' } },
-    { label: 'Subheading', sample: 'Add a subheading', size: 0.05, el: { font: 'montserrat', weight: 600, text: 'Add a subheading' } },
-    { label: 'Body', sample: 'Add a little bit of body text', size: 0.03, el: { font: 'inter', weight: 400, text: 'Add a little bit of body text' } },
-    { label: 'Script', sample: 'With love', size: 0.1, el: { font: 'great-vibes', text: 'With love', fill: '#c2185b' } },
-    { label: 'Handwritten', sample: 'best day ever!', size: 0.07, el: { font: 'caveat', weight: 700, text: 'best day ever!', fill: '#2b2340' } },
-    { label: 'Retro', sample: 'Summer', size: 0.1, el: { font: 'pacifico', text: 'Summer', fill: '#ff6b4a', stroke: { width: 0, color: '#ffffff' } } },
-    { label: 'Meme', sample: 'TOP TEXT', size: 0.1, strokeK: 0.085, el: { font: 'anton', text: 'TOP TEXT', uppercase: true, fill: '#ffffff', stroke: { width: 1, color: '#000000' } } },
-    { label: 'Poster', sample: 'GOOD TIMES', size: 0.1, el: { font: 'bebas-neue', text: 'GOOD TIMES', letterSpacing: 0.08, fill: '#1d1b26' } },
-    { label: 'Bubbly', sample: 'Party time', size: 0.08, el: { font: 'fredoka', weight: 600, text: 'Party time', fill: '#7b2ff7' } },
-    { label: 'Marker', sample: 'Adventure!', size: 0.07, el: { font: 'permanent-marker', text: 'Adventure!', fill: '#2f3b2f' } },
-    { label: 'Elegant caps', sample: 'FOREVER', size: 0.06, el: { font: 'cinzel', weight: 700, text: 'FOREVER', letterSpacing: 0.25, fill: '#a8813a' } },
-    { label: 'Label', sample: 'SALE · NEW · WOW', size: 0.035, el: { font: 'montserrat', weight: 800, text: 'BEST FRIENDS', fill: '#ffffff', background: { color: '#ff5d8f', padding: 0.45, radius: 1 } } },
-    { label: 'Arched', sample: 'Happy Birthday', size: 0.07, el: { font: 'shrikhand', text: 'Happy Birthday', fill: '#ff4f81', curve: 0.35 } },
-    { label: 'Christmas', sample: 'Merry Christmas', size: 0.08, el: { font: 'mountains-of-christmas', weight: 700, text: 'Merry Christmas', fill: '#c62828' } },
-    { label: 'Spooky', sample: 'Boo!', size: 0.1, el: { font: 'creepster', text: 'Boo!', fill: '#ff8c1a' } },
-  ];
-
-  function add(p: Preset) {
+  // The presets live in text/styles.ts: the story canvas and section titles use them too.
+  function add(p: TextPreset) {
     const S = editor.pageShort;
     const size = p.size * S;
-    const draft = { ...p.el, size, fill: p.el.fill ?? '#1d1b26' } as Partial<TextElement>;
-    if (p.strokeK && p.el.stroke) draft.stroke = { ...p.el.stroke, width: p.strokeK * size };
+    const look = presetElement(p, size, S);
+    const draft = { ...look, fill: look.fill ?? '#1d1b26' } as Partial<TextElement>;
     // One undo step for adding, sizing and centring.
     editor.begin();
     const el = editor.addText(draft);
@@ -51,19 +25,20 @@
   <p class="hint">Click a style to add it, then double-click the text on the page to edit it.</p>
 </div>
 <div class="list">
-  {#each presets as p (p.label)}
-    {@const f = fontInfo(p.el.font ?? 'inter')}
+  {#each presets as p (p.id)}
+    {@const f = fontInfo(p.look.font)}
+    {@const outline = !!p.look.stroke?.width}
     <button class="preset" onclick={() => add(p)}>
       <span
         class="sample"
         style:font-family="'{f.family}'"
-        style:font-weight={p.el.weight ?? 400}
-        style:letter-spacing="{p.el.letterSpacing ?? 0}em"
-        style:color={p.el.background || p.strokeK ? '#fff' : undefined}
-        style:-webkit-text-stroke={p.strokeK ? '1.2px #000' : undefined}
-        style:paint-order={p.strokeK ? 'stroke fill' : undefined}
-        style:background={p.el.background?.color}
-        class:pill={!!p.el.background}>{p.sample}</span
+        style:font-weight={p.look.weight ?? 400}
+        style:letter-spacing="{p.look.letterSpacing ?? 0}em"
+        style:color={p.look.background || outline ? '#fff' : undefined}
+        style:-webkit-text-stroke={outline ? '1.2px #000' : undefined}
+        style:paint-order={outline ? 'stroke fill' : undefined}
+        style:background={p.look.background?.color}
+        class:pill={!!p.look.background}>{p.sample}</span
       >
       <span class="lbl">{p.label}</span>
     </button>

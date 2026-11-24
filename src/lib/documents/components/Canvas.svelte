@@ -46,9 +46,16 @@
     simplify,
     smoothPath,
     arrowPath as arrowGeom,
+    newSticker,
+    snapAngle,
     type Align,
     type View,
   } from '../lib/canvas';
+  import { ensureFont } from '../../assets/fonts';
+  import { stickers, type StickerInfo } from '../../stores/stickers.svelte';
+  import { lookCss, type TextLook } from '../../text/styles';
+  import StickerGrid, { STICKER_MIME } from '../../components/StickerGrid.svelte';
+  import CanvasTextStyle from './CanvasTextStyle.svelte';
   import type { DocState } from '../lib/docstate.svelte';
   import { newSection } from '../lib/docstate.svelte';
   import { dnd, hasMedia, readDrop } from '../lib/dnd.svelte';
@@ -56,7 +63,7 @@
   import { resolver } from '../lib/resolver.svelte';
   import { router } from '../lib/router.svelte';
   import { toasts } from '../lib/toast.svelte';
-  import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Layout, MediaRef, NoteItem, Rect, Section, ShapeItem } from '../lib/types';
+  import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Layout, MediaRef, NoteItem, Rect, Section, ShapeItem, StickerItem } from '../lib/types';
   import CanvasPanel from './CanvasPanel.svelte';
   import CanvasWorld from './CanvasWorld.svelte';
   import CanvasMinimap from './CanvasMinimap.svelte';
@@ -145,6 +152,8 @@
   let inkPath = $state<[number, number][] | null>(null);
   let arrangeMenu = $state(false);
   let exportMenu = $state(false);
+  let stickerPicker = $state(false);
+  let styleMenu = $state(false);
   let ctxW = $state(360);
 
   const hist = new CanvasHistory();
@@ -313,6 +322,7 @@
   const selCards = $derived([...selected].map((id) => secMap.get(id)).filter(Boolean) as Section[]);
   const single = $derived(selected.size === 1 ? [...selected][0] : null);
   const singleArrow = $derived(single && itemMap.get(single)?.type === 'arrow' ? (itemMap.get(single) as ArrowItem) : null);
+  const singleSticker = $derived(single && itemMap.get(single)?.type === 'sticker' ? (itemMap.get(single) as StickerItem) : null);
 
   function select(ids: Iterable<string>) {
     selected = new Set(ids);
@@ -558,7 +568,11 @@
         bbox: Rect | null;
         cands: Rect[];
       }
-    | { kind: 'resize'; id: string; handle: string; start: Rect; sx: number; sy: number; moved: boolean; minW: number; minH: number }
+    | { kind: 'resize'; id: string; handle: string; start: Rect; sx: number; sy: number; moved: boolean; minW: number; minH: number; keep?: boolean }
+    // turned stickers scale around their centre (the pointer's distance from it), so any
+    // corner works whatever the rotation
+    | { kind: 'scale'; it: StickerItem; cx: number; cy: number; d0: number; w0: number; h0: number; moved: boolean }
+    | { kind: 'rotate'; it: StickerItem; cx: number; cy: number; a0: number; r0: number; moved: boolean }
     | { kind: 'marquee'; x0: number; y0: number; base: Set<string> }
     | { kind: 'create'; x0: number; y0: number; sx: number; sy: number }
     | { kind: 'arrow'; from: ArrowEnd; sx: number; sy: number }
@@ -611,6 +625,15 @@
       }
       if ((h === 'from' || h === 'to') && singleArrow) {
         drag = { kind: 'end', a: singleArrow, which: h, moved: false };
+        return;
+      }
+      const st = singleSticker;
+      if (st) {
+        const cx = st.x + st.w / 2,
+          cy = st.y + st.h / 2;
+        if (h === 'rotate') drag = { kind: 'rotate', it: st, cx, cy, a0: (Math.atan2(w.y - cy, w.x - cx) * 180) / Math.PI, r0: st.rotation ?? 0, moved: false };
+        else if (st.rotation) drag = { kind: 'scale', it: st, cx, cy, d0: Math.max(1, Math.hypot(w.x - cx, w.y - cy)), w0: st.w, h0: st.h, moved: false };
+        else drag = { kind: 'resize', id: st.id, handle: h, start: { ...st }, sx, sy, moved: false, minW: 16, minH: 16, keep: true };
         return;
       }
       if (single) {
@@ -809,7 +832,7 @@
         if (h.includes('s')) y1 = snap(o.y + o.h + dy, snapOn);
         if (x1 - x0 < drag.minW) h.includes('w') ? (x0 = x1 - drag.minW) : (x1 = x0 + drag.minW);
         if (y1 - y0 < drag.minH) h.includes('n') ? (y0 = y1 - drag.minH) : (y1 = y0 + drag.minH);
-        if (e.shiftKey && h.length === 2) {
+        if ((e.shiftKey || drag.keep) && h.length === 2) {
           // keep the aspect ratio
           const ratio = o.w / o.h;
           const nw = x1 - x0;
@@ -826,6 +849,35 @@
           const it = itemMap.get(drag.id);
           if (it?.type === 'note' && it.autoW && (h.includes('e') || h.includes('w'))) delete it.autoW;
         }
+        break;
+      }
+      case 'scale': {
+        if (!drag.moved) {
+          drag.moved = true;
+          dragging = true;
+          before();
+        }
+        const k = Math.hypot(w.x - drag.cx, w.y - drag.cy) / drag.d0;
+        const nw = Math.max(16, drag.w0 * k),
+          nh = (nw * drag.h0) / drag.w0;
+        drag.it.x = drag.cx - nw / 2;
+        drag.it.y = drag.cy - nh / 2;
+        drag.it.w = nw;
+        drag.it.h = nh;
+        break;
+      }
+      case 'rotate': {
+        if (!drag.moved) {
+          drag.moved = true;
+          dragging = true;
+          before();
+        }
+        let a = drag.r0 + (Math.atan2(w.y - drag.cy, w.x - drag.cx) * 180) / Math.PI - drag.a0;
+        // Shift: 15° steps; otherwise only a gentle pull to the quarter turns
+        if (e.shiftKey) a = Math.round(a / 15) * 15;
+        a = snapAngle(a);
+        if (a) drag.it.rotation = a;
+        else delete drag.it.rotation;
         break;
       }
       case 'marquee': {
@@ -941,6 +993,8 @@
         }
         break;
       case 'end':
+      case 'scale':
+      case 'rotate':
         if (d.moved) change();
         break;
       case 'marquee':
@@ -1055,7 +1109,28 @@
     });
   }
 
+  /** Picker → canvas: a sticker about 160 screen px big, at a point (default: the view
+   *  centre, nudged a little per sticker so repeated clicks don't stack exactly). */
+  function addSticker(info: StickerInfo, at?: { x: number; y: number }) {
+    let p = at;
+    if (!p) {
+      const c = toWorld(view, vw / 2, vh / 2);
+      const n = items.filter((i) => i.type === 'sticker').length % 6;
+      p = { x: c.x + (n * 24) / view.z, y: c.y + (n * 24) / view.z };
+    }
+    before();
+    const it = newSticker(info, p.x, p.y, 160 / view.z);
+    insertItem(it);
+    select([it.id]);
+    change();
+  }
+
   function onDragOver(e: DragEvent) {
+    if (e.dataTransfer?.types.includes(STICKER_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      return;
+    }
     if (!hasMedia(e)) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'copy';
@@ -1064,6 +1139,13 @@
 
   function onDrop(e: DragEvent) {
     dropHint = false;
+    const sid = e.dataTransfer?.getData(STICKER_MIME);
+    if (sid) {
+      e.preventDefault();
+      const info = stickers.info(sid);
+      if (info) addSticker(info, worldPt(e));
+      return;
+    }
     const list = readDrop(e);
     dnd.dragging = false;
     if (!list) return;
@@ -1116,9 +1198,17 @@
       // free text widens with its longest line (until resized by hand)
       measureCtx ??= document.createElement('canvas').getContext('2d');
       if (measureCtx) {
-        measureCtx.font = `${it.size}px ${getComputedStyle(el).fontFamily}`;
-        const longest = Math.max(...(it.text || ' ').split('\n').map((l) => measureCtx!.measureText(l || ' ').width));
-        it.w = Math.min(2400, Math.max(40, Math.ceil(longest + it.size * 0.6)));
+        // measure in the text's own style: font, weight, caps and letter-spacing
+        const cs = getComputedStyle(el);
+        measureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${it.size}px ${cs.fontFamily}`;
+        const spacing = (it.look?.letterSpacing ?? 0) * it.size;
+        const width = (l: string) => {
+          const t = (it.look?.uppercase ? l.toUpperCase() : l) || ' ';
+          return measureCtx!.measureText(t).width + spacing * [...t].length;
+        };
+        const longest = Math.max(...(it.text || ' ').split('\n').map(width));
+        const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) || it.size * 0.3;
+        it.w = Math.min(2400, Math.max(40, Math.ceil(longest + pad + it.size * 0.3)));
       }
     }
     if (el.scrollHeight > el.clientHeight + 1) it.h = Math.ceil(el.scrollHeight);
@@ -1132,6 +1222,13 @@
       if (it?.type !== 'note') continue;
       const el = vp?.querySelector(`.note[data-cid="${id}"]`) as HTMLElement | null;
       if (!el) continue;
+      if (it.autoW && it.color === 'none') {
+        // free text that was never resized by hand hugs its longest line (a new style
+        // changes the font, so its width too)
+        el.style.width = 'max-content';
+        it.w = Math.min(2400, Math.max(40, Math.ceil(el.offsetWidth) + 2));
+        el.style.width = `${it.w}px`;
+      }
       const h = el.style.height;
       el.style.height = 'auto';
       const need = Math.ceil(el.scrollHeight);
@@ -1322,6 +1419,43 @@
     fitNotes(selItems.map((i) => i.id));
   }
 
+  // text style of the selected notes; changes within a moment (sliders, colour pickers)
+  // are one undo step
+  let lookAt = 0;
+  function setLook(look: TextLook | undefined) {
+    const now = performance.now();
+    if (now - lookAt > 800) before();
+    lookAt = now;
+    const ids: string[] = [];
+    for (const it of selItems) {
+      if (it.type !== 'note') continue;
+      if (look) it.look = $state.snapshot(look) as TextLook;
+      else delete it.look;
+      ids.push(it.id);
+    }
+    change();
+    // refit once the face is there (fonts load on first use)
+    const ready = look ? ensureFont(look.font, look.weight ?? 400) : Promise.resolve();
+    ready.then(() => fitNotes(ids));
+  }
+
+  /** flip or turn the selected stickers */
+  function stickerOp(op: 'flipX' | 'flipY' | 'turn' | 'straighten') {
+    before();
+    for (const it of selItems) {
+      if (it.type !== 'sticker' || it.locked) continue;
+      if (op === 'flipX' || op === 'flipY') {
+        if (it[op]) delete it[op];
+        else it[op] = true;
+      } else {
+        const r = op === 'turn' ? snapAngle((it.rotation ?? 0) + 90) : 0;
+        if (r) it.rotation = r;
+        else delete it.rotation;
+      }
+    }
+    change();
+  }
+
   function fitCardHeight(id: string) {
     const s = secMap.get(id);
     const el = vp?.querySelector(`.card[data-cid="${id}"]`) as HTMLElement | null;
@@ -1457,6 +1591,8 @@
     if (k === 'Escape') {
       if (editingCard) editingCard = null;
       else if (help) help = false;
+      else if (stickerPicker) stickerPicker = false;
+      else if (styleMenu) styleMenu = false;
       else if (drawer) drawer = null;
       else if (tool !== 'select') tool = 'select';
       else select([]);
@@ -1489,6 +1625,10 @@
       help = !help;
       return;
     }
+    if ((k === 's' || k === 'S') && !e.shiftKey) {
+      stickerPicker = !stickerPicker;
+      return;
+    }
     const t = TOOLS.find((x) => x.key === k.toUpperCase());
     if (t && !e.shiftKey) tool = t.id;
   }
@@ -1505,10 +1645,19 @@
       .filter((id) => itemMap.get(id)?.type !== 'arrow')
       .map((id) => {
         const r = rectOf(id);
-        return r ? { id, r: toScreen(r) } : null;
+        const it = itemMap.get(id);
+        return r ? { id, r: toScreen(r), rot: it?.type === 'sticker' ? (it.rotation ?? 0) : 0 } : null;
       })
-      .filter(Boolean) as { id: string; r: Rect }[],
+      .filter(Boolean) as { id: string; r: Rect; rot: number }[],
   );
+
+  /** screen position of a handle of a (turned) box: `h` is a compass point, 'rotate' the knob above */
+  function handlePos(r: Rect, h: string, rot: number) {
+    const dx = h === 'rotate' ? 0 : h.includes('w') ? -r.w / 2 : h.includes('e') ? r.w / 2 : 0;
+    const dy = h === 'rotate' ? -r.h / 2 - 26 : h.includes('n') ? -r.h / 2 : h.includes('s') ? r.h / 2 : 0;
+    const a = (rot * Math.PI) / 180;
+    return { x: r.x + r.w / 2 + dx * Math.cos(a) - dy * Math.sin(a), y: r.y + r.h / 2 + dx * Math.sin(a) + dy * Math.cos(a) };
+  }
 
   const selBox = $derived.by(() => {
     const rs = [...selected].map(rectOf).filter(Boolean) as Rect[];
@@ -1528,6 +1677,7 @@
   const firstNote = $derived(selItems.find((i) => i.type === 'note') as NoteItem | undefined);
   const firstShape = $derived(selItems.find((i) => i.type === 'rect' || i.type === 'ellipse') as ShapeItem | undefined);
   const firstArrow = $derived(selItems.find((i) => i.type === 'arrow') as ArrowItem | undefined);
+  const firstSticker = $derived(selItems.find((i) => i.type === 'sticker') as StickerItem | undefined);
 
   const ctxPos = $derived.by(() => {
     if (!selBox || dragging || editing) return null;
@@ -1599,7 +1749,7 @@
             spellcheck="true"
             placeholder={editItem.type === 'note' ? (editItem.color === 'none' ? 'Text' : 'Note') : 'Label'}
             style="left:{editItem.x}px;top:{editItem.y}px;width:{editItem.w}px;height:{editItem.h}px;font-size:{editItem.size || 24}px;{editItem.type === 'note'
-              ? `background:${paper(editItem.color)};text-align:${editItem.align || 'left'}`
+              ? `background:${paper(editItem.color)};text-align:${editItem.align || 'left'};${lookCss(editItem.look, { pill: editItem.color === 'none' })}`
               : ''}"
           ></textarea>
         </div>
@@ -1607,9 +1757,22 @@
 
       <div class="overlay">
         {#each selScreen as s (s.id)}
-          <div class="selbox" style="left:{s.r.x}px;top:{s.r.y}px;width:{s.r.w}px;height:{s.r.h}px"></div>
+          <div class="selbox" style="left:{s.r.x}px;top:{s.r.y}px;width:{s.r.w}px;height:{s.r.h}px;{s.rot ? `transform:rotate(${s.rot}deg)` : ''}"></div>
         {/each}
-        {#if single && selScreen.length === 1 && !editing}
+        {#if singleSticker && selScreen.length === 1 && !editing}
+          <!-- stickers: proportional corners and a rotation knob, all turned with the sticker -->
+          {#if !singleSticker.locked}
+            {@const s = selScreen[0]}
+            {@const top = handlePos(s.r, 'n', s.rot)}
+            {@const knob = handlePos(s.r, 'rotate', s.rot)}
+            {#each ['nw', 'ne', 'se', 'sw'] as h (h)}
+              {@const p = handlePos(s.r, h, s.rot)}
+              <div class="handle h-{h}" data-handle={h} style="left:{p.x}px;top:{p.y}px"></div>
+            {/each}
+            <svg class="pvline"><line class="knobline" x1={top.x} y1={top.y} x2={knob.x} y2={knob.y} /></svg>
+            <div class="handle rot" data-handle="rotate" title="Drag to turn (Shift: 15° steps)" style="left:{knob.x}px;top:{knob.y}px"></div>
+          {/if}
+        {:else if single && selScreen.length === 1 && !editing}
           {@const r = selScreen[0].r}
           {#each HANDLES as h (h)}
             <div
@@ -1669,6 +1832,8 @@
         {#if i === 2 || i === 8}<span class="hsep"></span>{/if}
         <button class="icon-btn" class:on={tool === t.id} title="{t.label} ({t.key})" onclick={() => (tool = t.id)}><Icon name={t.icon} /></button>
       {/each}
+      <!-- not a drawing tool: opens the catalogue; a click (or a drag) puts a sticker on the canvas -->
+      <button class="icon-btn" class:on={stickerPicker} title="Stickers (S)" onclick={() => (stickerPicker = !stickerPicker)}><Icon name="sticker" /></button>
       {#if tool === 'pen' || tool === 'marker'}
         <span class="hsep"></span>
         {#each ['red', 'yellow', 'green', 'blue', 'purple', 'ink'] as c (c)}
@@ -1761,6 +1926,19 @@
             <button class="icon-btn" class:on={(firstNote.align || 'left') === a} title="Align {a}" onclick={() => setProp('align', a === 'left' ? undefined : a, ['note'])}><Icon name="align-{a}" /></button>
           {/each}
           <span class="vsep"></span>
+          <button class="btn sm ghost" class:on={styleMenu} title="Text style: fonts, outline, shadow… (the collage text styles)" onclick={() => (styleMenu = !styleMenu)}>
+            <Icon name="type" size={14} /> Style
+          </button>
+          <span class="vsep"></span>
+        {/if}
+        {#if firstSticker && only('sticker')}
+          <button class="icon-btn" class:on={!!firstSticker.flipX} title="Flip horizontally" onclick={() => stickerOp('flipX')}><Icon name="flip-h" /></button>
+          <button class="icon-btn" class:on={!!firstSticker.flipY} title="Flip vertically" onclick={() => stickerOp('flipY')}><Icon name="flip-v" /></button>
+          <button class="icon-btn" title="Turn 90° (or drag the round handle)" onclick={() => stickerOp('turn')}><Icon name="rotate-cw" /></button>
+          {#if selItems.some((i) => i.type === 'sticker' && i.rotation)}
+            <button class="btn sm ghost" title="Straighten" onclick={() => stickerOp('straighten')}>0°</button>
+          {/if}
+          <span class="vsep"></span>
         {/if}
         {#if firstShape && only(firstShape.type) || (firstShape && selKinds.size === 2 && selKinds.has('rect') && selKinds.has('ellipse'))}
           {@const sh = firstShape!}
@@ -1832,6 +2010,23 @@
       </div>
     {/if}
 
+    {#if stickerPicker}
+      <div class="sidepop stickers">
+        <header>
+          <b>Stickers</b>
+          <span class="muted">click, or drag onto the canvas</span>
+          <button class="icon-btn" title="Close (Esc)" onclick={() => (stickerPicker = false)}><Icon name="x" /></button>
+        </header>
+        <StickerGrid onpick={(s) => addSticker(s)} draggable autofocus />
+      </div>
+    {/if}
+
+    {#if styleMenu && firstNote && only('note')}
+      <div class="sidepop textstyle">
+        <CanvasTextStyle look={firstNote.look} onchange={setLook} onclose={() => (styleMenu = false)} />
+      </div>
+    {/if}
+
     {#if help}
       <div class="help">
         <header><b>Canvas shortcuts</b><button class="icon-btn" onclick={() => (help = false)}><Icon name="x" /></button></header>
@@ -1846,6 +2041,7 @@
           <span><span class="kbd">Ctrl C</span>/<span class="kbd">V</span>/<span class="kbd">X</span> copy, paste, cut (also between canvases and documents)</span><span><span class="kbd">Ctrl G</span> group · <span class="kbd">Ctrl Shift G</span> ungroup</span>
           <span><span class="kbd">Ctrl Shift L</span> lock / unlock</span><span>Drag the middle of an arrow to bend it</span>
           <span>Double-click a note or shape: edit text</span><span>Double-click empty space: sticky note</span>
+          <span><span class="kbd">S</span> stickers (click or drag one in)</span><span>Round handle: turn a sticker (<span class="kbd">Shift</span>: 15° steps)</span>
           <span>Alt+click: select one item of a group</span><span>Pink lines: alignment guides (Alt = off)</span>
           <span><span class="kbd">Shift</span>+drag a corner: keep proportions</span><span><span class="kbd">Alt</span>+drag: no snapping</span>
           <span><span class="kbd">F5</span> present frames</span><span>Drag a frame: moves what is inside it</span>
@@ -2048,6 +2244,48 @@
     left: 0;
     right: 0;
     height: 1px;
+  }
+  .knobline {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+  .handle.rot {
+    border-radius: 50%;
+    width: 13px;
+    height: 13px;
+    margin: -7px 0 0 -7px;
+    cursor: grab;
+  }
+  /* side panels over the canvas: sticker picker (left, next to the tools) and text style (right) */
+  .sidepop {
+    position: absolute;
+    top: 12px;
+    max-height: calc(100% - 24px);
+    overflow: auto;
+    padding: 10px 12px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    z-index: 7;
+  }
+  .sidepop.stickers {
+    left: 64px;
+    width: min(320px, calc(100% - 80px));
+  }
+  .sidepop.textstyle {
+    right: 12px;
+    width: min(290px, calc(100% - 80px));
+  }
+  .sidepop header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .sidepop header .muted {
+    flex: 1;
+    margin-left: 8px;
+    font-size: 12px;
   }
   .inkpv {
     fill: none;

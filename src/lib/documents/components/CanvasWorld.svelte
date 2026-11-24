@@ -4,7 +4,9 @@
   // and plays inside `playRect` (both updated when the view settles, not on every frame).
   import { arrowPath as arrowGeom, intersects, ink, isBox, paper, pathPoints, smoothPath, targets, type View } from '../lib/canvas';
   import { resolver } from '../lib/resolver.svelte';
-  import type { ArrowItem, BoxItem, Doc, PathItem, Rect, ShapeItem } from '../lib/types';
+  import type { ArrowItem, BoxItem, Doc, PathItem, Rect, ShapeItem, StickerItem } from '../lib/types';
+  import { stickers } from '../../stores/stickers.svelte';
+  import { lookCss } from '../../text/styles';
   import CanvasCard from './CanvasCard.svelte';
 
   let {
@@ -54,6 +56,18 @@
   const shapes = $derived(boxes.filter((b): b is ShapeItem => b.type === 'rect' || b.type === 'ellipse'));
   const paths = $derived(boxes.filter((b): b is PathItem => b.type === 'path'));
   const notes = $derived(boxes.filter((b) => b.type === 'note'));
+  const stickerItems = $derived(boxes.filter((b): b is StickerItem => b.type === 'sticker'));
+  // the catalogue (file names) is loaded once per session; until then stickers are empty boxes
+  $effect(() => {
+    if (stickerItems.length && !stickers.loaded) void stickers.load();
+  });
+  const stickerUrl = (id: string) => (stickers.loaded ? stickers.url(id) : '');
+  function stickerTransform(st: StickerItem) {
+    const t: string[] = [];
+    if (st.rotation) t.push(`rotate(${st.rotation}deg)`);
+    if (st.flipX || st.flipY) t.push(`scale(${st.flipX ? -1 : 1},${st.flipY ? -1 : 1})`);
+    return t.length ? `transform:${t.join(' ')}` : '';
+  }
   const arrows = $derived(items.filter((i) => i.type === 'arrow') as ArrowItem[]);
   const cards = $derived(doc.sections.map((s, i) => ({ s, i })).filter(({ s }) => s.canvas && !s.canvas.hidden));
   const tg = $derived(targets(doc));
@@ -124,17 +138,35 @@
 
   {#each notes as n (n.id)}
     {#if n.type === 'note' && intersects(n, renderRect)}
+      {@const pill = n.color === 'none' && !!n.look?.background}
       <div
         class="note"
         class:free={n.color === 'none'}
+        class:styled={!!n.look}
         class:concealed={concealed.has(n.id)}
         data-cid={n.id}
         data-kind="note"
-        style="left:{n.x}px;top:{n.y}px;width:{n.w}px;height:{n.h}px;background:{paper(n.color)};font-size:{n.size}px;text-align:{n.align || 'left'}"
+        style="left:{n.x}px;top:{n.y}px;width:{n.w}px;height:{n.h}px;background:{paper(n.color)};font-size:{n.size}px;text-align:{n.align || 'left'};{lookCss(n.look, { pill })}"
       >
         {#if editing !== n.id}{n.text}{/if}
         {#if !n.text && editing !== n.id}<span class="ph">{n.color === 'none' ? 'Text' : 'Note'}</span>{/if}
         {#if editor && (n.reveal || n.locked)}<span class="flag">{#if n.locked}🔒{/if}{#if n.reveal}{n.reveal}{/if}</span>{/if}
+      </div>
+    {/if}
+  {/each}
+
+  {#each stickerItems as st (st.id)}
+    {#if intersects(st, renderRect)}
+      <!-- rotated on the box itself, so hit-testing (elementsFromPoint) follows the turned sticker -->
+      <div
+        class="sticker"
+        class:concealed={concealed.has(st.id)}
+        data-cid={st.id}
+        data-kind="sticker"
+        style="left:{st.x}px;top:{st.y}px;width:{st.w}px;height:{st.h}px;{stickerTransform(st)}"
+      >
+        {#if stickerUrl(st.sticker)}<img src={stickerUrl(st.sticker)} alt="" draggable="false" />{/if}
+        {#if editor && (st.reveal || st.locked)}<span class="flag">{#if st.locked}🔒{/if}{#if st.reveal}{st.reveal}{/if}</span>{/if}
       </div>
     {/if}
   {/each}
@@ -269,6 +301,20 @@
   .note .ph {
     opacity: 0.4;
   }
+  /* styled free text hugs its text: let outlines and shadows spill over the box */
+  .note.free.styled {
+    overflow: visible;
+  }
+  .sticker {
+    position: absolute;
+  }
+  .sticker img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    user-select: none;
+  }
   .arrows {
     position: absolute;
     left: 0;
@@ -296,6 +342,7 @@
   .frame,
   .shape,
   .note,
+  .sticker,
   .arrow,
   .path {
     transition: opacity 0.35s;

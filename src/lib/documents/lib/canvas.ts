@@ -5,7 +5,7 @@
 // screen = world * z + (tx, ty); it is applied as one CSS transform on the world layer.
 import { newId } from './api';
 import { resolver } from './resolver.svelte';
-import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Doc, DocCanvas, PathItem, Rect, Section } from './types';
+import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Doc, DocCanvas, PathItem, Rect, Section, StickerItem } from './types';
 
 export interface View {
   tx: number;
@@ -413,7 +413,7 @@ export function autoPlace(doc: Doc, perRow = 4, gap = 80) {
 export function contentRect(doc: Doc): Rect | null {
   const rs: Rect[] = doc.sections.filter((s) => s.canvas && !s.canvas.hidden).map((s) => s.canvas!);
   const tg = targets(doc);
-  for (const it of doc.canvas?.items ?? []) rs.push(isBox(it) ? it : arrowRect(it, tg));
+  for (const it of doc.canvas?.items ?? []) rs.push(it.type === 'sticker' ? rotatedBounds(it) : isBox(it) ? it : arrowRect(it, tg));
   return union(rs);
 }
 
@@ -502,6 +502,37 @@ export function newBox(type: BoxItem['type'], r: Rect, extra: Partial<BoxItem> =
   if (type === 'note') return { ...base, type, text: '', color: 'yellow', size: 24, ...extra } as BoxItem;
   if (type === 'frame') return { ...base, type, title: '', ...extra } as BoxItem;
   return { ...base, type, color: 'ink', ...extra } as BoxItem;
+}
+
+/**
+ * A sticker of `size` world px on its long side, centred on (cx, cy). Stickers keep their
+ * catalogue aspect ratio (resizing from a corner keeps it too).
+ */
+export function newSticker(info: { id: string; width: number; height: number }, cx: number, cy: number, size: number): StickerItem {
+  const aspect = info.width > 0 && info.height > 0 ? info.width / info.height : 1;
+  const w = Math.round(aspect >= 1 ? size : size * aspect);
+  const h = Math.round(aspect >= 1 ? size / aspect : size);
+  return { id: newId(), type: 'sticker', sticker: info.id, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
+}
+
+/** Axis-aligned bounds of a rotated sticker (its box when not rotated). */
+export function rotatedBounds(it: StickerItem): Rect {
+  const a = ((it.rotation ?? 0) * Math.PI) / 180;
+  if (!a) return it;
+  const c = Math.abs(Math.cos(a)),
+    s = Math.abs(Math.sin(a));
+  const w = it.w * c + it.h * s,
+    h = it.w * s + it.h * c;
+  return { x: it.x + it.w / 2 - w / 2, y: it.y + it.h / 2 - h / 2, w, h };
+}
+
+/** Rotation that snaps to the nearest quarter turn within `tol` degrees, normalised to (-180, 180]. */
+export function snapAngle(deg: number, step = 90, tol = 4): number {
+  const near = Math.round(deg / step) * step;
+  let a = Math.abs(deg - near) <= tol ? near : deg;
+  a = ((((a + 180) % 360) + 360) % 360) - 180;
+  if (a === -180) a = 180;
+  return Math.round(a * 10) / 10;
 }
 
 export function newArrow(from: ArrowEnd, to: ArrowEnd): ArrowItem {

@@ -6,6 +6,8 @@
   import { isEmptyText, toHTML } from '../lib/tiptap';
   import type { Layout, MediaRef, Section } from '../lib/types';
   import Icon from './Icon.svelte';
+  import TitleStyleMenu from './TitleStyleMenu.svelte';
+  import { titleCss } from '../../text/styles';
   import MediaView from './MediaView.svelte';
   import RichText from './RichText.svelte';
   import ClipTimeline from './ClipTimeline.svelte';
@@ -217,10 +219,13 @@
       class="title"
       placeholder={section.chapter ? 'Chapter title' : 'Section title'}
       bind:value={section.title}
+      style={titleCss(section.titleStyle)}
       oninput={touch}
       onfocus={() => (ds.activeSection = section.id)}
     />
     <div class="tools">
+      <TitleStyleMenu value={section.titleStyle} onpick={(id) => { if (id) section.titleStyle = id; else delete section.titleStyle; touch(); }} />
+      <span class="sep"></span>
       {#each section.chapter ? [] : LAYOUTS as l (l.id)}
         <button class="icon-btn" class:on={section.layout === l.id} title={l.label} onclick={() => setLayout(l.id)}><Icon name={l.icon} size={16} /></button>
       {/each}
@@ -421,7 +426,7 @@
     border-color: var(--accent);
   }
   .section.chapter .title {
-    font-size: 26px;
+    font-size: calc(26px * var(--tscale, 1));
   }
   .chap {
     display: inline-flex;
@@ -495,7 +500,7 @@
     border: none;
     background: none;
     outline: none;
-    font: 650 19px var(--serif);
+    font: 650 calc(19px * var(--tscale, 1)) var(--serif);
     padding: 4px 0;
   }
   .title::placeholder {

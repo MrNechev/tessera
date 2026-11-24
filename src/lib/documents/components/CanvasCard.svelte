@@ -11,6 +11,7 @@
   import MediaView from './MediaView.svelte';
   import RichText from './RichText.svelte';
   import CompareView from './CompareView.svelte';
+  import { titleCss } from '../../text/styles';
 
   let {
     section,
@@ -110,7 +111,7 @@
   {:else}
     {#if editing}
       <input class="ctitle edit" value={section.title ?? ''} placeholder="Title" oninput={(e) => ontext?.('title', e.currentTarget.value)} />
-    {:else if head}<div class="ctitle">{section.title}</div>{/if}
+    {:else if head}<div class="ctitle" style={titleCss(section.titleStyle)}>{section.title}</div>{/if}
     <div class="cbody" class:side class:rev={layout === 'media-right'}>
       {#if compare && !still && !tiny}
         <div class="cmedia" style="height:{mediaH}px">
@@ -152,7 +153,7 @@
         <div class="ctext prose">{@html toHTML(section.text)}</div>
       {/if}
     </div>
-    {#if layout === 'media-full' && section.title}<div class="overtitle">{section.title}</div>{/if}
+    {#if layout === 'media-full' && section.title}<div class="overtitle" style={titleCss(section.titleStyle)}>{section.title}</div>{/if}
   {/if}
   {#if flags.reveal || flags.locked}<span class="flag">{#if flags.locked}🔒{/if}{#if flags.reveal}{flags.reveal}{/if}</span>{/if}
 </div>
@@ -230,7 +231,7 @@
     flex: none;
     height: 46px;
     padding: 12px 14px 0;
-    font: 650 20px/1.2 var(--serif);
+    font: 650 calc(20px * var(--tscale, 1))/1.2 var(--serif);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -304,7 +305,7 @@
     right: 0;
     bottom: 0;
     padding: 40px 16px 12px;
-    font: 650 22px/1.2 var(--serif);
+    font: 650 calc(22px * var(--tscale, 1))/1.2 var(--serif);
     color: #fff;
     background: linear-gradient(transparent, #000c);
   }

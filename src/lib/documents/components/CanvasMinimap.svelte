@@ -43,6 +43,8 @@
         <rect x={sx(it.x)} y={sy(it.y)} width={it.w * k} height={it.h * k} class="fr" />
       {:else if it.type === 'note'}
         <rect x={sx(it.x)} y={sy(it.y)} width={Math.max(1, it.w * k)} height={Math.max(1, it.h * k)} fill={it.color === 'none' ? 'var(--text-3)' : paper(it.color)} />
+      {:else if it.type === 'sticker'}
+        <rect x={sx(it.x)} y={sy(it.y)} width={Math.max(1.5, it.w * k)} height={Math.max(1.5, it.h * k)} rx="1.5" class="st" />
       {:else if it.type !== 'path'}
         <rect x={sx(it.x)} y={sy(it.y)} width={it.w * k} height={it.h * k} fill="none" stroke={ink(it.color)} stroke-width="1" />
       {/if}
@@ -69,6 +71,11 @@
   .card {
     fill: var(--text-3);
     opacity: 0.7;
+  }
+  /* stickers: small accent dots, so they read apart from cards and notes */
+  .st {
+    fill: var(--accent);
+    opacity: 0.75;
   }
   .fr {
     fill: none;

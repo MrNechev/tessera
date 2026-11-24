@@ -9,6 +9,8 @@
   import { router } from '../lib/router.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
   import type { Doc, MediaRef } from '../lib/types';
+  import { stickers } from '../../stores/stickers.svelte';
+  import { titleCss } from '../../text/styles';
   import CanvasThumb from './CanvasThumb.svelte';
   import Icon from './Icon.svelte';
   import SlideView from './SlideView.svelte';
@@ -24,11 +26,17 @@
       const d = await api.getDoc(id);
       const refs = d.sections.flatMap((s) => s.media);
       await whenResolved(refs, 5000);
-      if (mode === 'canvas') autoPlace(d);
+      // canvas stickers need the catalogue (file names) before their images can load
+      if (mode === 'canvas') {
+        autoPlace(d);
+        await stickers.load();
+      }
       doc = d;
       document.title = `${d.title} · ${mode === 'doc' ? 'Print' : mode === 'slides' ? 'Slides' : 'Canvas'}`;
       await tick();
       await waitImages();
+      // styled titles and canvas text use Tessera's fonts, loaded on first use
+      await document.fonts?.ready;
       ready = true;
       setTimeout(() => window.print(), 300);
     } catch (e) {
@@ -77,7 +85,7 @@
         {#if doc.tags?.length}<div class="tags">{doc.tags.join(' · ')}</div>{/if}
         {#each doc.sections as s (s.id)}
           <section class:chapter={s.chapter}>
-            {#if s.title}<h2>{s.title}</h2>{/if}
+            {#if s.title}<h2 style={titleCss(s.titleStyle)}>{s.title}</h2>{/if}
             {#if s.media.length && s.layout !== 'text-only'}
               <div class="media" class:grid={s.media.length > 1}>
                 {#each s.layout === 'compare' ? s.media.slice(0, 2) : s.media as m, j (j)}
@@ -166,13 +174,13 @@
     margin: 0 0 26px;
   }
   section.chapter h2 {
-    font-size: 28px;
+    font-size: calc(28px * var(--tscale, 1));
     border-bottom: 2px solid #b9791a;
     padding-bottom: 4px;
     break-before: page;
   }
   h2 {
-    font: 650 21px/1.25 var(--serif);
+    font: 650 calc(21px * var(--tscale, 1)) / 1.25 var(--serif);
     margin: 0 0 10px;
     break-after: avoid;
   }
