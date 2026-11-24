@@ -15,6 +15,7 @@ import { library } from '../stores/library.svelte';
 import { stickers } from '../stores/stickers.svelte';
 import { toasts } from '../stores/toasts.svelte';
 import { instantiateTemplate } from '../templates/instantiate';
+import { templateById } from '../templates/catalog';
 import type { TemplateDef } from '../templates/types';
 import { editor } from './editor.svelte';
 import { buildFilename, exportDocument, exportPages, joinPath, renderThumbnail } from './exporter';
@@ -64,6 +65,16 @@ export async function newQuickCollage(paths?: string[]): Promise<void> {
   doc = relayout(doc);
   openEditor(doc);
   editor.tool = 'layouts';
+}
+
+/** A classic meme (top and bottom text) with this photo, ready to type into. */
+export async function memeFromPaths(paths: string[]): Promise<void> {
+  const imgs = await library.import(paths.slice(0, 1));
+  const t = templateById('meme-classic');
+  if (!imgs.length || !t) return;
+  newFromTemplate(t, false);
+  editor.placePhotos([imgs[0].id]);
+  editor.tool = 'text';
 }
 
 export function newFromTemplate(t: TemplateDef, useLibrary = true): void {

@@ -4,11 +4,14 @@
    * libraries, with search, filters, duplicates and previews. Picked items can
    * start a collage or go to the image tools.
    */
-  import { ArrowLeftRight, BookOpen, CalendarDays, LayoutDashboard, Minimize2, Wand, X } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, CalendarDays, LayoutDashboard, Laugh, Minimize2, SlidersHorizontal, Wand, X } from '@lucide/svelte';
   import LibraryPanel from '../documents/components/LibraryPanel.svelte';
   import type { FileItem } from '../documents/lib/types';
   import { call } from '../api/http';
-  import { newQuickCollage } from '../editor/session.svelte';
+  import { memeFromPaths, newQuickCollage } from '../editor/session.svelte';
+  import PhotoDialog, { type PhotoEdit } from '../documents/components/PhotoDialog.svelte';
+  import { saveEditedCopy } from '../look/copy';
+  import { deliver } from '../api/backend';
   import { library } from '../stores/library.svelte';
   import { app } from '../stores/app.svelte';
   import { compressQueue, convertQueue, toolsQueue } from '../stores/batch.svelte';
@@ -16,6 +19,23 @@
   import { palette } from '../documents/lib/palette.svelte';
 
   let picked = $state<FileItem[]>([]);
+  let editing = $state<FileItem | null>(null);
+  let saving = $state(false);
+
+  async function saveCopy(f: FileItem, e: PhotoEdit) {
+    saving = true;
+    try {
+      const [path] = await paths([f]);
+      const out = await saveEditedCopy(path, e);
+      editing = null;
+      toasts.push({ kind: 'success', title: 'Edited copy saved', message: `Outputs/Edited/${out.split('/').pop()}` });
+      deliver([out]);
+    } catch (err) {
+      toasts.push({ kind: 'error', title: 'Could not save the copy', message: String(err instanceof Error ? err.message : err) });
+    } finally {
+      saving = false;
+    }
+  }
   let panel: LibraryPanel | undefined = $state();
 
   function clear() {
@@ -46,12 +66,13 @@
     return Promise.all(items.map((f) => call<string>('resolve', { libraryId: f.libraryId, path: f.path })));
   }
 
-  async function use(target: 'collage' | 'book' | 'calendar' | 'convert' | 'compress' | 'batch') {
+  async function use(target: 'collage' | 'meme' | 'book' | 'calendar' | 'convert' | 'compress' | 'batch') {
     if (!images.length || busy) return;
     busy = true;
     try {
       const files = await paths(images);
       if (target === 'collage') await newQuickCollage(files);
+      else if (target === 'meme') await memeFromPaths(files);
       else if (target === 'book' || target === 'calendar') {
         const imported = await library.import(files);
         if (!imported.length) return;
@@ -77,6 +98,10 @@
     <div class="use card">
       <span class="count">{picked.length} selected{images.length < picked.length ? ` (${images.length} photos)` : ''}</span>
       <button class="btn primary" disabled={busy || !images.length} onclick={() => void use('collage')}><LayoutDashboard size={15} /> Collage</button>
+      {#if images.length === 1}
+        <button class="btn" disabled={busy} onclick={() => (editing = images[0])} title="Crop, turn, filters, hide areas — saved as a new file in Outputs"><SlidersHorizontal size={15} /> Edit a copy</button>
+        <button class="btn" disabled={busy} onclick={() => void use('meme')}><Laugh size={15} /> Meme</button>
+      {/if}
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('book')}><BookOpen size={15} /> Photo book</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('calendar')}><CalendarDays size={15} /> Calendar</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('convert')}><ArrowLeftRight size={15} /> Convert</button>
@@ -86,6 +111,11 @@
     </div>
   {/if}
 </div>
+
+{#if editing}
+  {@const f = editing}
+  <PhotoDialog src="/d/{f.key}/t1280.webp" width={f.width} height={f.height} value={{}} mode="copy" saveLabel="Save copy" busy={saving} onclose={() => (editing = null)} onsave={(e) => void saveCopy(f, e)} />
+{/if}
 
 <style>
   .library-view {
