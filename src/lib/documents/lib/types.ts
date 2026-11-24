@@ -60,6 +60,10 @@ export interface Section {
   rehearsal?: number;
   /** look of the title (an id from text/styles.ts TITLE_STYLES; none = classic serif) */
   titleStyle?: string;
+  /** the day this section is about, "2026-11-24" (diary entries, drafted stories; indexed for the calendar) */
+  date?: string;
+  /** where it happened ("City, Country"), shown next to the date */
+  place?: string;
 }
 
 export interface Rect {
@@ -189,6 +193,8 @@ export interface Doc {
   canvas?: DocCanvas;
   tags?: string[];
   cover?: MediaRef;
+  /** the day the story is about, "2026-11-24" (calendar, On this day) */
+  date?: string;
 }
 
 export interface DocMeta {
@@ -202,6 +208,10 @@ export interface DocMeta {
   coverLibraryId?: string;
   coverPath?: string;
   tags: string[];
+  /** the story's own day */
+  date?: string;
+  /** every day the story is about: its own date and its dated sections (sorted) */
+  dates?: string[];
 }
 
 export interface FileItem {
@@ -237,6 +247,8 @@ export interface FileItem {
   motion?: string;
   /** "City, Country" for files with GPS */
   place?: string;
+  /** perceptual hash (hex), only when the listing asked for it (phash=1) */
+  phash?: string;
 }
 
 export interface ProxyState {

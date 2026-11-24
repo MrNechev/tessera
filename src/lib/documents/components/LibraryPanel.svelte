@@ -227,6 +227,13 @@
       const f = palette.pendingFolder;
       palette.pendingFolder = null;
       open(f.libraryId, f.path, f.search);
+      // "show this day in the Library" (stories calendar, On this day): the whole library, filtered by capture date
+      if (f.days) {
+        filters = { ...noFilters, from: f.days.from, to: f.days.to };
+        recursive = true;
+        sort = 'taken';
+        desc = false;
+      }
     }
     if (!paletteTarget) return;
     palette.openFolder = open;

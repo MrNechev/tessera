@@ -115,6 +115,22 @@ fn migrate(c: &rusqlite::Connection) -> anyhow::Result<()> {
     if has_tags == 0 {
         c.execute_batch("ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT ''")?;
     }
+    // the documents index is rebuilt from the JSON files on every start, so new columns
+    // need no backfill
+    for col in ["date", "dates"] {
+        let has: i64 = c
+            .query_row(
+                "SELECT count(*) FROM pragma_table_info('documents') WHERE name=?",
+                [col],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if has == 0 {
+            c.execute_batch(&format!(
+                "ALTER TABLE documents ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"
+            ))?;
+        }
+    }
     c.execute_batch(INDEXES)?;
     Ok(())
 }
@@ -256,6 +272,20 @@ pub struct ListQuery {
     pub orientation: String,
     pub has_gps: bool,
     pub motion: bool,
+    /// "MM-DD": taken on this day of any year ("On this day"), in the viewer's time zone.
+    pub month_day: String,
+    /// The viewer's offset from UTC in minutes (east positive). Capture times are instants;
+    /// which calendar day they fall on depends on where the person looking at them lives,
+    /// and the server (a container on UTC, say) can't know that.
+    pub tz: i64,
+}
+
+/// Files per calendar day (the stories calendar).
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
+pub struct DayCount {
+    /// "2026-11-24"
+    pub day: String,
+    pub count: i64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -297,6 +327,11 @@ pub struct DocMeta {
     #[serde(rename = "coverPath", skip_serializing_if = "String::is_empty")]
     pub cover_path: String,
     pub tags: Vec<String>,
+    /// The story's own day ("2026-11-24"), if it has one.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub date: String,
+    /// Every day the story is about: its own date and its dated sections (sorted, unique).
+    pub dates: Vec<String>,
 }
 
 /// A camera model with its file count.
@@ -616,83 +651,7 @@ impl Store {
 
     /// The library listing: one page of files and the total count.
     pub fn list(&self, q: &ListQuery) -> anyhow::Result<(Vec<File>, i64)> {
-        let mut wh: Vec<String> = Vec::new();
-        let mut args: Vec<Value> = Vec::new();
-        if !q.library.is_empty() {
-            wh.push("library=?".into());
-            args.push(q.library.clone().into());
-            if q.recursive {
-                if !q.dir.is_empty() {
-                    wh.push("(dir=? OR dir LIKE ? ESCAPE '\\')".into());
-                    args.push(q.dir.clone().into());
-                    args.push(format!("{}/%", escape_like(&q.dir)).into());
-                }
-            } else {
-                wh.push("dir=?".into());
-                args.push(q.dir.clone().into());
-            }
-        }
-        if !q.search.is_empty() {
-            for term in q.search.to_lowercase().split_whitespace() {
-                wh.push("path_lower LIKE ? ESCAPE '\\'".into());
-                args.push(format!("%{}%", escape_like(term)).into());
-            }
-        }
-        if !q.kinds.is_empty() {
-            wh.push(format!("kind IN ({})", placeholders(q.kinds.len())));
-            for k in &q.kinds {
-                args.push(k.clone().into());
-            }
-        }
-        if q.from > 0 {
-            wh.push(format!("{TAKEN_EXPR}>=?"));
-            args.push(q.from.into());
-        }
-        if q.to > 0 {
-            wh.push(format!("{TAKEN_EXPR}<?"));
-            args.push(q.to.into());
-        }
-        if q.min_size > 0 {
-            wh.push("size>=?".into());
-            args.push(q.min_size.into());
-        }
-        if q.max_size > 0 {
-            wh.push("size<=?".into());
-            args.push(q.max_size.into());
-        }
-        if q.min_dur > 0.0 {
-            wh.push("duration>=?".into());
-            args.push(q.min_dur.into());
-        }
-        if q.max_dur > 0.0 {
-            wh.push("duration<=?".into());
-            args.push(q.max_dur.into());
-        }
-        if q.min_short > 0 {
-            wh.push("min(width,height)>=?".into());
-            args.push(q.min_short.into());
-        }
-        if !q.camera.is_empty() {
-            wh.push("camera=?".into());
-            args.push(q.camera.clone().into());
-        }
-        match q.orientation.as_str() {
-            "landscape" => wh.push("width>height*1.05".into()),
-            "portrait" => wh.push("height>width*1.05".into()),
-            "square" => wh.push("width>0 AND abs(width-height)<=max(width,height)*0.05".into()),
-            _ => {}
-        }
-        if q.has_gps {
-            wh.push("has_gps=1".into());
-        }
-        if q.motion {
-            wh.push("motion<>''".into());
-        }
-        let w = if wh.is_empty() {
-            String::new()
-        } else {
-            format!(" WHERE {}", wh.join(" AND "))
-        };
+        let (w, mut args) = where_clause(q);
         let total: i64 = {
             let c = self.pool.get()?;
             let mut st = c.prepare_cached(&format!("SELECT count(*) FROM files{w}"))?;
@@ -719,6 +678,30 @@ impl Store {
             &args,
         )?;
         Ok((files, total))
+    }
+
+    /// How many files match `q` on each local calendar day (`q.tz`), for a month grid. One
+    /// grouped query on the `taken` index instead of a listing per day; days without files
+    /// are left out.
+    pub fn day_counts(&self, q: &ListQuery) -> anyhow::Result<Vec<DayCount>> {
+        let (w, mut args) = where_clause(q);
+        let mut all = vec![Value::from(q.tz * 60_000)];
+        all.append(&mut args);
+        let c = self.pool.get()?;
+        let mut st = c.prepare_cached(&format!(
+            "SELECT strftime('%Y-%m-%d', ({TAKEN_EXPR} + ?) / 1000, 'unixepoch') AS d, count(*) FROM files{w} GROUP BY d ORDER BY d"
+        ))?;
+        let rows = st.query_map(params_from_iter(all.iter()), |r| {
+            Ok(DayCount {
+                day: r.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                count: r.get(1)?,
+            })
+        })?;
+        Ok(rows
+            .collect::<rusqlite::Result<Vec<_>>>()?
+            .into_iter()
+            .filter(|d| !d.day.is_empty())
+            .collect())
     }
 
     /// Up to `n` random files of the given kinds (stress-test documents).
@@ -867,11 +850,11 @@ impl Store {
     pub fn put_doc(&self, m: &DocMeta) -> anyhow::Result<()> {
         let c = self.pool.get()?;
         c.execute(
-            "INSERT INTO documents(id,title,created_at,updated_at,version,sections,media,cover_lib,cover_path,tags) VALUES(?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET title=excluded.title, created_at=excluded.created_at, updated_at=excluded.updated_at, version=excluded.version, sections=excluded.sections, media=excluded.media, cover_lib=excluded.cover_lib, cover_path=excluded.cover_path, tags=excluded.tags",
+            "INSERT INTO documents(id,title,created_at,updated_at,version,sections,media,cover_lib,cover_path,tags,date,dates) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET title=excluded.title, created_at=excluded.created_at, updated_at=excluded.updated_at, version=excluded.version, sections=excluded.sections, media=excluded.media, cover_lib=excluded.cover_lib, cover_path=excluded.cover_path, tags=excluded.tags, date=excluded.date, dates=excluded.dates",
             params![
                 m.id, m.title, m.created_at, m.updated_at, m.version, m.sections, m.media,
-                m.cover_lib, m.cover_path, m.tags.join("\x1f")
+                m.cover_lib, m.cover_path, m.tags.join("\x1f"), m.date, m.dates.join(",")
             ],
         )?;
         Ok(())
@@ -891,9 +874,10 @@ impl Store {
 
     pub fn list_docs(&self) -> anyhow::Result<Vec<DocMeta>> {
         let c = self.pool.get()?;
-        let mut st = c.prepare_cached("SELECT id,title,created_at,updated_at,version,sections,media,cover_lib,cover_path,tags FROM documents ORDER BY updated_at DESC")?;
+        let mut st = c.prepare_cached("SELECT id,title,created_at,updated_at,version,sections,media,cover_lib,cover_path,tags,date,dates FROM documents ORDER BY updated_at DESC")?;
         let rows = st.query_map([], |r| {
             let tags: String = r.get(9)?;
+            let dates: String = r.get(11)?;
             Ok(DocMeta {
                 id: r.get(0)?,
                 title: r.get(1)?,
@@ -908,6 +892,12 @@ impl Store {
                     Vec::new()
                 } else {
                     tags.split('\x1f').map(String::from).collect()
+                },
+                date: r.get(10)?,
+                dates: if dates.is_empty() {
+                    Vec::new()
+                } else {
+                    dates.split(',').map(String::from).collect()
                 },
             })
         })?;
@@ -942,6 +932,100 @@ impl Store {
             |r| r.get(0),
         )?)
     }
+}
+
+/// The WHERE clause (with a leading space, or empty) and its arguments for a listing.
+fn where_clause(q: &ListQuery) -> (String, Vec<Value>) {
+    let mut wh: Vec<String> = Vec::new();
+    let mut args: Vec<Value> = Vec::new();
+    if !q.library.is_empty() {
+        wh.push("library=?".into());
+        args.push(q.library.clone().into());
+        if q.recursive {
+            if !q.dir.is_empty() {
+                wh.push("(dir=? OR dir LIKE ? ESCAPE '\\')".into());
+                args.push(q.dir.clone().into());
+                args.push(format!("{}/%", escape_like(&q.dir)).into());
+            }
+        } else {
+            wh.push("dir=?".into());
+            args.push(q.dir.clone().into());
+        }
+    }
+    if !q.search.is_empty() {
+        for term in q.search.to_lowercase().split_whitespace() {
+            wh.push("path_lower LIKE ? ESCAPE '\\'".into());
+            args.push(format!("%{}%", escape_like(term)).into());
+        }
+    }
+    if !q.kinds.is_empty() {
+        wh.push(format!("kind IN ({})", placeholders(q.kinds.len())));
+        for k in &q.kinds {
+            args.push(k.clone().into());
+        }
+    }
+    if q.from > 0 {
+        wh.push(format!("{TAKEN_EXPR}>=?"));
+        args.push(q.from.into());
+    }
+    if q.to > 0 {
+        wh.push(format!("{TAKEN_EXPR}<?"));
+        args.push(q.to.into());
+    }
+    if q.min_size > 0 {
+        wh.push("size>=?".into());
+        args.push(q.min_size.into());
+    }
+    if q.max_size > 0 {
+        wh.push("size<=?".into());
+        args.push(q.max_size.into());
+    }
+    if q.min_dur > 0.0 {
+        wh.push("duration>=?".into());
+        args.push(q.min_dur.into());
+    }
+    if q.max_dur > 0.0 {
+        wh.push("duration<=?".into());
+        args.push(q.max_dur.into());
+    }
+    if q.min_short > 0 {
+        wh.push("min(width,height)>=?".into());
+        args.push(q.min_short.into());
+    }
+    if !q.camera.is_empty() {
+        wh.push("camera=?".into());
+        args.push(q.camera.clone().into());
+    }
+    match q.orientation.as_str() {
+        "landscape" => wh.push("width>height*1.05".into()),
+        "portrait" => wh.push("height>width*1.05".into()),
+        "square" => wh.push("width>0 AND abs(width-height)<=max(width,height)*0.05".into()),
+        _ => {}
+    }
+    if q.has_gps {
+        wh.push("has_gps=1".into());
+    }
+    if q.motion {
+        wh.push("motion<>''".into());
+    }
+    let md = q.month_day.as_bytes();
+    if md.len() == 5
+        && md[2] == b'-'
+        && q.month_day.chars().filter(char::is_ascii_digit).count() == 4
+    {
+        // a full scan, but a cheap one: ~20 ms for 50k rows, and only for "On this day"
+        wh.push(format!(
+            "strftime('%m-%d', ({TAKEN_EXPR} + ?) / 1000, 'unixepoch')=?"
+        ));
+        args.push((q.tz * 60_000).into());
+        args.push(q.month_day.clone().into());
+    }
+    let w = if wh.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", wh.join(" AND "))
+    };
+    (w, args)
 }
 
 #[cfg(test)]
@@ -1000,6 +1084,84 @@ mod tests {
         assert_eq!(tree.total, 2);
         assert_eq!(tree.children.len(), 1);
         assert_eq!(tree.children[0].total, 2);
+    }
+
+    #[test]
+    fn days_and_month_day() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Store::open(&dir.path().join("t.db")).unwrap();
+        let e: Vec<_> = (0..5)
+            .map(|i| entry(&format!("p{i}.jpg"), "image", "jpg", 10, 1))
+            .collect();
+        s.upsert_batch(1, &e).unwrap();
+        let ms = |y, m, d, h| {
+            chrono::NaiveDate::from_ymd_opt(y, m, d)
+                .unwrap()
+                .and_hms_opt(h, 0, 0)
+                .unwrap()
+                .and_utc()
+                .timestamp_millis()
+        };
+        // UTC instants: two on Nov 3 (one late in the evening), one on Nov 4, one a year
+        // earlier on Nov 3, one without a capture time (mtime 1 ns = 1970)
+        let taken = [
+            ms(2026, 11, 3, 10),
+            ms(2026, 11, 3, 23),
+            ms(2026, 11, 4, 12),
+            ms(2025, 11, 3, 9),
+            0,
+        ];
+        for (i, t) in taken.iter().enumerate() {
+            let f = s.by_path("m", &format!("p{i}.jpg")).unwrap().unwrap();
+            s.set_probe(
+                f.id,
+                &f.key,
+                &Probe {
+                    taken: *t,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+        let month = ListQuery {
+            from: ms(2026, 11, 1, 0),
+            to: ms(2026, 12, 1, 0),
+            ..Default::default()
+        };
+        let got = s.day_counts(&month).unwrap();
+        let want = |v: &[(&str, i64)]| -> Vec<DayCount> {
+            v.iter()
+                .map(|(d, n)| DayCount {
+                    day: d.to_string(),
+                    count: *n,
+                })
+                .collect()
+        };
+        assert_eq!(got, want(&[("2026-11-03", 2), ("2026-11-04", 1)]));
+        // two hours east of UTC the 23:00 photo already belongs to Nov 4
+        let east = ListQuery { tz: 120, ..month };
+        assert_eq!(
+            s.day_counts(&east).unwrap(),
+            want(&[("2026-11-03", 1), ("2026-11-04", 2)])
+        );
+        // On this day: Nov 3 of every year
+        let (files, total) = s
+            .list(&ListQuery {
+                month_day: "11-03".into(),
+                sort: "taken".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(total, 3);
+        assert_eq!(files[0].taken, ms(2025, 11, 3, 9));
+        // a malformed month-day is ignored rather than matching nothing
+        let (_, total) = s
+            .list(&ListQuery {
+                month_day: "11/03".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(total, 5);
     }
 
     #[test]

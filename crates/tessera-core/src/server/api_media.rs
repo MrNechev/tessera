@@ -27,6 +27,10 @@ pub struct FileOut {
     pub playable: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub place: String,
+    /// Perceptual hash (hex dHash), only when asked for (`phash=1`): the story starter uses
+    /// it to skip near-duplicate shots without loading any pixels.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub phash: String,
 }
 
 impl Core {
@@ -38,6 +42,7 @@ impl Core {
             } else {
                 String::new()
             },
+            phash: String::new(),
             file: f,
         }
     }
@@ -86,41 +91,64 @@ pub async fn tree(State(c): St, Path(lib): Path<String>) -> Response {
     .await
 }
 
+/// The listing filters shared by `/api/files` and `/api/days`.
+fn list_query(q: &Query) -> ListQuery {
+    let truthy = |k: &str| q.get(k) == "1" || q.get(k) == "true";
+    let mut lq = ListQuery {
+        library: q.get("library").to_string(),
+        dir: q.get("dir").trim_matches('/').to_string(),
+        recursive: truthy("recursive"),
+        search: q.get("q").trim().to_string(),
+        sort: q.get("sort").to_string(),
+        desc: truthy("desc"),
+        offset: q.i64("offset"),
+        limit: q.i64("limit"),
+        from: q.i64("from"),
+        to: q.i64("to"),
+        min_size: q.i64("minSize"),
+        max_size: q.i64("maxSize"),
+        min_dur: q.f64("minDur"),
+        max_dur: q.f64("maxDur"),
+        min_short: q.i64("minShort"),
+        camera: q.get("camera").to_string(),
+        orientation: q.get("orientation").to_string(),
+        has_gps: q.get("gps") == "1",
+        motion: q.get("motion") == "1",
+        month_day: q.get("md").to_string(),
+        // at most ±14 h: real offsets only
+        tz: q.i64("tz").clamp(-14 * 60, 14 * 60),
+        ..Default::default()
+    };
+    let k = q.get("kind");
+    if !k.is_empty() && k != "all" {
+        lq.kinds = k.split(',').map(String::from).collect();
+    }
+    if !lq.search.is_empty() && lq.dir.is_empty() {
+        lq.recursive = true;
+    }
+    lq
+}
+
 pub async fn files(State(c): St, q: Query) -> Response {
     blocking(move || {
-        let truthy = |k: &str| q.get(k) == "1" || q.get(k) == "true";
-        let mut lq = ListQuery {
-            library: q.get("library").to_string(),
-            dir: q.get("dir").trim_matches('/').to_string(),
-            recursive: truthy("recursive"),
-            search: q.get("q").trim().to_string(),
-            sort: q.get("sort").to_string(),
-            desc: truthy("desc"),
-            offset: q.i64("offset"),
-            limit: q.i64("limit"),
-            from: q.i64("from"),
-            to: q.i64("to"),
-            min_size: q.i64("minSize"),
-            max_size: q.i64("maxSize"),
-            min_dur: q.f64("minDur"),
-            max_dur: q.f64("maxDur"),
-            min_short: q.i64("minShort"),
-            camera: q.get("camera").to_string(),
-            orientation: q.get("orientation").to_string(),
-            has_gps: q.get("gps") == "1",
-            motion: q.get("motion") == "1",
-            ..Default::default()
-        };
-        let k = q.get("kind");
-        if !k.is_empty() && k != "all" {
-            lq.kinds = k.split(',').map(String::from).collect();
-        }
-        if !lq.search.is_empty() && lq.dir.is_empty() {
-            lq.recursive = true;
-        }
+        let lq = list_query(&q);
+        let with_hash = q.get("phash") == "1";
         match c.db.list(&lq) {
             Ok((files, total)) => {
-                let items: Vec<FileOut> = files.into_iter().map(|f| c.file_out(f)).collect();
+                let items: Vec<FileOut> = files
+                    .into_iter()
+                    .map(|f| {
+                        let hash = if with_hash {
+                            f.phash.clone()
+                        } else {
+                            String::new()
+                        };
+                        FileOut {
+                            phash: hash,
+                            ..c.file_out(f)
+                        }
+                    })
+                    .collect();
                 json(
                     200,
                     &serde_json::json!({"total": total, "offset": lq.offset, "items": items}),
@@ -128,6 +156,16 @@ pub async fn files(State(c): St, q: Query) -> Response {
             }
             Err(e) => err(500, &e.to_string()),
         }
+    })
+    .await
+}
+
+/// Files per local calendar day for the filters of `/api/files` (usually a month: `from`,
+/// `to`, `tz`), for the stories calendar.
+pub async fn days(State(c): St, q: Query) -> Response {
+    blocking(move || match c.db.day_counts(&list_query(&q)) {
+        Ok(days) => json(200, &days),
+        Err(e) => err(500, &e.to_string()),
     })
     .await
 }

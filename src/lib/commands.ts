@@ -107,3 +107,10 @@ export function openInLibrary(libraryId: string, path: string, search?: string):
   if (router.route.name === 'system') router.go('/');
   app.view = 'library';
 }
+
+/** Show what was taken on a day (or from `from` to `to`) in the Library view. */
+export function openLibraryDays(libraryId: string, from: string, to = from): void {
+  palette.pendingFolder = { libraryId, path: '', days: { from, to } };
+  if (router.route.name === 'system') router.go('/');
+  app.view = 'library';
+}

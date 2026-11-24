@@ -21,6 +21,7 @@
   import { applyChoice, collages, editCollage, type CollageChoice } from '../lib/collages.svelte';
   import CollageView from './CollageView.svelte';
   import CollagePicker from './CollagePicker.svelte';
+  import { fmtDayShort } from '../lib/diary';
 
   let {
     section,
@@ -253,6 +254,11 @@
       oninput={touch}
       onfocus={() => (ds.activeSection = section.id)}
     />
+    {#if section.date || section.place}
+      <span class="when" title="When and where (Story settings → Tools → Date sections from their photos)"
+        ><Icon name={section.place ? 'pin' : 'calendar'} size={12} /> {[section.date && fmtDayShort(section.date), section.place].filter(Boolean).join(' · ')}</span
+      >
+    {/if}
     <div class="tools">
       <TitleStyleMenu value={section.titleStyle} onpick={(id) => { if (id) section.titleStyle = id; else delete section.titleStyle; touch(); }} />
       <span class="sep"></span>
@@ -559,6 +565,19 @@
     outline: none;
     font: 650 calc(19px * var(--tscale, 1)) var(--serif);
     padding: 4px 0;
+  }
+  .when {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 40%;
+    font-size: 12px;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .title::placeholder {
     color: var(--text-3);

@@ -8,8 +8,31 @@
   import Icon from './Icon.svelte';
   import { fromTemplate, TEMPLATES, type Template } from '../lib/templates';
   import type { SearchHit } from '../lib/types';
+  import { fmtDayShort, isoDay } from '../lib/diary';
+  import CalendarView from './CalendarView.svelte';
+  import DayDialog from './DayDialog.svelte';
+  import OnThisDay from './OnThisDay.svelte';
+  import StoryStarter from './StoryStarter.svelte';
 
   let docs = $state<DocMeta[] | null>(null);
+  // the list as cards, or as a month calendar (remembered per browser)
+  let mode = $state<'grid' | 'calendar'>(readMode());
+  let day = $state<string | null>(null);
+  let starter = $state(false);
+
+  function readMode(): 'grid' | 'calendar' {
+    try {
+      return localStorage.getItem('tessera.stories.mode') === 'calendar' ? 'calendar' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  }
+  function setMode(m: 'grid' | 'calendar') {
+    mode = m;
+    try {
+      localStorage.setItem('tessera.stories.mode', m);
+    } catch {}
+  }
   let filter = $state('');
   let renaming = $state<string | null>(null);
   let renameValue = $state('');
@@ -129,7 +152,12 @@
         <h1>Stories</h1>
         <p class="muted">Diaries, trips and chronicles — told with your photos and videos, presented full-screen.</p>
       </div>
+      <div class="seg" role="tablist" aria-label="Show">
+        <button role="tab" aria-selected={mode === 'grid'} class:on={mode === 'grid'} title="Stories" onclick={() => setMode('grid')}><Icon name="grid" size={15} /></button>
+        <button role="tab" aria-selected={mode === 'calendar'} class:on={mode === 'calendar'} title="Calendar" onclick={() => setMode('calendar')}><Icon name="calendar" size={15} /></button>
+      </div>
       <input class="input search" type="search" placeholder="Search titles, tags and text…" bind:value={filter} />
+      <button class="btn" title="Today's diary entry, with the photos you took today" onclick={() => (day = isoDay(new Date()))}><Icon name="notes" /> Today</button>
       <div class="menuwrap">
         <button class="icon-btn" title="More" aria-label="More" onclick={() => (moreOpen = !moreOpen)}><Icon name="more" /></button>
         {#if moreOpen}
@@ -150,6 +178,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="menu-backdrop" onclick={() => (tplOpen = false)}></div>
           <div class="tpls">
+            <button onclick={() => { tplOpen = false; starter = true; }}><Icon name="chapter" /><span><b>From a trip or dates…</b><small>Pick a date range (and a folder): Tessera drafts the chapters, best photos and captions.</small></span></button>
             <div class="th">Start from a template</div>
             {#each TEMPLATES as t (t.id)}
               <button onclick={() => createFrom(t)}><Icon name={t.icon} /><span><b>{t.name}</b><small>{t.description}</small></span></button>
@@ -173,8 +202,12 @@
       </div>
     {/if}
 
+    {#if docs !== null && !filter && !tag}<OnThisDay {docs} />{/if}
+
     {#if docs === null}
       <p class="muted">Loading…</p>
+    {:else if mode === 'calendar'}
+      <CalendarView docs={shown} onday={(d) => (day = d)} />
     {:else if docs.length === 0}
       <div class="empty">
         <h2>Start your first chronicle</h2>
@@ -212,7 +245,7 @@
                 <a class="title" href="#/doc/{d.id}">{d.title}</a>
               {/if}
               <div class="sub muted">
-                {d.sections} section{d.sections === 1 ? '' : 's'} · {d.media} media · {fmtDate(d.updatedAt)}
+                {#if d.date}{fmtDayShort(d.date)} · {/if}{d.sections} section{d.sections === 1 ? '' : 's'} · {d.media} media · {fmtDate(d.updatedAt)}
               </div>
               {#if d.tags?.length}<div class="dtags">{#each d.tags as t (t)}<button class="chip" onclick={() => (tag = t)}>{t}</button>{/each}</div>{/if}
             </div>
@@ -230,7 +263,33 @@
   </main>
 </div>
 
+{#if day && docs}<DayDialog {day} {docs} onclose={() => (day = null)} />{/if}
+{#if starter}<StoryStarter onclose={() => (starter = false)} />{/if}
+
 <style>
+  .seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+  }
+  .seg button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  .seg button.on {
+    background: var(--surface-3);
+    color: var(--text);
+  }
   .split {
     position: relative;
     display: inline-flex;
