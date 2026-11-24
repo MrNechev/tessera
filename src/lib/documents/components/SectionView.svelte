@@ -180,9 +180,11 @@
     app.view = 'editor';
   }
 
+  const EDIT_KEYS = ['crop', 'adjust', 'filter', 'flipX', 'flipY', 'rotate', 'straighten', 'hideAreas', 'mask', 'frame', 'frameColor', 'shadow', 'border'] as const;
+
   function applyEdit(i: number, e: PhotoEdit) {
     const m = section.media[i];
-    for (const k of ['crop', 'adjust', 'filter', 'flipX', 'flipY'] as const) {
+    for (const k of EDIT_KEYS) {
       if (e[k] === undefined) delete m[k];
       else (m as any)[k] = e[k];
     }
@@ -411,7 +413,7 @@
   {@const m = section.media[cropFor]}
   {@const r = m ? resolver.cache.get(m.libraryId + '\u0000' + m.path) : undefined}
   {#if m && r?.file}
-    <PhotoDialog file={r.file} mref={m} onclose={() => (cropFor = null)} onsave={(e) => { applyEdit(cropFor!, e); cropFor = null; }} />
+    <PhotoDialog src="/d/{r.file.key}/t1280.webp" width={r.file.width} height={r.file.height} value={m} mode="story" kind={r.file.kind === 'image' ? 'image' : 'video'} onclose={() => (cropFor = null)} onsave={(e) => { applyEdit(cropFor!, e); cropFor = null; }} />
   {/if}
 {/if}
 

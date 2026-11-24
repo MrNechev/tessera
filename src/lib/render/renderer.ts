@@ -14,6 +14,7 @@ import type {
   StickerElement,
 } from '../model/types';
 import { AdjustCache, hasPixelAdjust } from './adjust';
+import { neutralAdjust } from '../model/factory';
 import { paintFor, withAlpha } from './fills';
 import { captionArea, photoWindow } from './frameGeometry';
 import { drawPageFrame } from './pageFrames';
@@ -229,8 +230,9 @@ function drawPhoto(c: AnyCtx, el: PhotoElement, doc: CollageDoc, opts: RenderOpt
   const img = el.asset ? opts.resources.image(el.asset, need) : null;
   if (img) {
     let source: CanvasImageSource = img.source;
-    if (hasPixelAdjust(el.adjust)) {
-      source = opts.resources.adjustCache.get(img.key, img.source, img.width, img.height, el.adjust) as CanvasImageSource;
+    if (hasPixelAdjust(el.adjust) || el.hideAreas?.length) {
+      const a = el.adjust ?? neutralAdjust();
+      source = opts.resources.adjustCache.get(img.key, img.source, img.width, img.height, a, el.hideAreas) as CanvasImageSource;
     }
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';

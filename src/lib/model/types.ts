@@ -78,6 +78,29 @@ export interface PhotoAdjust {
   vignette: number; // 0..1
   grayscale: number; // 0..1
   sepia: number; // 0..1
+  // Added in 0.7 (optional, so older projects need no migration):
+  exposure?: number; // -1..1 (±1 stop)
+  tint?: number; // -1..1 (green ↔ magenta)
+  highlights?: number; // -1..1
+  shadows?: number; // -1..1
+  vibrance?: number; // -1..1
+  clarity?: number; // -1..1
+  sharpen?: number; // 0..1
+  blur?: number; // 0..1
+  grain?: number; // 0..1
+  /** Gradient map: shadows → `dark`, highlights → `light`. */
+  duotone?: { dark: Color; light: Color; amount: number } | null;
+  /** Colour pop: keep one hue (degrees), the rest fades to grey. */
+  pop?: { hue: number; range: number; amount: number } | null;
+}
+
+/** A rectangle of a photo to blur or pixelate (fractions of the photo). */
+export interface HiddenArea {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  mode: 'blur' | 'pixelate';
 }
 
 export interface Crop {
@@ -117,6 +140,8 @@ export interface PhotoElement extends ElementBase {
   frame: PhotoFrame | null;
   adjust: PhotoAdjust | null;
   filter?: string | null;
+  /** Blurred or pixelated areas (fractions of the photo). */
+  hideAreas?: HiddenArea[] | null;
   /** Set when the element is managed by the document's auto-layout. */
   slot?: boolean;
 }

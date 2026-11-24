@@ -21,10 +21,12 @@
   } from '@lucide/svelte';
   import { FONTS, FONT_CATEGORIES, ensureFont, fontInfo } from '../../assets/fonts';
   import { editor } from '../../editor/editor.svelte';
-  import { neutralAdjust } from '../../model/factory';
-  import type { CalendarElement, CollageElement, PhotoAdjust, PhotoElement, PhotoFrameStyle, ShapeElement, TextElement } from '../../model/types';
+  import type { CalendarElement, CollageElement, PhotoElement, PhotoFrameStyle, ShapeElement, TextElement } from '../../model/types';
   import { MONTH_NAMES } from '../../render/calendar';
-  import { FILTER_PRESETS, presetAdjust } from '../../render/adjust';
+  import LookPanel from '../../look/LookPanel.svelte';
+  import PhotoDialog from '../../documents/components/PhotoDialog.svelte';
+  import { library } from '../../stores/library.svelte';
+  import { fileUrl } from '../../api/backend';
   import { MASK_SHAPES } from '../../render/shapes';
   import { stickers } from '../../stores/stickers.svelte';
   import ColorInput from '../ui/ColorInput.svelte';
@@ -67,9 +69,8 @@
     patch({ frame: style === 'none' ? null : { ...(p.frame ?? {}), style, color } } as Partial<PhotoElement>);
   }
 
-  function setAdjust(p: PhotoElement, key: keyof PhotoAdjust, v: number) {
-    patch({ adjust: { ...(p.adjust ?? neutralAdjust()), [key]: v }, filter: null } as Partial<PhotoElement>, `adj-${key}`);
-  }
+  /** Element whose photo is open in the Edit photo dialog (hidden areas, big preview). */
+  let photoDialog = $state<string | null>(null);
 
   const fontsByCat = FONT_CATEGORIES.map((c) => ({ ...c, fonts: FONTS.filter((f) => f.category === c.id) }));
 </script>
@@ -161,15 +162,16 @@
       {/if}
     </Section>
 
-    <Section title="Filters" open={false}>
-      <div class="filters">
-        {#each FILTER_PRESETS as f (f.id)}
-          <button class="btn small" class:active={(p.filter ?? 'none') === f.id} onclick={() => patch({ filter: f.id, adjust: f.id === 'none' ? null : presetAdjust(f.id) } as Partial<PhotoElement>)}>{f.name}</button>
-        {/each}
-      </div>
-      {#each [['brightness', 'Brightness', -1, 1], ['contrast', 'Contrast', -1, 1], ['saturation', 'Saturation', -1, 1], ['warmth', 'Warmth', -1, 1], ['fade', 'Fade', 0, 1], ['vignette', 'Vignette', 0, 1], ['grayscale', 'Black & white', 0, 1], ['sepia', 'Sepia', 0, 1]] as const as [k, label, min, max] (k)}
-        <Slider {label} value={p.adjust?.[k] ?? 0} {min} {max} step={0.01} scale={100} unit="%" onchange={(v) => setAdjust(p, k, v)} />
-      {/each}
+    <Section title="Look" open={false}>
+      <LookPanel
+        adjust={p.adjust}
+        filter={p.filter}
+        thumb={p.asset && library.get(p.asset) ? fileUrl(library.get(p.asset)!.thumb) : undefined}
+        onchange={(adjust, filter, key) => patch({ adjust, filter } as Partial<PhotoElement>, key)}
+      />
+      {#if p.asset}
+        <button class="btn small" onclick={() => (photoDialog = p.id)}>Edit photo: big preview, hide areas{p.hideAreas?.length ? ` (${p.hideAreas.length})` : ''}…</button>
+      {/if}
     </Section>
   {:else if el.kind === 'text'}
     {@const t = el}
@@ -344,6 +346,25 @@
   </Section>
 {/if}
 
+{#if photoDialog}
+  {@const pe = editor.element(photoDialog)}
+  {@const img = pe && pe.kind === 'photo' && pe.asset ? library.get(pe.asset) : undefined}
+  {#if pe && pe.kind === 'photo' && img}
+    <PhotoDialog
+      src={fileUrl(img.proxy)}
+      width={img.width}
+      height={img.height}
+      value={{ adjust: pe.adjust ?? undefined, filter: pe.filter ?? undefined, hideAreas: pe.hideAreas ?? undefined }}
+      mode="collage"
+      onclose={() => (photoDialog = null)}
+      onsave={(v) => {
+        editor.patch(pe.id, { adjust: v.adjust ?? null, filter: v.filter ?? null, hideAreas: v.hideAreas ?? null } as Partial<PhotoElement>);
+        photoDialog = null;
+      }}
+    />
+  {/if}
+{/if}
+
 <style>
   .tabs {
     display: flex;
@@ -388,11 +409,6 @@
     justify-content: space-between;
   }
   .masks,
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
   .font-select {
     font-size: 15px;
   }

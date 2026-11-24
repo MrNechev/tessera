@@ -1,5 +1,6 @@
 /** Photo colour adjustments and one-click filter presets. */
-import type { PhotoAdjust } from '../model/types';
+import type { HiddenArea, PhotoAdjust } from '../model/types';
+import { applyLookPixels, changesPixels } from './look';
 import { neutralAdjust } from '../model/factory';
 import { ctx2d, makeCanvas, type AnyCanvas } from './patterns';
 
@@ -22,6 +23,13 @@ export const FILTER_PRESETS: FilterPreset[] = [
   { id: 'dreamy', name: 'Dreamy', adjust: { brightness: 0.12, fade: 0.3, saturation: 0.1, warmth: 0.15 } },
   { id: 'retro', name: 'Retro', adjust: { warmth: 0.3, contrast: 0.2, fade: 0.2, saturation: -0.05, vignette: 0.25 } },
   { id: 'rose', name: 'Rosé', adjust: { warmth: 0.2, saturation: 0.05, fade: 0.15, brightness: 0.05 } },
+  { id: 'crisp', name: 'Crisp', adjust: { clarity: 0.4, sharpen: 0.35, vibrance: 0.3, contrast: 0.05 } },
+  { id: 'film', name: 'Film', adjust: { grain: 0.35, fade: 0.25, warmth: 0.15, contrast: 0.1, shadows: 0.2, vibrance: -0.1 } },
+  { id: 'golden', name: 'Golden hour', adjust: { warmth: 0.55, exposure: 0.1, highlights: -0.2, shadows: 0.2, vibrance: 0.25 } },
+  { id: 'moody', name: 'Moody', adjust: { exposure: -0.25, highlights: -0.3, shadows: -0.15, vibrance: -0.25, tint: -0.1, vignette: 0.4 } },
+  { id: 'duo-dusk', name: 'Duotone dusk', adjust: { duotone: { dark: '#2b1055', light: '#ff9a8b', amount: 1 }, contrast: 0.1 } },
+  { id: 'duo-ocean', name: 'Duotone ocean', adjust: { duotone: { dark: '#08233f', light: '#7de2d1', amount: 1 }, contrast: 0.1 } },
+  { id: 'pop-red', name: 'Red pop', adjust: { pop: { hue: 0, range: 40, amount: 1 }, contrast: 0.1 } },
 ];
 
 export function presetAdjust(id: string): PhotoAdjust {
@@ -31,20 +39,13 @@ export function presetAdjust(id: string): PhotoAdjust {
 
 /** True if the adjustment changes pixels (vignette is drawn separately). */
 export function hasPixelAdjust(a: PhotoAdjust | null | undefined): a is PhotoAdjust {
-  if (!a) return false;
-  return (
-    a.brightness !== 0 ||
-    a.contrast !== 0 ||
-    a.saturation !== 0 ||
-    a.warmth !== 0 ||
-    a.fade !== 0 ||
-    a.grayscale !== 0 ||
-    a.sepia !== 0
-  );
+  return changesPixels(a);
 }
 
-export function adjustKey(a: PhotoAdjust): string {
-  return [a.brightness, a.contrast, a.saturation, a.warmth, a.fade, a.grayscale, a.sepia].map((v) => v.toFixed(3)).join(',');
+export function adjustKey(a: PhotoAdjust, hidden?: HiddenArea[] | null): string {
+  const { vignette: _v, ...rest } = a;
+  void _v;
+  return JSON.stringify(rest) + (hidden?.length ? JSON.stringify(hidden) : '');
 }
 
 /** Apply `a` to RGBA pixels in place. */
@@ -110,8 +111,8 @@ export class AdjustCache {
   /** `maxMB`: budget for the cached RGBA copies, in megabytes. */
   constructor(private maxMB = 256) {}
 
-  get(sourceKey: string, source: CanvasImageSource, w: number, h: number, a: PhotoAdjust): AnyCanvas {
-    const key = `${sourceKey}|${w}x${h}|${adjustKey(a)}`;
+  get(sourceKey: string, source: CanvasImageSource, w: number, h: number, a: PhotoAdjust, hidden?: HiddenArea[] | null): AnyCanvas {
+    const key = `${sourceKey}|${w}x${h}|${adjustKey(a, hidden)}`;
     const hit = this.map.get(key);
     if (hit) {
       this.map.delete(key);
@@ -122,7 +123,7 @@ export class AdjustCache {
     const c = ctx2d(canvas);
     c.drawImage(source, 0, 0, w, h);
     const img = c.getImageData(0, 0, w, h);
-    applyAdjustPixels(img.data, a);
+    applyLookPixels(img.data, w, h, a, hidden);
     c.putImageData(img, 0, 0);
     const bytes = w * h * 4;
     this.map.set(key, { canvas, bytes });

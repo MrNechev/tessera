@@ -1,10 +1,11 @@
-import type { PhotoAdjust } from '../../model/types';
+import type { Look } from '../../look/looks.svelte';
 
 export type Kind = 'image' | 'gif' | 'video' | 'audio';
 
 export type Layout = 'media-top' | 'media-left' | 'media-right' | 'media-full' | 'text-only' | 'gallery' | 'compare';
 
-export interface MediaRef {
+/** A photo/video/audio in a story; `Look` holds its non-destructive edits (Edit photo). */
+export interface MediaRef extends Look {
   libraryId: string;
   path: string;
   caption?: string;
@@ -16,11 +17,6 @@ export interface MediaRef {
   fit?: 'contain' | 'cover';
   /** crop of the source, as fractions of its width/height (originals are never touched) */
   crop?: { x: number; y: number; w: number; h: number };
-  /** photo look (Tessera's photo toolkit): colour adjustments, the filter preset they came from */
-  adjust?: PhotoAdjust;
-  filter?: string;
-  flipX?: boolean;
-  flipY?: boolean;
 }
 
 export interface Section {

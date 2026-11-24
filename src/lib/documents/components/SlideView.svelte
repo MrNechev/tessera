@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { mediaStyle } from '../../look/looks.svelte';
+  import BakedImg from '../../look/BakedImg.svelte';
   import { thumbUrl } from '../lib/api';
   import { resolver } from '../lib/resolver.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
@@ -47,7 +47,7 @@
     <div class="smedia cmp">
       {#if still}
         {@const r = resolver.get(section.media[0])}
-        {#if r?.found}<img src={thumbUrl(r.derived, 1280)} alt="" style="object-fit:contain;width:100%;height:100%;{mediaStyle(section.media[0]) ?? ''}" />{/if}
+        {#if r?.found}<BakedImg src={thumbUrl(r.derived, 1280)} look={section.media[0]} style="object-fit:contain;width:100%;height:100%" />{/if}
       {:else}
         <CompareView {section} present fill {active} />
       {/if}
@@ -59,7 +59,7 @@
           {#if still}
             {@const r = resolver.get(m)}
             {#if r?.found}
-              <img src={thumbUrl(r.derived, 1280)} alt="" style={mediaStyle(m)} style:object-fit={m.fit || 'contain'} />
+              <BakedImg src={thumbUrl(r.derived, 1280)} look={m} style="object-fit:{m.fit || 'contain'}" />
             {/if}
           {:else}
             <MediaView ref={m} mode="present" fill {active} sizes="100vw" onended={media.length === 1 ? onended : undefined} />
@@ -112,11 +112,11 @@
     flex-direction: column;
   }
   .cell > :global(.media),
-  .cell > img {
+  .cell > :global(img) {
     flex: 1;
     min-height: 0;
   }
-  .cell > img {
+  .cell > :global(img) {
     width: 100%;
     height: 100%;
     display: block;

@@ -40,6 +40,10 @@ function saturate(s: number): Affine {
 
 export function adjustAffine(a: PhotoAdjust): Affine {
   let m = ID;
+  if (a.exposure) {
+    const e = Math.pow(2, a.exposure);
+    m = compose([e, 0, 0, 0, 0, e, 0, 0, 0, 0, e, 0], m);
+  }
   const bright = 1 + a.brightness * 0.6;
   m = compose([bright, 0, 0, 0, 0, bright, 0, 0, 0, 0, bright, 0], m);
   const c = 1 + a.contrast;
@@ -48,6 +52,10 @@ export function adjustAffine(a: PhotoAdjust): Affine {
   m = compose(saturate(1 + a.saturation), m);
   const warm = a.warmth * 0.09;
   m = compose([1, 0, 0, warm, 0, 1, 0, warm * 0.25, 0, 0, 1, -warm], m);
+  if (a.tint) {
+    const t = a.tint * 0.09;
+    m = compose([1, 0, 0, t * 0.5, 0, 1, 0, -t, 0, 0, 1, t * 0.5], m);
+  }
   if (a.grayscale > 0) m = compose(saturate(1 - a.grayscale), m);
   if (a.sepia > 0) {
     const p = a.sepia;

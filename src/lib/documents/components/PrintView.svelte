@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { mediaStyle } from '../../look/looks.svelte';
+  import BakedImg from '../../look/BakedImg.svelte';
   // Print / PDF view: the document as pages, the slides one per 16:9 page, or the canvas
   // frames one per page. "Save as PDF" in the browser's print dialog makes the PDF.
   import { onMount, tick } from 'svelte';
@@ -84,7 +84,7 @@
                   {@const rr = r(m)}
                   <figure>
                     {#if rr?.found}
-                      <img src={thumbUrl(rr.derived, 2560)} alt={m.caption || ''} style={mediaStyle(m)} />
+                      <BakedImg src={thumbUrl(rr.derived, 2560)} look={m} maxW={2560} alt={m.caption || ''} />
                       {#if rr.file?.kind === 'video'}<span class="vid">▶ video{rr.file.duration ? ` · ${fmtDuration(rr.file.duration)}` : ''}</span>{/if}
                     {:else}
                       <div class="missing">Missing: {m.path}</div>
@@ -191,7 +191,7 @@
     position: relative;
     break-inside: avoid;
   }
-  figure img {
+  figure :global(img) {
     width: 100%;
     max-height: 120mm;
     object-fit: contain;

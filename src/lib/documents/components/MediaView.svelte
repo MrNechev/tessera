@@ -2,7 +2,6 @@
   // Remembered playback positions so a video that is unmounted (scrolled far away) and
   // mounted again continues where it was.
   const positions = new Map<string, number>();
-  const OVB = typeof CSS !== 'undefined' && CSS.supports('object-view-box', 'inset(0% 0% 0% 0%)');
 </script>
 
 <script lang="ts">
@@ -12,7 +11,8 @@
   import { viewport } from '../lib/viewport';
   import { autoplay, stopped } from '../lib/playback';
   import Icon from './Icon.svelte';
-  import { lookStyle } from '../../look/looks.svelte';
+  import { fullAdjust, lookFilter, lookTransform, lookedUrl, needsPixels, shownAspect } from '../../look/looks.svelte';
+  import LookBox, { framedAspect } from '../../look/LookBox.svelte';
 
   let {
     ref,
@@ -54,22 +54,35 @@
   const r: Resolved | undefined = $derived(resolver.get(ref));
   const f = $derived(r?.file);
   const crop = $derived(ref.crop && ref.crop.w > 0 && ref.crop.h > 0 && (ref.crop.w < 0.999 || ref.crop.h < 0.999) ? ref.crop : null);
-  const ratio = $derived(f && f.width && f.height ? (f.width * (crop?.w ?? 1)) / (f.height * (crop?.h ?? 1)) : 16 / 9);
-  // Crop: Chromium crops the source with object-view-box (works in any box, also when
-  // filling a slide); elsewhere the element is scaled and offset inside a box that has the
-  // cropped aspect ratio (document view only).
-  const cropStyle = $derived(
-    !crop
-      ? ''
-      : OVB
-        ? `object-view-box:inset(${crop.y * 100}% ${(1 - crop.x - crop.w) * 100}% ${(1 - crop.y - crop.h) * 100}% ${crop.x * 100}%)`
-        : fill
-          ? ''
-          : `position:absolute;width:${100 / crop.w}%;height:${100 / crop.h}%;left:${(-crop.x / crop.w) * 100}%;top:${(-crop.y / crop.h) * 100}%;max-width:none`,
+  const ratio = $derived(f && f.width && f.height ? shownAspect(f.width, f.height, crop, ref.rotate) : 16 / 9);
+  // Crops, turns, masks and frames go through LookBox (works in any box and in every
+  // browser); plain media keep the simple, cheaper markup.
+  const geo = $derived(
+    !!(crop || ref.rotate || ref.straighten || ref.frame || (ref.mask && ref.mask !== 'rect') || ref.border || ref.shadow),
   );
-  const look = $derived(lookStyle(ref));
-  const elStyle = $derived([cropStyle, look].filter(Boolean).join(';') || undefined);
-  const fitMode = $derived(crop && !OVB && !fill ? 'fill' : ref.fit || (fill ? 'contain' : undefined));
+  // Looks that need real pixels (images only): the thumbnail is processed once.
+  const pixels = $derived(f?.kind === 'image' && needsPixels(ref));
+  let pixSrc = $state('');
+  $effect(() => {
+    if (!pixels || !r?.derived || !mounted) {
+      pixSrc = '';
+      return;
+    }
+    let live = true;
+    void lookedUrl(thumbUrl(r.derived, mode === 'present' || fill ? 2560 : 1280), ref)
+      .then((u) => live && (pixSrc = u))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  });
+  /** The SVG part of the look; with processed pixels only the vignette is left. */
+  const svgFilter = $derived(
+    pixSrc ? lookFilter(ref.adjust?.vignette ? { ...fullAdjust(undefined), vignette: ref.adjust.vignette } : undefined) : lookFilter(ref.adjust),
+  );
+  const look = $derived([svgFilter ? `filter:${svgFilter}` : '', lookTransform({ flipX: ref.flipX, flipY: ref.flipY }, ratio) ? `transform:${lookTransform({ flipX: ref.flipX, flipY: ref.flipY }, ratio)}` : ''].filter(Boolean).join(';'));
+  const elStyle = $derived(look || undefined);
+  const fitMode = $derived(ref.fit || (fill ? 'contain' : undefined));
   // never blow small images/GIFs (icons, spacers from saved web pages) up past their natural size
   const maxW = $derived(
     !fill && f && (f.kind === 'image' || f.kind === 'gif') && f.width > 0 && f.width < 720 ? Math.max(f.width, 96) : 0,
@@ -168,12 +181,71 @@
   }
 </script>
 
+{#snippet imageEl(style: string | undefined, fit: string | undefined)}
+  <img
+    src={pixSrc || undefined}
+    srcset={pixSrc ? undefined : srcset(r!.derived, f!.width)}
+    {sizes}
+    width={f!.width || undefined}
+    height={f!.height || undefined}
+    alt={ref.caption || f!.name}
+    loading={mode === 'doc' ? 'lazy' : 'eager'}
+    draggable="false"
+    decoding="async"
+    {style}
+    style:object-fit={fit}
+  />
+{/snippet}
+{#snippet gifEl(style: string | undefined, fit: string | undefined)}
+  {#if gifFallback}
+    <img src={r!.original} alt={ref.caption || f!.name} decoding="async" {style} style:object-fit={fit} />
+  {:else}
+    <video
+      bind:this={video}
+      src={r!.gif}
+      poster={thumbUrl(r!.derived, 1280)}
+      loop
+      muted
+      playsinline
+      preload="auto"
+      disablepictureinpicture
+      onerror={() => (gifFallback = true)}
+      {style}
+      style:object-fit={fit}
+    ></video>
+  {/if}
+{/snippet}
+{#snippet videoEl(style: string | undefined, fit: string | undefined)}
+  <!-- svelte-ignore a11y_media_has_caption -->
+  <video
+    bind:this={video}
+    src={src!.url}
+    poster={thumbUrl(r!.derived, 1280)}
+    {controls}
+    playsinline
+    preload={mode === 'present' ? 'auto' : 'metadata'}
+    muted={ref.muted || forceMute || (mode !== 'present' && ref.autoplay)}
+    loop={ref.loop}
+    onloadedmetadata={onLoadedMeta}
+    ontimeupdate={onTimeUpdate}
+    onended={() => onended?.()}
+    {style}
+    style:object-fit={fit}
+  ></video>
+{/snippet}
+{#snippet framed(el: typeof imageEl)}
+  <LookBox look={ref} aspect={ratio} {fill} cover={ref.fit === 'cover'} filter={svgFilter}>
+    {#snippet media(place: string)}{@render el(place, 'fill')}{/snippet}
+  </LookBox>
+{/snippet}
+
 <div
   class="media"
   class:fill
   class:cropped={!!crop}
+  class:geo
   class:missing={r && !r.found}
-  style={fill ? '' : `aspect-ratio:${ratio}${maxW ? `;max-width:${maxW}px;margin-inline:auto` : ''}`}
+  style={fill ? '' : `aspect-ratio:${geo ? framedAspect(ratio, ref.frame) : ratio}${maxW ? `;max-width:${maxW}px;margin-inline:auto` : ''}`}
   use:viewport={{ enabled: mode === 'doc', onNear: (v) => (near = v), onVisible: (v) => (visible = v) }}
 >
   {#if !r}
@@ -199,55 +271,13 @@
       {/if}
     </div>
   {:else if !mounted}
-    <img class="poster" src={thumbUrl(r.derived, 320)} alt="" decoding="async" draggable="false" style={look || undefined} />
+    <img class="poster" src={thumbUrl(r.derived, 320)} alt="" decoding="async" draggable="false" style={geo ? undefined : look || undefined} />
   {:else if f?.kind === 'image'}
-    <img
-      srcset={srcset(r.derived, f.width)}
-      {sizes}
-      width={f.width || undefined}
-      height={f.height || undefined}
-      alt={ref.caption || f.name}
-      loading={mode === 'doc' ? 'lazy' : 'eager'}
-      draggable="false"
-      decoding="async"
-      style={elStyle}
-      style:object-fit={fitMode}
-    />
+    {#if geo}{@render framed(imageEl)}{:else}{@render imageEl(elStyle, fitMode)}{/if}
   {:else if f?.kind === 'gif'}
-    {#if gifFallback}
-      <img src={r.original} alt={ref.caption || f.name} decoding="async" style={look || undefined} style:object-fit={ref.fit || (fill ? 'contain' : undefined)} />
-    {:else}
-      <video
-        bind:this={video}
-        src={r.gif}
-        poster={thumbUrl(r.derived, 1280)}
-        loop
-        muted
-        playsinline
-        preload="auto"
-        disablepictureinpicture
-        onerror={() => (gifFallback = true)}
-        style={elStyle}
-        style:object-fit={fitMode}
-      ></video>
-    {/if}
+    {#if geo}{@render framed(gifEl)}{:else}{@render gifEl(elStyle, fitMode)}{/if}
   {:else if src?.url}
-    <!-- svelte-ignore a11y_media_has_caption -->
-    <video
-      bind:this={video}
-      src={src.url}
-      poster={thumbUrl(r.derived, 1280)}
-      {controls}
-      playsinline
-      preload={mode === 'present' ? 'auto' : 'metadata'}
-      muted={ref.muted || forceMute || (mode !== 'present' && ref.autoplay)}
-      loop={ref.loop}
-      onloadedmetadata={onLoadedMeta}
-      ontimeupdate={onTimeUpdate}
-      onended={() => onended?.()}
-      style={elStyle}
-      style:object-fit={fitMode}
-    ></video>
+    {#if geo}{@render framed(videoEl)}{:else}{@render videoEl(elStyle, fitMode)}{/if}
     {#if needsProxy && mode === 'doc' && proxy?.variant === 'preview'}
       <span class="tag" title="A lighter preview copy is being made for smoother scrolling; playing the original meanwhile">preview {proxy.status === 'running' ? Math.round((proxy.progress ?? 0) * 100) + '%' : 'queued'}</span>
     {/if}
@@ -287,6 +317,15 @@
     border-radius: 0;
   }
 
+  .media.geo {
+    background: transparent;
+    overflow: visible;
+    contain: none;
+  }
+  .media.geo.fill {
+    container-type: size;
+    overflow: hidden;
+  }
   .media.missing {
     aspect-ratio: auto !important;
     min-height: 160px;
