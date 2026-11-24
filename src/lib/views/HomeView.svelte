@@ -20,6 +20,7 @@
   import { fromTemplate, TEMPLATES as DOC_TEMPLATES, type Template as DocTemplate } from '../documents/lib/templates';
   import type { DocMeta } from '../documents/lib/types';
   import DocIcon from '../documents/components/Icon.svelte';
+  import OnThisDay from '../documents/components/OnThisDay.svelte';
 
   let projects = $state<ProjectSummary[]>([]);
   let docs = $state<DocMeta[]>([]);
@@ -172,6 +173,9 @@
       <button class="tool" onclick={() => void openProjectDialog()}><FolderOpen size={18} /> <span><b>Open</b> a project file</span></button>
     </div>
   </section>
+
+  <!-- hides itself when the library has nothing from this date in earlier years -->
+  <div class="lt otd-home"><OnThisDay /></div>
 
   {#if editor.open}
     <section>

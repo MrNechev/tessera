@@ -16,6 +16,7 @@
   import { editor } from '../../editor/editor.svelte';
   import { app } from '../../stores/app.svelte';
   import { toasts } from '../lib/toast.svelte';
+  import { fmtDayShort } from '../lib/diary';
 
   let {
     section,
@@ -220,6 +221,11 @@
       oninput={touch}
       onfocus={() => (ds.activeSection = section.id)}
     />
+    {#if section.date || section.place}
+      <span class="when" title="When and where (Story settings → Tools → Date sections from their photos)"
+        ><Icon name={section.place ? 'pin' : 'calendar'} size={12} /> {[section.date && fmtDayShort(section.date), section.place].filter(Boolean).join(' · ')}</span
+      >
+    {/if}
     <div class="tools">
       {#each section.chapter ? [] : LAYOUTS as l (l.id)}
         <button class="icon-btn" class:on={section.layout === l.id} title={l.label} onclick={() => setLayout(l.id)}><Icon name={l.icon} size={16} /></button>
@@ -497,6 +503,19 @@
     outline: none;
     font: 650 19px var(--serif);
     padding: 4px 0;
+  }
+  .when {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 40%;
+    font-size: 12px;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .title::placeholder {
     color: var(--text-3);

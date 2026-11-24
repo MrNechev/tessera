@@ -8,6 +8,7 @@
   import { toasts } from '../lib/toast.svelte';
   import type { FileItem, MediaRef } from '../lib/types';
   import Icon from './Icon.svelte';
+  import { DIARY_TAG, isoDay } from '../lib/diary';
 
   let { ds, onclose }: { ds: DocState; onclose: () => void } = $props();
   const doc = $derived(ds.doc!);
@@ -116,6 +117,33 @@
     } else toasts.show('No media without a caption has a date/place to use', 'info');
   }
 
+  /** Section date and place from the first photo that has them (sections already dated keep theirs). */
+  async function dateSections() {
+    const refs = doc.sections.flatMap((s) => s.media);
+    const res = await api.resolve(refs.map((m) => ({ libraryId: m.libraryId, path: m.path })));
+    const by = new Map(res.map((r) => [r.libraryId + '\u0000' + r.path, r.file]));
+    let n = 0;
+    for (const s of doc.sections) {
+      const files = s.media.map((m) => by.get(m.libraryId + '\u0000' + m.path)).filter((f): f is FileItem => !!f);
+      const t = files.find((f) => f.taken);
+      const p = files.find((f) => f.place)?.place;
+      if (!s.date && t?.taken) s.date = isoDay(t.taken);
+      if (!s.place && p) s.place = p;
+      if ((t?.taken && s.date) || p) n++;
+    }
+    if (n) {
+      ds.revision++;
+      ds.touch();
+      toasts.show(`Dated ${n} section${n === 1 ? '' : 's'}`, 'ok');
+    } else toasts.show('No section has photos with a capture date or place', 'info');
+  }
+
+  const isDiary = $derived(!!doc.tags?.some((t) => t.toLowerCase() === DIARY_TAG));
+  function setDiary(on: boolean) {
+    doc.tags = on ? [...(doc.tags ?? []), DIARY_TAG] : (doc.tags ?? []).filter((t) => t.toLowerCase() !== DIARY_TAG);
+    ds.touch();
+  }
+
   const rehearsed = $derived(doc.sections.filter((s) => s.slide && s.rehearsal).reduce((a, s) => a + (s.rehearsal ?? 0), 0));
   function clearRehearsal() {
     for (const s of doc.sections) delete s.rehearsal;
@@ -148,6 +176,15 @@
           <datalist id="alltags">{#each allTags as t (t)}<option value={t}></option>{/each}</datalist>
         </div>
         <p class="muted small">Tags show on the start page, filter the story list and work in the command palette (Ctrl+K).</p>
+      </section>
+
+      <section>
+        <h3><Icon name="calendar" size={15} /> Date</h3>
+        <div class="row">
+          <input class="input" type="date" value={doc.date ?? ''} onchange={(e) => { if (e.currentTarget.value) doc.date = e.currentTarget.value; else delete doc.date; ds.touch(); }} />
+          <label class="cb"><input type="checkbox" checked={isDiary} onchange={(e) => setDiary(e.currentTarget.checked)} /> This is my diary (“Today” adds a chapter per day here)</label>
+        </div>
+        <p class="muted small">Dated stories and dated sections show in the Stories calendar and under “On this day”.</p>
       </section>
 
       <section>
@@ -206,6 +243,7 @@
           <button class="btn sm" onclick={() => addCaptions('both')}><Icon name="pin" size={14} /> Add date &amp; place captions</button>
           <button class="btn sm" onclick={() => addCaptions('date')}>Dates only</button>
           <button class="btn sm" onclick={() => addCaptions('place')}>Places only</button>
+          <button class="btn sm" onclick={dateSections}><Icon name="calendar" size={14} /> Date sections from their photos</button>
         </div>
         <p class="muted small">Captions are only added where there is none. Places come from the photos' GPS data (looked up offline). Created {fmtDate(doc.createdAt)}.</p>
       </section>

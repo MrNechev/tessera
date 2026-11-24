@@ -41,6 +41,14 @@ async function req<T>(method: string, url: string, body?: unknown, opts: Request
   return data as T;
 }
 
+type FileQuery = Record<string, string | number | boolean | undefined>;
+
+function params(q: FileQuery) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '' && v !== false) p.set(k, String(v === true ? 1 : v));
+  return p;
+}
+
 export const api = {
   session: () =>
     req<{ authenticated: boolean; authEnabled: boolean; version: string; https: boolean; httpsAddr: string; proto: string }>(
@@ -54,11 +62,10 @@ export const api = {
 
   libraries: () => req<Library[]>('GET', '/api/libraries'),
   tree: (lib: string) => req<DirNode>('GET', `/api/libraries/${encodeURIComponent(lib)}/tree`),
-  files: (q: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '' && v !== false) p.set(k, String(v === true ? 1 : v));
-    return req<{ total: number; offset: number; items: FileItem[] }>('GET', `/api/files?${p}`, undefined, { signal });
-  },
+  files: (q: FileQuery, signal?: AbortSignal) =>
+    req<{ total: number; offset: number; items: FileItem[] }>('GET', `/api/files?${params(q)}`, undefined, { signal }),
+  /** files per local calendar day for the same filters (from/to/tz): the stories calendar */
+  days: (q: FileQuery, signal?: AbortSignal) => req<{ day: string; count: number }[]>('GET', `/api/days?${params(q)}`, undefined, { signal }),
   resolve: (refs: { libraryId: string; path: string }[]) => req<Resolved[]>('POST', '/api/resolve', { refs }),
   proxy: (key: string, variant: string, retry = false) => req<ProxyState>('POST', '/api/proxy', { key, variant, retry }),
 
