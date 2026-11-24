@@ -38,6 +38,7 @@ pub(crate) fn router(core: Arc<Core>, extra: Router) -> Router {
         .route("/api/libraries/{lib}/tree", get(api_media::tree))
         .route("/api/files", get(api_media::files))
         .route("/api/files/{id}", get(api_media::file))
+        .route("/api/days", get(api_media::days))
         .route("/api/resolve", post(api_media::resolve))
         .route("/api/proxy", post(api_media::proxy))
         .route("/api/scan", post(api_media::scan))

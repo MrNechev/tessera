@@ -175,6 +175,14 @@ pub struct Section {
         skip_serializing_if = "Option::is_none"
     )]
     pub canvas: Option<Value>,
+    /// The day this section is about ("2026-11-24"): diary entries, story-starter chapters.
+    /// Indexed so the stories calendar needs no document reads.
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub date: String,
     #[serde(flatten)]
     pub extra: Extra,
 }
@@ -230,6 +238,13 @@ pub struct Document {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cover: Option<MediaRef>,
+    /// The day the story is about ("2026-11-24"), for the calendar and "On this day".
+    #[serde(
+        default,
+        deserialize_with = "nd",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub date: String,
     #[serde(flatten)]
     pub extra: Extra,
 }
@@ -305,6 +320,11 @@ pub fn valid_ref_path(p: &str) -> bool {
     !p.split('/').any(|s| s == "..")
 }
 
+/// An ISO calendar day ("2026-11-24"); anything else is dropped by [`normalize`].
+pub fn valid_day(s: &str) -> bool {
+    s.len() == 10 && chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
+}
+
 fn json_object_or_null(v: &Option<Value>) -> bool {
     matches!(v, None | Some(Value::Null) | Some(Value::Object(_)))
 }
@@ -331,6 +351,9 @@ pub fn normalize(d: &mut Document) -> Result<(), DocError> {
             d.cover = None;
         }
     }
+    if !valid_day(&d.date) {
+        d.date.clear();
+    }
     if d.sections.len() > 20000 {
         return Err(DocError::Invalid("too many sections".into()));
     }
@@ -342,6 +365,9 @@ pub fn normalize(d: &mut Document) -> Result<(), DocError> {
         seen.insert(sec.id.clone());
         if !LAYOUTS.contains(&sec.layout.as_str()) {
             sec.layout = "media-top".into();
+        }
+        if !valid_day(&sec.date) {
+            sec.date.clear();
         }
         for mr in &sec.media {
             if mr.library_id.is_empty() || !valid_ref_path(&mr.path) {
@@ -383,6 +409,18 @@ pub fn meta(d: &Document) -> DocMeta {
             m.cover_lib = c.library_id.clone();
             m.cover_path = c.path.clone();
         }
+    }
+    // the story's own day plus every dated section, unique and sorted (calendar)
+    let mut dates: Vec<String> = std::iter::once(&d.date)
+        .chain(d.sections.iter().map(|s| &s.date))
+        .filter(|s| valid_day(s))
+        .cloned()
+        .collect();
+    dates.sort();
+    dates.dedup();
+    m.dates = dates;
+    if valid_day(&d.date) {
+        m.date = d.date.clone();
     }
     for sec in &d.sections {
         m.media += sec.media.len() as i64;
@@ -848,6 +886,54 @@ mod tests {
         ] {
             assert!(out.contains(want), "lost {want} in {out}");
         }
+    }
+
+    #[test]
+    fn dates_are_validated_and_indexed() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = new_store(dir.path());
+        let sec = |date: &str| Section {
+            layout: "text-only".into(),
+            date: date.into(),
+            ..Default::default()
+        };
+        let d = s
+            .create(Document {
+                title: "Diary".into(),
+                date: "2026-11-24".into(),
+                sections: vec![
+                    sec("2026-11-25"),
+                    sec("2026-11-24"),
+                    sec("yesterday"),
+                    sec("2026-02-30"),
+                    sec(""),
+                ],
+                ..Default::default()
+            })
+            .unwrap();
+        // bad days are dropped, good ones kept on the sections
+        let dates: Vec<&str> = d.sections.iter().map(|s| s.date.as_str()).collect();
+        assert_eq!(dates, ["2026-11-25", "2026-11-24", "", "", ""]);
+        let out = serde_json::to_string(&d).unwrap();
+        assert!(out.contains(r#""date":"2026-11-24""#), "{out}");
+        // the index carries the story's day and every distinct dated day, sorted
+        let m = s
+            .list()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.id == d.id)
+            .unwrap();
+        assert_eq!(m.date, "2026-11-24");
+        assert_eq!(m.dates, ["2026-11-24", "2026-11-25"]);
+        // and survives a rebuild of the index from the JSON files
+        s.reindex().unwrap();
+        let m = s
+            .list()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.id == d.id)
+            .unwrap();
+        assert_eq!(m.dates, ["2026-11-24", "2026-11-25"]);
     }
 
     #[test]
