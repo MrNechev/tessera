@@ -4,6 +4,7 @@
   import { api, fmtBytes, fmtDuration, spriteLayout } from '../lib/api';
   import { palette } from '../lib/palette.svelte';
   import { prefs } from '../lib/prefs.svelte';
+  import { uiPrefs } from '../lib/uiprefs.svelte';
   import DuplicatesDialog from './DuplicatesDialog.svelte';
   import { dnd, MEDIA_MIME } from '../lib/dnd.svelte';
   import { toasts } from '../lib/toast.svelte';
@@ -49,7 +50,7 @@
   let kind = $state(stored('kind', 'all'));
   let sort = $state(stored('sort', 'mtime'));
   let desc = $state(stored('desc', '1') === '1');
-  let tileMin = $state(Number(stored('tile', '112')));
+  const tileMin = $derived(uiPrefs.tile);
   let search = $state('');
   let q = $state('');
   let showTree = $state(stored('tree', '1') === '1');
@@ -61,7 +62,7 @@
   let showFilters = $state(false);
   let cameras = $state<{ name: string; count: number }[]>([]);
   const activeFilters = $derived(Object.entries(filters).filter(([k, v]) => v !== (noFilters as any)[k]).length);
-  let blur = $state(stored('blur', '0') === '1');
+  const blur = $derived(uiPrefs.blur);
   let menu = $state(false);
   let dupes = $state(false);
   let hiddenOpen = $state(false);
@@ -233,8 +234,7 @@
   });
 
   function setBlur(v: boolean) {
-    blur = v;
-    store('blur', v ? '1' : '0');
+    uiPrefs.blur = v;
   }
 
   function hoverStart(f: FileItem) {
@@ -490,7 +490,7 @@
       <button class="btn sm" onclick={() => selected.clear()}>Clear</button>
     {:else}
       <span class="grow"></span>
-      <input type="range" min="72" max="220" step="4" bind:value={tileMin} onchange={() => store('tile', String(tileMin))} title="Thumbnail size" />
+      <input type="range" min="72" max="220" step="4" value={tileMin} oninput={(e) => (uiPrefs.tile = Number(e.currentTarget.value))} title="Thumbnail size" />
     {/if}
   </div>
 

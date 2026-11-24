@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { uiPrefs, type Transition } from '../lib/uiprefs.svelte';
   import { onMount } from 'svelte';
   import { api, ApiError } from '../lib/api';
   import { pair, RemoteChannel } from '../lib/remote';
@@ -20,7 +21,7 @@
   let idle = $state(false);
   let fullscreen = $state(!!document.fullscreenElement);
   let overview = $state(false);
-  let transition = $state<'fade' | 'slide' | 'zoom' | 'none'>('fade');
+  const transition = $derived(uiPrefs.transition);
   let idleTimer: ReturnType<typeof setTimeout>;
   let chan: BroadcastChannel | null = null;
   let remote: RemoteChannel | null = null;
@@ -72,16 +73,8 @@
     return r?.found ? (r.doc?.url ?? r.original ?? '') : '';
   });
 
-  try {
-    const t = localStorage.getItem('letopis.transition');
-    if (t === 'fade' || t === 'slide' || t === 'zoom' || t === 'none') transition = t;
-  } catch {}
-
-  function setTransition(t: typeof transition) {
-    transition = t;
-    try {
-      localStorage.setItem('letopis.transition', t);
-    } catch {}
+  function setTransition(t: Transition) {
+    uiPrefs.transition = t;
   }
 
   function stateMsg() {
@@ -487,7 +480,7 @@
       {#if rehearsing}<span class="rec" title="Rehearsing (R to stop and save)">● {Math.floor((now - slideStart) / 1000)} s</span>{/if}
       <button class="icon-btn" title="Next (→ / Space)" onclick={next}><Icon name="chev-right" /></button>
       <span class="sep"></span>
-      <select class="input" value={transition} onchange={(e) => setTransition(e.currentTarget.value as typeof transition)} title="Transition">
+      <select class="input" value={transition} onchange={(e) => setTransition(e.currentTarget.value as Transition)} title="Transition">
         <option value="fade">Fade</option>
         <option value="slide">Slide</option>
         <option value="zoom">Zoom</option>

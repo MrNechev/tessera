@@ -15,6 +15,8 @@
   import LibrariesEditor from '../components/LibrariesEditor.svelte';
   import { call } from '../api/http';
   import type { Area } from '../api/types';
+  import { prefs } from '../documents/lib/prefs.svelte';
+  import { uiPrefs, type Transition } from '../documents/lib/uiprefs.svelte';
 
   let areas = $state<Area[]>([]);
   async function loadAreas() {
@@ -50,7 +52,12 @@
 
   let clearing = $state(false);
 
+  const favFolders = $derived(prefs.favorites.filter((f) => f.dir));
+  const favFiles = $derived(prefs.favorites.filter((f) => !f.dir).length);
+  const libName = (id: string) => areas.find((a) => a.id === id)?.name ?? id;
+
   onMount(async () => {
+    void prefs.load();
     void loadAreas();
     try {
       cache = await api.cacheSize();
@@ -79,6 +86,57 @@
       <p class="hint">Folders with your photos and videos. They appear in the Library and can be used in collages and documents.</p>
       <LibrariesEditor value={s.libraries} onchange={(v) => void app.saveSettings({ libraries: v }).then(loadAreas)} />
     {/if}
+  </section>
+
+  <section class="card">
+    <h3>Documents &amp; library</h3>
+    <div class="field">
+      <div class="lbl"><span>Slide transition</span><span class="hint">Used when presenting documents. Saved in this browser.</span></div>
+      <Segmented
+        full={false}
+        options={[
+          { value: 'fade', label: 'Fade' },
+          { value: 'slide', label: 'Slide' },
+          { value: 'zoom', label: 'Zoom' },
+          { value: 'none', label: 'None' },
+        ]}
+        value={uiPrefs.transition}
+        onchange={(v) => (uiPrefs.transition = v as Transition)}
+      />
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Library thumbnail size</span><span class="hint">Saved in this browser.</span></div>
+      <div class="slider"><Slider value={uiPrefs.tile} min={72} max={220} step={4} label="Size" unit=" px" onchange={(v) => (uiPrefs.tile = Math.round(v))} /></div>
+    </div>
+    <Toggle checked={uiPrefs.blur} label="Blur library thumbnails" hint="For screen sharing: hover a thumbnail to peek. Saved in this browser." onchange={(v) => (uiPrefs.blur = v)} />
+    <div class="field">
+      <div class="lbl">
+        <span>Hidden folders</span>
+        <span class="hint">Not listed or indexed; nothing on disk is touched. Right-click a folder in the Library to hide it.</span>
+      </div>
+      <div class="plist">
+        {#each prefs.hidden as h, i (h.libraryId + h.path)}
+          <div class="row pref"><span class="truncate"><b>{libName(h.libraryId)}</b> / {h.path}</span><span class="spacer"></span><button class="btn small" onclick={() => void prefs.setHidden(prefs.hidden.filter((_, j) => j !== i))}>Show again</button></div>
+        {:else}
+          <span class="hint">None.</span>
+        {/each}
+      </div>
+    </div>
+    <div class="field">
+      <div class="lbl"><span>Favourite folders</span><span class="hint">{favFiles} favourite file{favFiles === 1 ? '' : 's'} as well. Star folders and files in the Library.</span></div>
+      <div class="plist">
+        {#each favFolders as f (f.libraryId + f.path)}
+          <div class="row pref"><span class="truncate"><b>{libName(f.libraryId)}</b> / {f.path || '(whole library)'}</span><span class="spacer"></span><button class="btn small" onclick={() => void prefs.toggleFavorite({ libraryId: f.libraryId, path: f.path, dir: true })}>Remove</button></div>
+        {:else}
+          <span class="hint">None.</span>
+        {/each}
+      </div>
+    </div>
+    <div class="row">
+      <span class="hint">Recently inserted media: {prefs.recent.length} file{prefs.recent.length === 1 ? '' : 's'} (the Library's “Recent” tab).</span>
+      <span class="spacer"></span>
+      <button class="btn small" disabled={!prefs.recent.length} onclick={() => void prefs.clearRecent()}>Clear</button>
+    </div>
   </section>
 
   <section class="card">
@@ -220,6 +278,18 @@
 </div>
 
 <style>
+  .plist {
+    width: 420px;
+    display: flex;
+    flex-direction: column;
+  }
+  .pref {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pref:last-child {
+    border-bottom: 0;
+  }
   .settings {
     height: 100%;
     overflow-y: auto;

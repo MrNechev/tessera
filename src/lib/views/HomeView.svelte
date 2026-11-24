@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeftRight, BookOpen, CalendarDays, FolderOpen, Hand, LayoutTemplate, Minimize2, Sparkles, Trash2, Wand } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, CalendarDays, FileText, FolderOpen, Hand, Images, LayoutDashboard, LayoutTemplate, Minimize2, PenTool, Presentation, Sparkles, Trash2, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
@@ -14,8 +14,56 @@
   import { toasts } from '../stores/toasts.svelte';
   import { templateById } from '../templates/catalog';
   import type { TemplateDef } from '../templates/types';
+  import { api as docApi, thumbUrl } from '../documents/lib/api';
+  import { resolver } from '../documents/lib/resolver.svelte';
+  import { router } from '../documents/lib/router.svelte';
+  import { fromTemplate, TEMPLATES as DOC_TEMPLATES, type Template as DocTemplate } from '../documents/lib/templates';
+  import type { DocMeta } from '../documents/lib/types';
+  import DocIcon from '../documents/components/Icon.svelte';
 
   let projects = $state<ProjectSummary[]>([]);
+  let docs = $state<DocMeta[]>([]);
+  let recentKind = $state<'all' | 'collage' | 'doc'>('all');
+
+  type Recent = { kind: 'collage'; at: number; p: ProjectSummary } | { kind: 'doc'; at: number; d: DocMeta };
+  const recent = $derived.by(() => {
+    const all: Recent[] = [
+      ...projects.map((p) => ({ kind: 'collage' as const, at: Date.parse(p.modified), p })),
+      ...docs.map((d) => ({ kind: 'doc' as const, at: Date.parse(d.updatedAt), d })),
+    ];
+    return all.filter((r) => recentKind === 'all' || r.kind === recentKind).sort((a, b) => b.at - a.at).slice(0, 18);
+  });
+
+  function docCover(d: DocMeta): string {
+    if (!d.coverPath) return '';
+    const r = resolver.get({ libraryId: d.coverLibraryId!, path: d.coverPath });
+    return r?.found ? thumbUrl(r.derived, 320) : '';
+  }
+
+  function openDoc(d: DocMeta) {
+    router.go(`/doc/${d.id}`);
+    app.view = 'documents';
+  }
+
+  async function newDoc(canvas = false) {
+    try {
+      const d = await docApi.createDoc(canvas ? 'Untitled canvas' : 'Untitled');
+      router.go(`/doc/${d.id}${canvas ? '/canvas' : ''}`);
+      app.view = 'documents';
+    } catch (e) {
+      toasts.push({ kind: 'error', title: 'Could not create the document', message: String(e instanceof Error ? e.message : e) });
+    }
+  }
+
+  async function newDocFrom(t: DocTemplate) {
+    try {
+      const d = await docApi.importDoc(fromTemplate(t));
+      router.go(`/doc/${d.id}${t.canvas ? '/canvas' : ''}`);
+      app.view = 'documents';
+    } catch (e) {
+      toasts.push({ kind: 'error', title: 'Could not create the document', message: String(e instanceof Error ? e.message : e) });
+    }
+  }
   let chosen = $state<TemplateDef | null>(null);
   let useLibrary = $state(true);
   let deleting = $state<ProjectSummary | null>(null);
@@ -29,6 +77,12 @@
       projects = await api.listProjects();
     } catch (e) {
       toasts.push({ kind: 'error', title: 'Could not list projects', message: String(e) });
+    }
+    try {
+      docs = await docApi.docs();
+      resolver.prefetch(docs.filter((d) => d.coverPath).map((d) => ({ libraryId: d.coverLibraryId!, path: d.coverPath! })));
+    } catch {
+      docs = [];
     }
   }
 
@@ -69,7 +123,7 @@
   <section class="hero">
     <div class="intro">
       <h1>Make something <span class="grad">beautiful</span>.</h1>
-      <p>Collages for every moment — quick and automatic, or hand-crafted down to the last sticker.</p>
+      <p>Collages, photo books, documents and presentations from your photos — and the tools to polish every image.</p>
     </div>
     <div class="actions">
       <button class="action a1" onclick={() => void newQuickCollage()}>
@@ -80,22 +134,35 @@
       <button class="action a2" onclick={() => (app.templateGallery = true)}>
         <span class="ico"><LayoutTemplate size={22} /></span>
         <span class="t">From a template</span>
-        <span class="d">Valentine’s, Christmas, birthdays, weddings, travel & more.</span>
+        <span class="d">Valentine’s, Christmas, birthdays, memes, weddings, travel & more.</span>
+      </button>
+      <button class="action a4" onclick={() => void newDoc()}>
+        <span class="ico"><FileText size={22} /></span>
+        <span class="t">Document</span>
+        <span class="d">Tell a story with photos, videos and text. Present it full-screen.</span>
       </button>
       <button class="action a3" onclick={newBlank}>
         <span class="ico"><Hand size={22} /></span>
-        <span class="t">Blank canvas</span>
+        <span class="t">Blank design</span>
         <span class="d">Free-form design with photos, text, stickers and shapes.</span>
       </button>
     </div>
     <div class="projects">
       <button class="project" onclick={() => (app.newProject = 'book')}>
         <BookOpen size={20} />
-        <span><b>Photo book</b><span class="hint">Every photo on its own pages — cover, layouts, page numbers. Print it or save a PDF.</span></span>
+        <span><b>Photo book</b><span class="hint">Cover, layouts, page numbers. Print it or save a PDF.</span></span>
       </button>
       <button class="project" onclick={() => (app.newProject = 'calendar')}>
         <CalendarDays size={20} />
-        <span><b>Photo calendar</b><span class="hint">A cover and twelve months with your photos. Mark birthdays and holidays.</span></span>
+        <span><b>Photo calendar</b><span class="hint">A cover and twelve months. Mark birthdays and holidays.</span></span>
+      </button>
+      <button class="project" onclick={() => void newDoc(true)}>
+        <PenTool size={20} />
+        <span><b>Canvas</b><span class="hint">An endless whiteboard of photos, notes and frames to present.</span></span>
+      </button>
+      <button class="project" onclick={() => (app.view = 'library')}>
+        <Images size={20} />
+        <span><b>From the library</b><span class="hint">Select photos in the Library, then make a collage or convert them.</span></span>
       </button>
     </div>
     <div class="tools">
@@ -116,6 +183,54 @@
 
   <section>
     <div class="sec-head">
+      <h2 class="inline">Recent</h2>
+      <div class="seg" role="tablist" aria-label="Show">
+        <button role="tab" aria-selected={recentKind === 'all'} class:on={recentKind === 'all'} onclick={() => (recentKind = 'all')}>All</button>
+        <button role="tab" aria-selected={recentKind === 'collage'} class:on={recentKind === 'collage'} onclick={() => (recentKind = 'collage')}>Collages</button>
+        <button role="tab" aria-selected={recentKind === 'doc'} class:on={recentKind === 'doc'} onclick={() => (recentKind = 'doc')}>Documents</button>
+      </div>
+      <button class="btn ghost" onclick={() => { router.go('/'); app.view = 'documents'; }}>All documents →</button>
+    </div>
+    {#if recent.length}
+      <div class="recent">
+        {#each recent as r (r.kind + (r.kind === 'collage' ? r.p.id : r.d.id))}
+          {#if r.kind === 'collage'}
+            {@const p = r.p}
+            <div class="proj card" role="button" tabindex="0" onclick={() => void openProjectPath(p.path, false)} onkeydown={(e) => e.key === 'Enter' && void openProjectPath(p.path, false)}>
+              <div class="pthumb">
+                {#if p.thumb}<img src={fileUrl(p.thumb)} alt="" loading="lazy" />{/if}
+                <span class="kind"><LayoutDashboard size={12} /> Collage</span>
+              </div>
+              <div class="pinfo">
+                <span class="truncate"><b>{p.name}</b></span>
+                <span class="hint">{ago(p.modified)} · {p.width}×{p.height}</span>
+              </div>
+              <button class="icon-btn small del" title="Delete" onclick={(e) => { e.stopPropagation(); deleting = p; }}><Trash2 size={14} /></button>
+            </div>
+          {:else}
+            {@const d = r.d}
+            {@const c = docCover(d)}
+            <div class="proj card" role="button" tabindex="0" onclick={() => openDoc(d)} onkeydown={(e) => e.key === 'Enter' && openDoc(d)}>
+              <div class="pthumb doc">
+                {#if c}<img class="cover" src={c} alt="" loading="lazy" />{:else}<FileText size={30} />{/if}
+                <span class="kind"><FileText size={12} /> Document</span>
+              </div>
+              <div class="pinfo">
+                <span class="truncate"><b>{d.title || 'Untitled'}</b></span>
+                <span class="hint">{ago(d.updatedAt)} · {d.sections} section{d.sections === 1 ? '' : 's'}</span>
+              </div>
+              <button class="icon-btn small del" title="Present" onclick={(e) => { e.stopPropagation(); router.go(`/present/${d.id}`); }}><Presentation size={14} /></button>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {:else}
+      <p class="hint">Your collages and documents appear here automatically as you work on them.</p>
+    {/if}
+  </section>
+
+  <section>
+    <div class="sec-head">
       <h2>Made for the moment</h2>
       <button class="btn ghost" onclick={() => (app.templateGallery = true)}>All templates →</button>
     </div>
@@ -127,30 +242,14 @@
         </button>
       {/each}
     </div>
-  </section>
-
-  <section>
-    <div class="sec-head">
-      <h2>Recent collages</h2>
+    <div class="doc-tpls">
+      {#each DOC_TEMPLATES as t (t.id)}
+        <button class="project" onclick={() => void newDocFrom(t)}>
+          <DocIcon name={t.icon} size={20} />
+          <span><b>{t.name}</b><span class="hint">{t.description}</span></span>
+        </button>
+      {/each}
     </div>
-    {#if projects.length}
-      <div class="recent">
-        {#each projects as p (p.id)}
-          <div class="proj card" role="button" tabindex="0" onclick={() => void openProjectPath(p.path, false)} onkeydown={(e) => e.key === 'Enter' && void openProjectPath(p.path, false)}>
-            <div class="pthumb">
-              {#if p.thumb}<img src={fileUrl(p.thumb)} alt="" loading="lazy" />{/if}
-            </div>
-            <div class="pinfo">
-              <span class="truncate"><b>{p.name}</b></span>
-              <span class="hint">{ago(p.modified)} · {p.width}×{p.height}</span>
-            </div>
-            <button class="icon-btn small del" title="Delete" onclick={(e) => { e.stopPropagation(); deleting = p; }}><Trash2 size={14} /></button>
-          </div>
-        {/each}
-      </div>
-    {:else}
-      <p class="hint">Your collages appear here automatically as you work on them.</p>
-    {/if}
   </section>
 </div>
 
@@ -214,7 +313,7 @@
   }
   .actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
   }
   .action {
@@ -253,6 +352,9 @@
   .a3 .ico {
     background: linear-gradient(135deg, #14b8a6, #5eead4);
   }
+  .a4 .ico {
+    background: linear-gradient(135deg, #4f8cff, #7aa2f7);
+  }
   .t {
     font-size: 16px;
     font-weight: 700;
@@ -261,10 +363,45 @@
     color: var(--text-2);
     font-size: 12.5px;
   }
-  .projects {
+  .projects,
+  .doc-tpls {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
+  }
+  .doc-tpls {
+    margin-top: 18px;
+  }
+  .seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    margin-right: auto;
+    margin-left: 14px;
+    border-radius: 9px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .seg button {
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .seg button.on {
+    background: var(--panel-3);
+    color: var(--text);
+  }
+  @media (max-width: 1100px) {
+    .actions,
+    .projects,
+    .doc-tpls {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
   .project {
     display: flex;
@@ -324,6 +461,9 @@
     flex: 1;
     font-size: 18px;
   }
+  .sec-head h2.inline {
+    flex: none;
+  }
   .featured {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -366,11 +506,35 @@
     place-items: center;
     overflow: hidden;
   }
+  .pthumb {
+    position: relative;
+    color: var(--text-3);
+  }
   .pthumb img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
     box-shadow: var(--shadow-sm);
+  }
+  .pthumb img.cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    box-shadow: none;
+  }
+  .kind {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
   }
   .pinfo {
     display: flex;
