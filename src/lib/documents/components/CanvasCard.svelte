@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mediaStyle } from '../../look/looks.svelte';
   // A section shown as a card on the canvas. Read-only rendering: editing happens in the
   // section drawer. Level of detail follows the on-screen size: tiny cards show only a
   // thumbnail and the title, media is mounted only while `mounted`, and plays while `playing`.
@@ -124,7 +125,7 @@
             <div class="cell">
               {#if still}
                 {@const r = resolver.get(m)}
-                {#if r?.found}<img src={thumbUrl(r.derived, 1280)} alt="" draggable="false" style:object-fit={m.fit || (cols > 1 ? 'cover' : 'contain')} />{/if}
+                {#if r?.found}<img src={thumbUrl(r.derived, 1280)} alt="" draggable="false" style={mediaStyle(m)} style:object-fit={m.fit || (cols > 1 ? 'cover' : 'contain')} />{/if}
               {:else}
                 <MediaView
                   ref={m.fit || cols === 1 ? m : { ...m, fit: 'cover' }}

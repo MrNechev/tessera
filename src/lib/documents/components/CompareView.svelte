@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mediaStyle } from '../../look/looks.svelte';
   // Comparison layouts for the first two media of a section:
   //   slider — B over A, revealed up to a draggable divider (before/after)
   //   sync   — side by side; videos play, pause and seek together
@@ -98,16 +99,16 @@
   {#if !r?.file}
     <div class="ph"></div>
   {:else if r.file.kind === 'image'}
-    <img srcset={srcset(r.derived, r.file.width)} sizes={present ? '100vw' : '900px'} alt={m.caption || r.file.name} draggable="false" />
+    <img srcset={srcset(r.derived, r.file.width)} sizes={present ? '100vw' : '900px'} alt={m.caption || r.file.name} draggable="false" style={mediaStyle(m)} />
   {:else if srcOf(r)}
     <!-- svelte-ignore a11y_media_has_caption -->
     {#if which === 'a'}
-      <video bind:this={va} src={srcOf(r)} poster={thumbUrl(r.derived, 1280)} playsinline preload="metadata" loop={r.file.kind === 'gif' || m.loop} muted={r.file.kind === 'gif' || m.muted} onplay={() => (playing = true)} onpause={() => (playing = false)} onseeked={onSeeked}></video>
+      <video bind:this={va} style={mediaStyle(m)} src={srcOf(r)} poster={thumbUrl(r.derived, 1280)} playsinline preload="metadata" loop={r.file.kind === 'gif' || m.loop} muted={r.file.kind === 'gif' || m.muted} onplay={() => (playing = true)} onpause={() => (playing = false)} onseeked={onSeeked}></video>
     {:else}
-      <video bind:this={vb} src={srcOf(r)} poster={thumbUrl(r.derived, 1280)} playsinline preload="metadata" loop={r.file.kind === 'gif' || m.loop} muted></video>
+      <video bind:this={vb} style={mediaStyle(m)} src={srcOf(r)} poster={thumbUrl(r.derived, 1280)} playsinline preload="metadata" loop={r.file.kind === 'gif' || m.loop} muted></video>
     {/if}
   {:else}
-    <img src={thumbUrl(r.derived, 1280)} alt="" draggable="false" />
+    <img src={thumbUrl(r.derived, 1280)} alt="" draggable="false" style={mediaStyle(m)} />
   {/if}
 {/snippet}
 

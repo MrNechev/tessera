@@ -1,3 +1,5 @@
+import type { PhotoAdjust } from '../../model/types';
+
 export type Kind = 'image' | 'gif' | 'video' | 'audio';
 
 export type Layout = 'media-top' | 'media-left' | 'media-right' | 'media-full' | 'text-only' | 'gallery' | 'compare';
@@ -14,6 +16,11 @@ export interface MediaRef {
   fit?: 'contain' | 'cover';
   /** crop of the source, as fractions of its width/height (originals are never touched) */
   crop?: { x: number; y: number; w: number; h: number };
+  /** photo look (Tessera's photo toolkit): colour adjustments, the filter preset they came from */
+  adjust?: PhotoAdjust;
+  filter?: string;
+  flipX?: boolean;
+  flipY?: boolean;
 }
 
 export interface Section {

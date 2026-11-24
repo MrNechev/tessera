@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mediaStyle } from '../../look/looks.svelte';
   import { thumbUrl } from '../lib/api';
   import { resolver } from '../lib/resolver.svelte';
   import { isEmptyText, toHTML } from '../lib/tiptap';
@@ -46,7 +47,7 @@
     <div class="smedia cmp">
       {#if still}
         {@const r = resolver.get(section.media[0])}
-        {#if r?.found}<img src={thumbUrl(r.derived, 1280)} alt="" style="object-fit:contain;width:100%;height:100%" />{/if}
+        {#if r?.found}<img src={thumbUrl(r.derived, 1280)} alt="" style="object-fit:contain;width:100%;height:100%;{mediaStyle(section.media[0]) ?? ''}" />{/if}
       {:else}
         <CompareView {section} present fill {active} />
       {/if}
@@ -58,7 +59,7 @@
           {#if still}
             {@const r = resolver.get(m)}
             {#if r?.found}
-              <img src={thumbUrl(r.derived, 1280)} alt="" style:object-fit={m.fit || 'contain'} />
+              <img src={thumbUrl(r.derived, 1280)} alt="" style={mediaStyle(m)} style:object-fit={m.fit || 'contain'} />
             {/if}
           {:else}
             <MediaView ref={m} mode="present" fill {active} sizes="100vw" onended={media.length === 1 ? onended : undefined} />

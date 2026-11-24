@@ -34,6 +34,7 @@
   import CommandPalette from './lib/documents/components/CommandPalette.svelte';
   import SetupDialog from './lib/components/SetupDialog.svelte';
   import NewProjectDialog from './lib/components/NewProjectDialog.svelte';
+  import LookFilters from './lib/look/LookFilters.svelte';
   import { registerAppCommands } from './lib/commands';
   import './lib/documents/documents.css';
 
@@ -350,6 +351,7 @@
 {/if}
 
 <Toasts />
+<LookFilters />
 {#if picker.current}<ServerPicker />{/if}
 
 <style>

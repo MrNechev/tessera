@@ -10,7 +10,8 @@
   import RichText from './RichText.svelte';
   import ClipTimeline from './ClipTimeline.svelte';
   import CompareView from './CompareView.svelte';
-  import CropDialog from './CropDialog.svelte';
+  import PhotoDialog, { type PhotoEdit } from './PhotoDialog.svelte';
+  import { hasLook } from '../../look/looks.svelte';
   import { toasts } from '../lib/toast.svelte';
 
   let {
@@ -164,6 +165,15 @@
   function num(v: string) {
     const n = parseFloat(v);
     return isFinite(n) && n > 0 ? n : undefined;
+  }
+
+  function applyEdit(i: number, e: PhotoEdit) {
+    const m = section.media[i];
+    for (const k of ['crop', 'adjust', 'filter', 'flipX', 'flipY'] as const) {
+      if (e[k] === undefined) delete m[k];
+      else (m as any)[k] = e[k];
+    }
+    touch();
   }
 
   function setOpt<K extends keyof MediaRef>(i: number, k: K, v: MediaRef[K]) {
@@ -324,8 +334,8 @@
                       </div>
                     {/if}
                     <div class="row">
-                      {#if r?.file && r.file.kind !== 'audio'}<button class="btn sm" onclick={() => (cropFor = i)}><Icon name="crop" size={14} /> {m.crop ? 'Edit crop' : 'Crop…'}</button>{/if}
-                      {#if m.crop}<button class="btn sm ghost" onclick={() => setOpt(i, 'crop', undefined)}>Uncrop</button>{/if}
+                      {#if r?.file && r.file.kind !== 'audio'}<button class="btn sm" onclick={() => (cropFor = i)}><Icon name="sliders" size={14} /> {m.crop || hasLook(m) ? 'Edit photo…' : 'Crop, filters…'}</button>{/if}
+                      {#if m.crop || hasLook(m)}<button class="btn sm ghost" onclick={() => applyEdit(i, {})}>Undo edits</button>{/if}
                       <button class="btn sm" onclick={() => setCover(m)}><Icon name="image" size={14} /> Set as cover</button>
                       {#if r?.file?.taken || r?.file?.place}<button class="btn sm" onclick={() => metaCaption(i)}><Icon name="pin" size={14} /> Date/place caption</button>{/if}
                     </div>
@@ -387,7 +397,7 @@
   {@const m = section.media[cropFor]}
   {@const r = m ? resolver.cache.get(m.libraryId + '\u0000' + m.path) : undefined}
   {#if m && r?.file}
-    <CropDialog file={r.file} mref={m} onclose={() => (cropFor = null)} onsave={(c) => { setOpt(cropFor!, 'crop', c); cropFor = null; }} />
+    <PhotoDialog file={r.file} mref={m} onclose={() => (cropFor = null)} onsave={(e) => { applyEdit(cropFor!, e); cropFor = null; }} />
   {/if}
 {/if}
 

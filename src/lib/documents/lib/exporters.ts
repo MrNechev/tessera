@@ -2,6 +2,7 @@
 // offline package is built by the server.)
 import { api, thumbUrl } from './api';
 import { toHTML } from './tiptap';
+import { bakeLook } from '../../look/looks.svelte';
 import type { Doc, MediaRef, Resolved, Section } from './types';
 
 function download(name: string, blob: Blob) {
@@ -100,18 +101,14 @@ export async function exportMarkdown(doc: Doc) {
 
 // ---------- PowerPoint ----------
 
-/** Fetch an image as JPEG data (PowerPoint has no WebP support). */
-async function jpegData(url: string, maxW = 1920): Promise<{ data: string; w: number; h: number } | null> {
+/** Fetch an image as JPEG data (PowerPoint has no WebP support), with its crop and look. */
+async function jpegData(url: string, maxW = 1920, m?: MediaRef): Promise<{ data: string; w: number; h: number } | null> {
   try {
     const img = new Image();
     img.decoding = 'async';
     img.src = url;
     await img.decode();
-    const k = Math.min(1, maxW / img.naturalWidth);
-    const c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(img.naturalWidth * k));
-    c.height = Math.max(1, Math.round(img.naturalHeight * k));
-    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+    const c = bakeLook(img, m?.crop, m, maxW);
     return { data: c.toDataURL('image/jpeg', 0.88), w: c.width, h: c.height };
   } catch {
     return null;
@@ -209,7 +206,7 @@ export async function exportPptx(doc: Doc) {
           const m = media[i];
           const r = resolved.get(m.libraryId + '\u0000' + m.path);
           if (!r?.found || !r.file) continue;
-          const img = await jpegData(thumbUrl(r.derived, 2560), 2400);
+          const img = await jpegData(thumbUrl(r.derived, 2560), 2400, m);
           if (!img) continue;
           const cx = mx + (i % cols) * (cw + gap),
             cy = my + Math.floor(i / cols) * (ch + gap);

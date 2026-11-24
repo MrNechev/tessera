@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mediaStyle } from '../../look/looks.svelte';
   // Print / PDF view: the document as pages, the slides one per 16:9 page, or the canvas
   // frames one per page. "Save as PDF" in the browser's print dialog makes the PDF.
   import { onMount, tick } from 'svelte';
@@ -83,7 +84,7 @@
                   {@const rr = r(m)}
                   <figure>
                     {#if rr?.found}
-                      <img src={thumbUrl(rr.derived, 2560)} alt={m.caption || ''} />
+                      <img src={thumbUrl(rr.derived, 2560)} alt={m.caption || ''} style={mediaStyle(m)} />
                       {#if rr.file?.kind === 'video'}<span class="vid">▶ video{rr.file.duration ? ` · ${fmtDuration(rr.file.duration)}` : ''}</span>{/if}
                     {:else}
                       <div class="missing">Missing: {m.path}</div>

@@ -12,6 +12,7 @@
   import { viewport } from '../lib/viewport';
   import { autoplay, stopped } from '../lib/playback';
   import Icon from './Icon.svelte';
+  import { lookStyle } from '../../look/looks.svelte';
 
   let {
     ref,
@@ -66,6 +67,8 @@
           ? ''
           : `position:absolute;width:${100 / crop.w}%;height:${100 / crop.h}%;left:${(-crop.x / crop.w) * 100}%;top:${(-crop.y / crop.h) * 100}%;max-width:none`,
   );
+  const look = $derived(lookStyle(ref));
+  const elStyle = $derived([cropStyle, look].filter(Boolean).join(';') || undefined);
   const fitMode = $derived(crop && !OVB && !fill ? 'fill' : ref.fit || (fill ? 'contain' : undefined));
   // never blow small images/GIFs (icons, spacers from saved web pages) up past their natural size
   const maxW = $derived(
@@ -196,7 +199,7 @@
       {/if}
     </div>
   {:else if !mounted}
-    <img class="poster" src={thumbUrl(r.derived, 320)} alt="" decoding="async" draggable="false" />
+    <img class="poster" src={thumbUrl(r.derived, 320)} alt="" decoding="async" draggable="false" style={look || undefined} />
   {:else if f?.kind === 'image'}
     <img
       srcset={srcset(r.derived, f.width)}
@@ -207,12 +210,12 @@
       loading={mode === 'doc' ? 'lazy' : 'eager'}
       draggable="false"
       decoding="async"
-      style={cropStyle || undefined}
+      style={elStyle}
       style:object-fit={fitMode}
     />
   {:else if f?.kind === 'gif'}
     {#if gifFallback}
-      <img src={r.original} alt={ref.caption || f.name} decoding="async" style:object-fit={ref.fit || (fill ? 'contain' : undefined)} />
+      <img src={r.original} alt={ref.caption || f.name} decoding="async" style={look || undefined} style:object-fit={ref.fit || (fill ? 'contain' : undefined)} />
     {:else}
       <video
         bind:this={video}
@@ -224,7 +227,7 @@
         preload="auto"
         disablepictureinpicture
         onerror={() => (gifFallback = true)}
-        style={cropStyle || undefined}
+        style={elStyle}
         style:object-fit={fitMode}
       ></video>
     {/if}
@@ -242,7 +245,7 @@
       onloadedmetadata={onLoadedMeta}
       ontimeupdate={onTimeUpdate}
       onended={() => onended?.()}
-      style={cropStyle || undefined}
+      style={elStyle}
       style:object-fit={fitMode}
     ></video>
     {#if needsProxy && mode === 'doc' && proxy?.variant === 'preview'}
