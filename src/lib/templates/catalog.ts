@@ -30,6 +30,8 @@ function bg(fill: Fill, extra: Partial<Background> = {}): Background {
   return { fill, pattern: null, texture: null, image: null, vignette: 0, ...extra };
 }
 
+/** The classic meme outline: black, about 1/12 of the font size. */
+const memeStroke = { width: 0.085, color: '#000000' };
 const softShadow: Shadow = { color: 'rgba(30,20,40,0.28)', blur: 0.012, x: 0, y: 0.004 };
 const deepShadow: Shadow = { color: 'rgba(20,10,30,0.4)', blur: 0.02, x: 0, y: 0.008 };
 const textGlow = (color = 'rgba(0,0,0,0.35)'): Shadow => ({ color, blur: 0.006, x: 0, y: 0.002 });
@@ -672,6 +674,86 @@ export const TEMPLATES: TemplateDef[] = [
       text('2026', 0.73, 0.27, 0.46, 'abril-fatface', 0.17, '#e3c062'),
       text('Congratulations, Grad!', 0.73, 0.42, 0.46, 'great-vibes', 0.075, '#ffffff'),
       sticker('grad-cap', 0.93, 0.1, 0.11, { rotation: 14 }),
+    ],
+  },
+
+  /* ================================================================= MEMES */
+  {
+    id: 'meme-classic',
+    name: 'Classic Meme',
+    category: 'memes',
+    description: 'One photo with big outlined captions at the top and bottom.',
+    page: SQUARE,
+    background: bg(solid('#000000')),
+    slots: [slot(0, 0, 1, 1)],
+    items: [
+      text('Top text', 0.5, 0.1, 0.94, 'anton', 0.11, '#ffffff', { uppercase: true, stroke: memeStroke }),
+      text('Bottom text', 0.5, 0.9, 0.94, 'anton', 0.11, '#ffffff', { uppercase: true, stroke: memeStroke }),
+    ],
+  },
+  {
+    id: 'meme-caption',
+    name: 'Caption on Top',
+    category: 'memes',
+    description: 'A white caption bar above the photo, like a post.',
+    page: { width: 2400, height: 2700, preset: undefined },
+    background: bg(solid('#ffffff')),
+    slots: [slot(0, 0.26, 1, 0.74)],
+    items: [text('When you finally fix the bug and it works on the first try', 0.5, 0.13, 0.9, 'inter', 0.058, '#111111', { weight: 600 })],
+  },
+  {
+    id: 'meme-motivational',
+    name: 'Motivational Poster',
+    category: 'memes',
+    description: 'Black poster, framed photo, a grand title and a not-so-grand subtitle.',
+    page: { width: 3000, height: 2400, preset: undefined },
+    background: bg(solid('#000000')),
+    slots: [slot(0.13, 0.07, 0.74, 0.63, { border: { width: 0.004, color: '#ffffff' } })],
+    items: [
+      text('Teamwork', 0.5, 0.8, 0.9, 'playfair-display', 0.11, '#ffffff', { uppercase: true, letterSpacing: 0.08 }),
+      text('Because nobody can be wrong all by themselves.', 0.5, 0.91, 0.86, 'inter', 0.038, '#d9d9d9'),
+    ],
+  },
+  {
+    id: 'meme-expectation',
+    name: 'Expectation vs Reality',
+    category: 'memes',
+    description: 'Two photos side by side with bold labels.',
+    page: { width: 3200, height: 1800, preset: undefined },
+    background: bg(solid('#000000')),
+    slots: [slot(0, 0, 0.4985, 1), slot(0.5015, 0, 0.4985, 1)],
+    items: [
+      text('Expectation', 0.25, 0.88, 0.46, 'anton', 0.12, '#ffffff', { uppercase: true, stroke: memeStroke }),
+      text('Reality', 0.75, 0.88, 0.46, 'anton', 0.12, '#ffffff', { uppercase: true, stroke: memeStroke }),
+    ],
+  },
+  {
+    id: 'meme-nope-yes',
+    name: 'Nope / Yes',
+    category: 'memes',
+    description: 'Two reaction photos on the left, what they react to on the right.',
+    page: SQUARE,
+    background: bg(solid('#ffffff')),
+    slots: [slot(0, 0, 0.5, 0.4985), slot(0, 0.5015, 0.5, 0.4985)],
+    items: [
+      shape('rect', 0, 0.4985, 1, 0.003, solid('#000000')),
+      text('Doing it by hand, one photo at a time', 0.75, 0.25, 0.44, 'inter', 0.055, '#111111', { weight: 600 }),
+      text('Letting Tessera do the whole folder', 0.75, 0.75, 0.44, 'inter', 0.055, '#111111', { weight: 600 }),
+    ],
+  },
+  {
+    id: 'meme-four-panel',
+    name: 'Four Panel Story',
+    category: 'memes',
+    description: 'A little comic: four photos, a caption under each.',
+    page: SQUARE,
+    background: bg(solid('#ffffff')),
+    slots: gridSlots(2, 2, 0.02, 0.02, 0.96, 0.96, 0.02, 0.02),
+    items: [
+      text('Me: one more photo', 0.26, 0.44, 0.44, 'anton', 0.045, '#ffffff', { uppercase: true, stroke: memeStroke }),
+      text('Also me: 400 photos', 0.74, 0.44, 0.44, 'anton', 0.045, '#ffffff', { uppercase: true, stroke: memeStroke }),
+      text('Phone: storage full', 0.26, 0.93, 0.44, 'anton', 0.045, '#ffffff', { uppercase: true, stroke: memeStroke }),
+      text('Me: makes a collage', 0.74, 0.93, 0.44, 'anton', 0.045, '#ffffff', { uppercase: true, stroke: memeStroke }),
     ],
   },
 

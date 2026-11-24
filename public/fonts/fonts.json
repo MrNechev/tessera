@@ -122,6 +122,18 @@
     "license": "OFL-1.1"
   },
   {
+    "id": "anton",
+    "family": "Anton",
+    "category": "display",
+    "weights": [
+      400
+    ],
+    "files": {
+      "400": "anton-400.ttf"
+    },
+    "license": "OFL-1.1"
+  },
+  {
     "id": "righteous",
     "family": "Righteous",
     "category": "display",

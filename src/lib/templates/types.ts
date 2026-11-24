@@ -23,6 +23,7 @@ export type TemplateCategory =
   | 'travel'
   | 'seasonal'
   | 'friends'
+  | 'memes'
   | 'school'
   | 'pets'
   | 'calendar'
@@ -40,6 +41,7 @@ export const TEMPLATE_CATEGORIES: { id: TemplateCategory; name: string; emoji: s
   { id: 'travel', name: 'Travel & Summer', emoji: '✈' },
   { id: 'seasonal', name: 'Holidays & Seasons', emoji: '❀' },
   { id: 'friends', name: 'Friends', emoji: '☺' },
+  { id: 'memes', name: 'Memes & fun', emoji: '☻' },
   { id: 'school', name: 'Graduation', emoji: '✎' },
   { id: 'pets', name: 'Pets', emoji: '❦' },
   { id: 'calendar', name: 'Calendars', emoji: '▤' },

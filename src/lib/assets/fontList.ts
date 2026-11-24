@@ -29,6 +29,7 @@ export const FONTS: FontInfo[] = [
   { id: 'comfortaa', family: 'Comfortaa', category: 'rounded', weights: [400, 700], license: 'OFL-1.1' },
   { id: 'oswald', family: 'Oswald', category: 'display', weights: [400, 600], license: 'OFL-1.1' },
   { id: 'bebas-neue', family: 'Bebas Neue', category: 'display', weights: [400], license: 'OFL-1.1' },
+  { id: 'anton', family: 'Anton', category: 'display', weights: [400], license: 'OFL-1.1' },
   { id: 'righteous', family: 'Righteous', category: 'display', weights: [400], license: 'OFL-1.1' },
   { id: 'abril-fatface', family: 'Abril Fatface', category: 'display', weights: [400], license: 'OFL-1.1' },
   { id: 'shrikhand', family: 'Shrikhand', category: 'display', weights: [400], license: 'OFL-1.1' },

@@ -68,7 +68,7 @@
   let useLibrary = $state(true);
   let deleting = $state<ProjectSummary | null>(null);
 
-  const featured = ['letters-love', 'cal-photo-month', 'love-be-mine', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
+  const featured = ['letters-love', 'cal-photo-month', 'meme-classic', 'xmas-merry', 'letters-big-birthday', 'baby-first-year']
     .map((id) => templateById(id))
     .filter((t): t is TemplateDef => !!t);
 

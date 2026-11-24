@@ -10,6 +10,8 @@
     el: Partial<TextElement>;
     /** Size as a fraction of the page's short side. */
     size: number;
+    /** Outline width as a fraction of the font size. */
+    strokeK?: number;
   }
 
   const presets: Preset[] = [
@@ -19,6 +21,7 @@
     { label: 'Script', sample: 'With love', size: 0.1, el: { font: 'great-vibes', text: 'With love', fill: '#c2185b' } },
     { label: 'Handwritten', sample: 'best day ever!', size: 0.07, el: { font: 'caveat', weight: 700, text: 'best day ever!', fill: '#2b2340' } },
     { label: 'Retro', sample: 'Summer', size: 0.1, el: { font: 'pacifico', text: 'Summer', fill: '#ff6b4a', stroke: { width: 0, color: '#ffffff' } } },
+    { label: 'Meme', sample: 'TOP TEXT', size: 0.1, strokeK: 0.085, el: { font: 'anton', text: 'TOP TEXT', uppercase: true, fill: '#ffffff', stroke: { width: 1, color: '#000000' } } },
     { label: 'Poster', sample: 'GOOD TIMES', size: 0.1, el: { font: 'bebas-neue', text: 'GOOD TIMES', letterSpacing: 0.08, fill: '#1d1b26' } },
     { label: 'Bubbly', sample: 'Party time', size: 0.08, el: { font: 'fredoka', weight: 600, text: 'Party time', fill: '#7b2ff7' } },
     { label: 'Marker', sample: 'Adventure!', size: 0.07, el: { font: 'permanent-marker', text: 'Adventure!', fill: '#2f3b2f' } },
@@ -33,6 +36,7 @@
     const S = editor.pageShort;
     const size = p.size * S;
     const draft = { ...p.el, size, fill: p.el.fill ?? '#1d1b26' } as Partial<TextElement>;
+    if (p.strokeK && p.el.stroke) draft.stroke = { ...p.el.stroke, width: p.strokeK * size };
     // One undo step for adding, sizing and centring.
     editor.begin();
     const el = editor.addText(draft);
@@ -55,7 +59,9 @@
         style:font-family="'{f.family}'"
         style:font-weight={p.el.weight ?? 400}
         style:letter-spacing="{p.el.letterSpacing ?? 0}em"
-        style:color={p.el.background ? '#fff' : undefined}
+        style:color={p.el.background || p.strokeK ? '#fff' : undefined}
+        style:-webkit-text-stroke={p.strokeK ? '1.2px #000' : undefined}
+        style:paint-order={p.strokeK ? 'stroke fill' : undefined}
         style:background={p.el.background?.color}
         class:pill={!!p.el.background}>{p.sample}</span
       >
