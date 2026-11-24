@@ -225,7 +225,7 @@
       <Toggle checked={s.checkUpdates} label="Check for new versions automatically" hint="Once a day, asks GitHub for the latest release. Nothing else is sent." onchange={(v) => void app.saveSettings({ checkUpdates: v })} />
     {/if}
     <div class="row">
-      <span>Tessera {app.info?.version ?? __APP_VERSION__} <span class="pill accent">{app.info?.channel ?? 'alpha'}</span></span>
+      <span>Tessera {app.info?.version ?? __APP_VERSION__} <span class="pill accent">{app.info?.channel ?? 'alpha'}</span>{#if app.info?.build}<span class="pill" title="An image built from the newest code on main">{app.info.build}</span>{/if}</span>
       {#if app.update?.hasUpdate}<span class="pill success">{app.update.latest} available</span>{/if}
       <span class="spacer"></span>
       {#if app.update?.hasUpdate && app.update.url}

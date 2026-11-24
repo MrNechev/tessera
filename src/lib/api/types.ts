@@ -43,6 +43,8 @@ export interface AppInfo {
   /** desktop = the installed app; server = the self-hosted web app. */
   mode: 'desktop' | 'server';
   outputsDir: string;
+  /** Images built from main: "edge-<sha>". */
+  build?: string;
   hasInbox: boolean;
 }
 

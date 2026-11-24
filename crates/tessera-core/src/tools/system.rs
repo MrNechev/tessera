@@ -28,6 +28,9 @@ pub struct AppInfo {
     /// Server mode: where results are saved by default.
     pub outputs_dir: String,
     pub has_inbox: bool,
+    /// Build label of images that follow main ("edge-<sha>"); None for releases.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build: Option<String>,
 }
 
 /// How this copy of Tessera was installed (decides how updates are offered).
@@ -72,6 +75,9 @@ pub fn app_info(t: &Tools) -> AppInfo {
         mode: t.cfg.mode,
         outputs_dir: t.cfg.outputs_dir.to_string_lossy().into_owned(),
         has_inbox: t.cfg.inbox_dir.is_some(),
+        build: std::env::var("TESSERA_BUILD")
+            .ok()
+            .filter(|b| !b.is_empty()),
     }
 }
 

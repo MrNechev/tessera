@@ -31,9 +31,11 @@ RUN apt-get update \
       ffmpeg libvips-tools libheif1 libheif-plugin-libde265 libdav1d7 \
       mesa-va-drivers intel-media-va-driver vainfo ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
+ARG TESSERA_BUILD=
 COPY --from=build /tessera-server /usr/local/bin/tessera-server
 COPY --from=web /src/dist /usr/share/tessera/web
 ENV TESSERA_DOCKER=1 \
+    TESSERA_BUILD=${TESSERA_BUILD} \
     TESSERA_WEB_DIR=/usr/share/tessera/web \
     TESSERA_DATA_DIR=/data \
     TESSERA_CACHE_DIR=/cache \

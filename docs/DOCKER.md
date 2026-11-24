@@ -26,6 +26,10 @@ docker compose up -d
 Open `http://<server>:8470` (or `https://<server>:8471`, see [HTTPS](#https-and-http2)).
 
 The image is `ghcr.io/mrnechev/tessera:<version>` (`latest` = newest release).
+To follow development instead, set `TESSERA_VERSION=edge` in `.env`: `edge` is
+rebuilt from `main` after every push (Settings shows its build, e.g.
+`edge-1a2b3c4`; *Check now* only knows releases). `sha-<commit>` tags pin one
+build.
 To build it yourself instead: clone the repository, set `TESSERA_SRC` in `.env`
 to the checkout and run `docker compose build`.
 
