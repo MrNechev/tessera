@@ -52,8 +52,9 @@ your computer and shows it in a window, the web app serves it to browsers.
   background: a folder tree, a fast virtualised grid, search, filters (date
   taken, camera, resolution, orientation, duration, places with GPS),
   favourites and recently used, duplicates and look-alikes, hover-scrubbing of
-  videos, live/motion photos and a full-screen viewer. Pick photos to start a
-  collage or send them to the image tools.
+  videos, live/motion photos and a full-screen viewer. Select photos to make a
+  collage, photo book, calendar, meme or MP4 slideshow, edit a copy, cut out
+  the background, or send them to the image tools.
 - **Your files stay where they are.** Libraries are **read-only** by default:
   stories only reference the files, and the image tools save to your
   Outputs folder unless you make a library read-write.
@@ -68,12 +69,13 @@ your computer and shows it in a window, the web app serves it to browsers.
 - **Canvas** — the same story as an infinite whiteboard: cards, notes, text
   in Tessera's styles, stickers, shapes, arrows, frames, pen drawings, groups,
   a minimap and auto-arrange.
-- **Presentations** — any document or canvas becomes a slideshow with
+- **Presentations** — any story or canvas becomes a slideshow with
   transitions, an overview, a speaker-notes window, timed or looping playback,
   a laser pointer and drawing, background music, rehearsal timing and a phone
   remote (web app).
 - **Exports** — PDF, PowerPoint (PPTX), Markdown, an **MP4 slideshow video**
-  (also from Library photos or a collage), an offline package, and a backup of
+  (also from Library photos or a collage; for now only the music is heard,
+  not the clips' own sound), an offline package, and a backup of
   every story.
 - **Video** — every common format plays; videos the viewer can't play (HEVC
   phone clips in some browsers, MKV, AVI…) and very large ones get proxies,
@@ -123,7 +125,7 @@ click, and page sizes for every social network.
 - **Photo styling** — 14 frame shapes (heart, arch, circle, scallop, cloud…),
   polaroid / instant / film / mat / tape frames with captions, borders, soft
   shadows, filters (B&W, vintage, warm, dreamy…) and adjustments.
-- **Text** — 26 bundled fonts (script, handwriting, display, serif…), outline,
+- **Text** — 27 bundled fonts (script, handwriting, display, serif…), outline,
   shadow, label backgrounds and **curved text**.
 - **Calendars** — add any month with marked birthdays and holidays, or all
   twelve months at once, in four styles; photo-calendar templates included.
@@ -134,10 +136,10 @@ click, and page sizes for every social network.
 - **Backgrounds** — colours, gradients, 16 patterns, paper textures, a blurred
   photo, vignette and decorative page borders (stitched, candy cane, hearts,
   snowflakes, gold, film strip…).
-- **58 templates** for Valentine’s Day and loved ones, anniversaries, Christmas,
+- **64 templates** for Valentine’s Day and loved ones, anniversaries, Christmas,
   New Year, birthdays, Mother’s and Father’s Day, weddings, new babies, travel,
   Halloween, Easter, autumn, spring, graduation, friends, pets, calendars,
-  letters and numbers, and a baby’s first year.
+  letters and numbers, a baby’s first year, and memes.
 - **Print-ready sizes** — A3, A4, A5, US Letter/Legal, photo prints (4×6″, 5×7″…),
   scrapbook 12×12″ at 72–600 DPI, plus social-media and screen sizes.
 - **Multi-page projects** — add, duplicate, reorder and delete pages from the
@@ -226,11 +228,10 @@ Debian 13, Fedora 40 or newer). The Flatpak runs everywhere Flatpak does.
 - **.deb** — installs `libheif-plugin-libde265` automatically (it's a recommended package).
 - **.rpm** — Fedora's libheif has no HEVC decoder for patent reasons; install
   `libheif-freeworld` from RPM Fusion (Bazzite and many Fedora spins already have it).
-- **AppImage** — can't open HEIC yet in 0.1.0 (the decoder plugin isn't bundled);
-  use the Flatpak, or convert HEIC photos first. This is fixed in the next release.
+- **AppImage** — the decoder is bundled.
 
-**Video in the library and documents** uses `ffmpeg` (thumbnails, posters,
-proxies, GIF → video) and `libvips` (fast thumbnails) when they are installed:
+**Video in the library and stories** uses `ffmpeg` (thumbnails, posters,
+proxies, GIF → video, MP4 slideshows) and `libvips` (fast thumbnails) when they are installed:
 the deb and rpm recommend them; for the AppImage install them with your package
 manager. See [Known limitations](#known-limitations-of-the-desktop-app).
 
@@ -257,6 +258,11 @@ Settings; nothing about you or your computer is sent). The Flatpak is updated by
 your software centre instead. In-place automatic updates for the AppImage are
 planned.
 
+The web app updates with `docker compose pull && docker compose up -d`. The
+`latest` image follows releases; set `TESSERA_VERSION=edge` in `.env` to get
+every change on `main` as soon as it's built (Settings shows which build you're
+running). See [docs/DOCKER.md](docs/DOCKER.md).
+
 ## Known limitations of the desktop app
 
 The desktop window draws Tessera with **WebKitGTK** (the web engine of GNOME),
@@ -266,12 +272,12 @@ desktop window on an AMD RX 9070 XT with the GNOME 51 runtime (WebKitGTK
 
 | Limitation | Details | Workaround / plans |
 | --- | --- | --- |
-| **Many videos at once** | One or a few videos play perfectly in every common format (H.264, HEVC incl. iPhone MOV, VP9, AV1, up to 4K). With **about 8 videos playing at the same time** only about half keep full speed. | In documents the desktop app plays at most **4** muted/looping videos at once; the others start when you scroll to them. For video-heavy documents and presentations, the web app in a Chromium-based browser has no such limit. A Chromium-based desktop window (Tauri's CEF runtime, when it becomes stable) would remove it. |
+| **Many videos at once** | One or a few videos play perfectly in every common format (H.264, HEVC incl. iPhone MOV, VP9, AV1, up to 4K). With **about 8 videos playing at the same time** only about half keep full speed. | In stories the desktop app plays at most **4** muted/looping videos at once; the others start when you scroll to them. For video-heavy stories and presentations, the web app in a Chromium-based browser has no such limit. A Chromium-based desktop window (Tauri's CEF runtime, when it becomes stable) would remove it. |
 | **Codecs depend on your system** (deb, rpm, AppImage) | The window plays what the system's GStreamer plugins can decode: install `gstreamer1.0-libav` (Debian/Ubuntu) or, on Fedora, `gstreamer1-plugin-openh264` / RPM Fusion's codecs for H.264 and HEVC. The Flatpak includes them. | Videos the window can't play get a proxy, if ffmpeg is installed. |
-| **No ffmpeg in the Flatpak yet** | Without ffmpeg, library videos have no thumbnails or hover previews and unplayable formats can't be converted (they still play when the window supports them). deb/rpm recommend ffmpeg; AppImage users install it themselves. | Bundling ffmpeg in the Flatpak is planned. |
+| **No ffmpeg in the Flatpak yet** | Without ffmpeg, library videos have no thumbnails or hover previews, unplayable formats can't be converted and MP4 slideshows can't be made (they still play when the window supports them). deb/rpm recommend ffmpeg; AppImage users install it themselves. | Bundling ffmpeg in the Flatpak is planned. |
 | **Audio access is required for video** | WebKit's media clock needs an audio output, even for muted videos; without it videos crawl. The packages have it; if you sandbox Tessera yourself, keep PulseAudio/PipeWire access. | — |
 | **Phone remote and HTTP/2** | The desktop app only listens on your own computer (127.0.0.1), so the phone remote for presentations isn't available, and pages load over HTTP/1.1. | Use the web app for remote-controlled presentations. A "share on my network" option is planned. |
-| **Printing documents** | Collages print through the native print dialog with the exact paper size. Document print layouts use the generic print dialog; WebKitGTK ignores CSS page sizes, so choose the paper size in the dialog. | Export to PDF and print that. |
+| **Printing stories** | Collages print through the native print dialog with the exact paper size. Story print layouts use the generic print dialog; WebKitGTK ignores CSS page sizes, so choose the paper size in the dialog. | Export to PDF and print that. |
 
 ## Using Tessera
 
@@ -327,14 +333,18 @@ The full plan, with sizes and reasons, is in **[ROADMAP.md](ROADMAP.md)**. In sh
    collage editor, a command palette for everything, Stories with diary
    features and live collages, one photo toolkit in every editor, cut-outs,
    memes, MP4 slideshows.
-4. **Still open from 0.6.x/0.7**: a better server file picker, upload
-   progress, per-browser video support, ffmpeg in the Flatpak, one image
-   engine and cache, version history for collages, a shared interaction layer.
-5. **Tessera on a server** (0.8): install as an app, phones and tablets,
+4. **Finish 0.7** (0.7.x): sound from video clips in MP4 slideshows, cleaner
+   cut-out edges, collages in the offline package, story covers from collage
+   templates, a check of everything in the desktop window.
+5. **Still open from 0.6.x/0.7**: a better server file picker, upload
+   progress, per-browser video support, ffmpeg in the Flatpak, web-app tests in
+   CI, one image engine and cache, version history for collages, a shared
+   interaction layer.
+6. **Tessera on a server** (0.8): install as an app, phones and tablets,
    read-only share links, built-in backups, update notices, real HTTPS certificates.
-6. **A smarter library** (0.9): more libraries (Immich), a places map, smart
-   collections, a story starter.
-7. **1.0**: stable formats, translations, Flathub, AppImage updates.
+7. **A smarter library** (0.9): more libraries (Immich), a places map, smart
+   collections, face and object search (an idea, local models only).
+8. **1.0**: stable formats, translations, Flathub, AppImage updates.
 
 Ideas and bug reports are very welcome — [open an issue](https://github.com/MrNechev/tessera/issues).
 

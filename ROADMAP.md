@@ -4,19 +4,19 @@ Status: ✅ done · 🚧 in progress · 📋 planned · 💡 idea (not decided) 
 
 Sizes: **S** = an evening, **M** = a few days, **L** = a week or more.
 
-Written on 2026-11-24, right after **0.6.0** ("Letopis joins Tessera"). Two things fit
-together in 0.6.0 that used to be separate apps, and both still show it. The plan below
-first makes them feel like **one** app, then makes them **work together** ("build once,
-use everywhere"), then grows the server side and the library.
+Updated on 2026-11-25, after **0.7.0** ("One app, one toolkit"). Collages and stories
+now share one home screen, one command palette, one library and one photo toolkit. Next:
+finish the loose ends of 0.7, then the open 0.6.x items, then the server side and the
+library. Released work is described in detail in [CHANGELOG.md](CHANGELOG.md).
 
 ## Ground rules
 
 - **Libraries are read-only unless the user decides otherwise**, per folder (Settings →
-  Libraries on the desktop, `.env` on a server). Documents only reference media; tools save
-  to Outputs. New features follow this rule.
+  Libraries on the desktop, `.env` on a server). Stories only reference media; tools save to
+  Outputs. New features follow this rule.
 - **Every feature works in both the desktop app and the web app**, unless it physically
   can't (and then the README's *Known limitations* says so).
-- Breaking the document or project formats needs an automatic migration.
+- Breaking the story or collage formats needs an automatic migration.
 
 ## Done
 
@@ -28,37 +28,33 @@ use everywhere"), then grows the server side and the library.
 
 ---
 
-## 0.6.x — Feel like one app (quality of life)
+## 0.7.x — Finish what 0.7 started
 
-The seams of the merge, visible today.
+Gaps found while building and testing 0.7.0.
 
 | | Item | Why / what | Size |
 |---|---|---|---|
-| ✅ | **One home screen** | Home shows *Recent collages* only; documents live behind their own start page. Merge them: one "Recent" list (collages and documents, with thumbnails), one "New…" menu (collage, photo book, calendar, document, canvas, from template), templates of both kinds. | M |
-| ✅ | **One header style** | The Documents page and the document editor still carry Letopis's top bar (its own logo, a home button, a System button, a theme toggle) next to Tessera's rail. Drop the duplicates, use Tessera's typography and button style in the documents views, keep Import/Backup in a "…" menu. | M |
-| ✅ | **Command palette everywhere** | <kbd>Ctrl</kbd>+<kbd>K</kbd> only knows document actions. Add Tessera's: new collage/photo book/calendar, open a recent project, go to any view, convert/compress the selection, open Settings, search library files. | S |
-| ✅ | **Library inside the collage editor** | The collage editor's Photos panel still adds photos through a file dialog. Add the library panel there (as in the document editor): search, filters, drag photos onto the page. Keep "Add from computer" for files outside the library. | M |
+| 📋 | **Check 0.7 in the desktop window** | The new features were tested in Chromium against the Docker image only. Check them in WebKitGTK: cut-outs (WASM in a worker), photo masks and frames (container units), the Edit photo dialog, MP4 export. | S |
+| 📋 | **Cut-outs on real photos** | Tested on generated images only. Try people, pets and objects from a real library; tune the mask threshold and feathering. | S |
+| 📋 | **Cleaner cut-out edges** | Edges are soft around hair and fur. A matting model (or a refine step), plus an erase/restore brush to fix the mask by hand. | M |
+| 📋 | **Sound from video clips** | MP4 slideshows play only the music track; clips are silent. Mix each clip's own sound in, with a volume per clip and music ducking. | M |
+| 📋 | **Collages in the offline package** | The offline package shows a live collage section as text. Render it to an image when packaging. | S |
+| 📋 | **Story covers from collage templates** | Make a story's cover from a collage template, filled with the story's photos. | S |
+| 📋 | **Tools on library selections, finished** | Convert, compress and batch already work on Library selections. Missing: insert the results into the open story or collage in one click. | S |
+
+## Still open from 0.6.x / 0.7
+
+| | Item | Why / what | Size |
+|---|---|---|---|
 | 📋 | **A better server file picker** (web) | Show folder and library names instead of raw paths (`/libraries/nextcloud` → *Nextcloud*), thumbnails for images, a search box, remember the last folder per purpose, and shift-click range selection. | M |
 | 📋 | **Upload progress** (web) | A progress panel for big uploads (per file and total, speed, cancel, resume after a dropped connection) instead of a line of text. | S |
 | 📋 | **Outputs tidy-up** | Save results into dated subfolders (`Outputs/2026-11/…`) or per tool; "Open in Library" after saving; a size meter and "delete old results" for Outputs on the System page (Outputs only, never libraries). | S |
-| ✅ | **Settings in one place** | Letopis's preferences (transitions, hidden folders, favourites, blur, library tile size) are scattered in menus. Give them a *Documents & library* section in Settings, next to Saving and Libraries. | S |
 | 📋 | **Per-browser video support** | The server decides "can this video play?" from a fixed list (`PLAYABLE_VIDEO_CODECS`). Ask each browser/window what it can play (`canPlayType`) and serve the original or a proxy per client. Fixes HEVC in browsers that can play it, and the desktop window on systems with fewer codecs. | M |
-| 📋 | **ffmpeg in the Flatpak** | Build a small ffmpeg (decoders + VP9/AV1 encoders) into the Flatpak so library video thumbnails, previews and proxies work there too. | M |
-| 📋 | **Web-app tests in CI** | Run a headless Chromium (Playwright) against the Docker image in CI: login, library, documents, collage via the server picker, save + download, tools. The desktop already has its autotest. | M |
-| 📋 | **Small fixes found during the merge** | Document print layouts on the desktop (paper size), keyboard focus in the server picker, the System page's "browser video support" list for the desktop window, typed errors instead of strings in the API. | S |
-
-## 0.7 — Build once, use everywhere
-
-What the merge was for: features written once, used by collages and documents alike.
-
-| | Item | Why / what | Size |
-|---|---|---|---|
-| ✅ | **Collages from the library** | Select photos in the Library → *Make a collage / photo book / calendar* with the layout engines and templates. Also: *Add to a document* from the collage editor, *Make a collage* from a document section. | S |
-| ✅ | **A collage inside a document** | A section (or canvas card, or slide) can be a Tessera collage page: edit it in the collage editor, it renders live in the document and the presentation, and exports to PDF/PPTX. | L |
-| ✅ | **One photo editing toolkit** | Crop, rotate/flip, adjustments (brightness, contrast, warmth…), filters and frames from the collage editor, usable on every photo in a document and on the canvas. Non-destructive (stored as settings, originals untouched). Documents' crop dialog becomes this toolkit. *Done in 0.7.0, plus hide areas, duotone, colour pop, cut-outs and Edit a copy.* | L |
+| 📋 | **ffmpeg in the Flatpak** | Build a small ffmpeg (decoders + H.264/VP9/AV1 encoders) into the Flatpak so library video thumbnails, previews, proxies and MP4 slideshows work there too. | M |
+| 📋 | **Web-app tests in CI** | The 0.7.0 Playwright suites (login, library, stories, collages, photo toolkit, cut-outs, video export) run by hand against a throwaway container. Move them into the repo and run them in CI against the Docker image. | M |
+| 📋 | **Small fixes found during the merge** | Story print layouts on the desktop (paper size), keyboard focus in the server picker, the System page's "browser video support" list for the desktop window, typed errors instead of strings in the API. | S |
 | 📋 | **One image engine** | Library thumbnails, previews and RAW/HEIC decoding move to `tessera-imaging` (colour-managed, real RAW development, no libvips needed); the collage editor uses the library's cached previews instead of making its own. One cache, less disk, less work. | L |
-| 📋 | **Tools on library selections** | Convert / compress / batch photos picked in the Library; results land in Outputs and can be inserted into the open document in one click. | M |
-| 📋 | **One project store** | Collages get what documents have: version history, restore, conflict detection when the same project is open in two places (two browser tabs, two computers), trash, and backup in the same zip. | M |
+| 📋 | **One project store** | Collages get what stories have: version history, restore, conflict detection when the same project is open in two places (two browser tabs, two computers), trash, and backup in the same zip. | M |
 | 📋 | **Shared interaction layer** | Selection, handles, snapping guides, align/distribute, groups, lock, undo history and clipboard shared by the canvas and the collage editor (today each has its own). Copy elements between them. | L |
 
 ## 0.8 — Tessera on a server
@@ -68,25 +64,25 @@ For the Docker web app (the part used every day on slavlab).
 | | Item | Why / what | Size |
 |---|---|---|---|
 | 📋 | **Install as an app** (PWA) | Add to the desktop/dock from Vivaldi/Chrome: own window and icon, offline start page. | S |
-| 📋 | **Phones and tablets** | A touch-friendly layout for the Library, documents (reading and light editing) and presenting; today only the phone remote is built for phones. | L |
-| 📋 | **Read-only share links** | Share one document, presentation or collage with a link (optional expiry and password), without giving out the main password. | M |
-| 📋 | **Backups built in** | A nightly backup of documents, projects and settings into a folder of choice; "last backup" and "restore" on the System page. | S |
-| 📋 | **Update notice for servers** | The System page says when a new release is out (with the changelog) and shows the two commands to update. | S |
-| 📋 | **Homepage widget** | A small metrics endpoint (files, documents, queues, cache, GPU) for a Homepage tile. | S |
+| 📋 | **Phones and tablets** | A touch-friendly layout for the Library, stories (reading and light editing) and presenting; today only the phone remote is built for phones. | L |
+| 📋 | **Read-only share links** | Share one story, presentation or collage with a link (optional expiry and password), without giving out the main password. | M |
+| 📋 | **Backups built in** | A nightly backup of stories, projects and settings into a folder of choice; "last backup" and "restore" on the System page. | S |
+| 📋 | **Update notice for servers** | *Check now* already finds new releases. Add the changelog, show the update command (`docker compose pull && docker compose up -d`), and tell `:edge` users when `main` has moved on. | S |
+| 📋 | **Homepage widget** | A small metrics endpoint (files, stories, queues, cache, GPU) for a Homepage tile. | S |
 | 📋 | **Real HTTPS certificates** | Optional certificates via Tailscale (`*.ts.net`) or ACME, so no private CA has to be trusted. | S |
-| 📋 | **Smaller image** | Today ~260 MB compressed: trim ffmpeg/Mesa to what's used, split the GPU drivers into an optional variant. | M |
+| 📋 | **Smaller image** | Today ~260 MB, plus the cut-out model compressed: trim ffmpeg/Mesa to what's used, split the GPU drivers into an optional variant. | M |
 | 📋 | **Share the desktop app on the network** | A Settings switch (off by default; turns on password login) so phones can use the presentation remote with the desktop app too. | M |
-| 💡 | **User accounts** | Several people with their own documents and projects, shared libraries. Only if the single password stops being enough. | L |
+| 💡 | **User accounts** | Several people with their own stories and projects, shared libraries. Only if the single password stops being enough. | L |
 
 ## 0.9 — A smarter library
 
 | | Item | Why / what | Size |
 |---|---|---|---|
 | 📋 | **More libraries** | An Immich library (read its folders the same way), and more slots in the compose file. | S |
-| 📋 | **Places map** | Photos and videos on a map (GPS is already indexed); pick a region → collage or document. | M |
-| 📋 | **Smart collections** | Saved searches ("2025 · Canon · videos > 1 min"), On this day, and per-trip groups made from dates and places. | M |
-| ✅ | **Story starter** | From a trip or a date range, Tessera drafts a document (sections by day, best photos, captions with places and dates) for you to edit. | M |
-| 💡 | **Face and object search** | Local models only (nothing leaves the machine): "people", "beach", "dog". | L |
+| 📋 | **Places map** | Photos and videos on a map (GPS is already indexed); pick a region → collage or story. | M |
+| 📋 | **Smart collections** | Saved searches ("2025 · Canon · videos > 1 min") and per-trip groups made from dates and places. | M |
+| ✅ | **Story starter** (0.7.0) | From a trip or a date range, Tessera drafts a story (sections by day, best photos, captions with places and dates) for you to edit. | M |
+| 💡 | **Face and object search** | Local models only (nothing leaves the machine): "people", "beach", "dog". Would also let *Hide areas* find faces by itself. | L |
 | 💡 | **Unreadable files report** | List files the server can't read (permissions) with a hint how to fix them. | S |
 
 ## 1.0 — Stable
