@@ -81,6 +81,8 @@ export interface BoxFlags {
   locked?: boolean;
   /** canvas presentation: appears on the n-th click inside its frame (0/undefined = always) */
   reveal?: number;
+  /** stacking order on the canvas (higher is in front); unset = by kind (see canvas.ts zOf) */
+  z?: number;
 }
 
 export interface SectionCanvas extends Rect, BoxFlags {

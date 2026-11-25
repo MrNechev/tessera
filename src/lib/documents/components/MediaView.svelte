@@ -83,6 +83,13 @@
   const look = $derived([svgFilter ? `filter:${svgFilter}` : '', lookTransform({ flipX: ref.flipX, flipY: ref.flipY }, ratio) ? `transform:${lookTransform({ flipX: ref.flipX, flipY: ref.flipY }, ratio)}` : ''].filter(Boolean).join(';'));
   const elStyle = $derived(look || undefined);
   const fitMode = $derived(ref.fit || (fill ? 'contain' : undefined));
+  /** In the story, --media-h (the editor's media size slider) caps the height. */
+  const boxStyle = $derived.by(() => {
+    const A = geo ? framedAspect(ratio, ref.frame) : ratio;
+    const capW = mode === 'doc' ? `calc(var(--media-h, 100000px) * ${A})` : '';
+    const mw = maxW && capW ? `min(${maxW}px, ${capW})` : maxW ? `${maxW}px` : capW;
+    return `aspect-ratio:${A}${mw ? `;max-width:${mw};margin-inline:auto` : ''}`;
+  });
   // never blow small images/GIFs (icons, spacers from saved web pages) up past their natural size
   const maxW = $derived(
     !fill && f && (f.kind === 'image' || f.kind === 'gif') && f.width > 0 && f.width < 720 ? Math.max(f.width, 96) : 0,
@@ -245,7 +252,7 @@
   class:cropped={!!crop}
   class:geo
   class:missing={r && !r.found}
-  style={fill ? '' : `aspect-ratio:${geo ? framedAspect(ratio, ref.frame) : ratio}${maxW ? `;max-width:${maxW}px;margin-inline:auto` : ''}`}
+  style={fill ? '' : boxStyle}
   use:viewport={{ enabled: mode === 'doc', onNear: (v) => (near = v), onVisible: (v) => (visible = v) }}
 >
   {#if !r}

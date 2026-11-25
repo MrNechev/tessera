@@ -4,6 +4,35 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed — polish
+- **Library:** on a wide window the folders, search and filters sit in a column
+  on the left and the photos fill the rest. The column (or, in the story editor,
+  the folder tree and filters) folds away for more photos.
+- **Picking several files:** every tile has a tick; once something is selected a
+  click adds or removes a file, Shift+click adds a range, *Select* and *All* in
+  the status line, Esc clears. Clicking no longer selects text in the grid.
+- **The Library's action bar** is bigger and stands out (count, larger buttons,
+  accent border).
+- **Story editor:** a right-hand panel with a *Photo* tab (filters, light and
+  colour, crop/turn/frame, caption, clip range, cover, cut-out, replace, remove)
+  for the photo clicked in the story, and the *Outline* tab. It replaces the
+  drop-down media options.
+- **Media size slider** in the story editor: caps how tall photos, videos and
+  collages get, so big photos no longer take several screens.
+- **Canvas:** text size can be typed as a number next to S…XXL.
+
+### Fixed
+- Canvas *Bring to front / Send to back* did nothing visible (each kind of item
+  was drawn in its own layer); every card, note, shape, sticker and drawing can
+  now be stacked, also with Ctrl+] / Ctrl+[.
+- Panning the canvas with the middle mouse button pasted the last selected text
+  (on Linux a middle click pastes), which showed "files are not in a library
+  folder yet" errors.
+- A double-click in the story editor's library inserted the photo twice; it now
+  only previews.
+
 ## [0.7.0] — 2026-11-24
 
 **One app, one toolkit.** The collage studio and the former documents (now

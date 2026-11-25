@@ -2,6 +2,7 @@
   // Canvas (whiteboard) view of the open document: section cards plus notes, text,
   // shapes, arrows and frames on an infinite pan/zoom surface. Shares the DocState with
   // the document view (autosave, conflicts, history) and adds its own undo stack.
+  import { middleClickPaste } from '../../platform/middleclick';
   import { onMount, tick, untrack } from 'svelte';
   import { api, newId } from '../lib/api';
   import {
@@ -25,6 +26,7 @@
     newBox,
     normRect,
     NOTE_SIZES,
+    zOf,
     PALETTE,
     paper,
     snap,
@@ -506,7 +508,7 @@
   }
 
   function onPaste(e: ClipboardEvent) {
-    if (typing(e.target)) return;
+    if (typing(e.target) || middleClickPaste()) return;
     const text = e.clipboardData?.getData('text/plain');
     if (text && pasteClip(text)) {
       e.preventDefault();
@@ -1398,12 +1400,24 @@
     change();
   }
 
+  /** Bring the selection in front of (or behind) everything else on the canvas, cards included. */
   function reorder(front: boolean) {
-    before();
     const c = ensureCanvas(doc);
-    const sel = c.items.filter((i) => selected.has(i.id));
+    const all = [
+      ...c.items.filter((i): i is BoxItem => i.type !== 'arrow').map((i) => ({ id: i.id, x: i as { z?: number }, kind: i.type as string })),
+      ...doc.sections.filter((s) => s.canvas && !s.canvas.hidden).map((s) => ({ id: s.id, x: s.canvas as { z?: number }, kind: 'card' })),
+    ];
+    const sel = all.filter((e) => selected.has(e.id));
+    if (!sel.length) return;
+    before();
+    const others = all.filter((e) => !selected.has(e.id)).map((e) => zOf(e.x, e.kind));
+    // keep the selection's own stacking among itself
+    sel.sort((a, b) => zOf(a.x, a.kind) - zOf(b.x, b.kind));
+    let z = front ? Math.max(5, ...others) + 1 : Math.min(0, ...others) - sel.length;
+    for (const e of sel) e.x.z = z++;
+    const selIt = c.items.filter((i) => selected.has(i.id));
     const rest = c.items.filter((i) => !selected.has(i.id));
-    c.items = front ? [...rest, ...sel] : [...sel, ...rest];
+    c.items = front ? [...rest, ...selIt] : [...selIt, ...rest];
     change();
   }
 
@@ -1565,6 +1579,11 @@
     if (mod && (k === 'x' || k === 'X') && selected.size) {
       e.preventDefault();
       copySelection(true);
+      return;
+    }
+    if (mod && (k === ']' || k === '[') && selected.size) {
+      e.preventDefault();
+      reorder(k === ']');
       return;
     }
     if (mod && (k === 'g' || k === 'G')) {
@@ -1921,6 +1940,19 @@
           {#each NOTE_SIZES as s (s.v)}
             <button class="seg" class:on={firstNote.size === s.v} onclick={() => setProp('size', s.v, ['note'])}>{s.label}</button>
           {/each}
+          <input
+            class="input fsize"
+            type="number"
+            min="6"
+            max="600"
+            title="Text size in points (or pick S…XXL)"
+            value={firstNote.size}
+            onchange={(e) => {
+              const v = Math.round(+e.currentTarget.value);
+              if (v >= 6 && v <= 600) setProp('size', v, ['note']);
+            }}
+            onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          />
           <span class="vsep"></span>
           {#each ['left', 'center', 'right'] as a (a)}
             <button class="icon-btn" class:on={(firstNote.align || 'left') === a} title="Align {a}" onclick={() => setProp('align', a === 'left' ? undefined : a, ['note'])}><Icon name="align-{a}" /></button>
@@ -1999,9 +2031,9 @@
           <button class="mini" onclick={() => setReveal(selReveal + 1)}>+</button>
         </span>
         <span class="vsep"></span>
-        {#if selItems.length}
-          <button class="icon-btn" title="Bring to front" onclick={() => reorder(true)}><Icon name="arrow-up" /></button>
-          <button class="icon-btn" title="Send to back" onclick={() => reorder(false)}><Icon name="arrow-down" /></button>
+        {#if selCards.length || selItems.some((i) => i.type !== 'arrow')}
+          <button class="icon-btn" title="Bring to front (Ctrl+])" onclick={() => reorder(true)}><Icon name="arrow-up" /></button>
+          <button class="icon-btn" title="Send to back (Ctrl+[)" onclick={() => reorder(false)}><Icon name="arrow-down" /></button>
         {/if}
         <button class="icon-btn" title="Duplicate (Ctrl+D)" onclick={duplicateSelection}><Icon name="copy" /></button>
         <button class="icon-btn danger" title={selCards.length && !selItems.length ? 'Remove from the canvas (Delete) — stays in the story' : 'Delete (Del)'} onclick={deleteSelection}>
@@ -2038,7 +2070,7 @@
           <span><span class="kbd">Shift 1</span> show all · <span class="kbd">Shift 2</span> zoom to selection</span><span><span class="kbd">Ctrl 0</span> 100% · <span class="kbd">+</span>/<span class="kbd">−</span> zoom</span>
           <span><span class="kbd">Ctrl Z</span> undo · <span class="kbd">Ctrl Shift Z</span> redo</span><span><span class="kbd">Ctrl D</span> duplicate · <span class="kbd">Del</span> delete</span>
           <span><span class="kbd">P</span> pen · <span class="kbd">M</span> highlighter</span><span>Double-click a card: edit its text in place</span>
-          <span><span class="kbd">Ctrl C</span>/<span class="kbd">V</span>/<span class="kbd">X</span> copy, paste, cut (also between canvases and stories)</span><span><span class="kbd">Ctrl G</span> group · <span class="kbd">Ctrl Shift G</span> ungroup</span>
+          <span><span class="kbd">Ctrl C</span>/<span class="kbd">V</span>/<span class="kbd">X</span> copy, paste, cut (also between canvases and stories)</span><span><span class="kbd">Ctrl G</span> group · <span class="kbd">Ctrl Shift G</span> ungroup</span><span><span class="kbd">Ctrl ]</span>/<span class="kbd">[</span> bring to front / send to back</span>
           <span><span class="kbd">Ctrl Shift L</span> lock / unlock</span><span>Drag the middle of an arrow to bend it</span>
           <span>Double-click a note or shape: edit text</span><span>Double-click empty space: sticky note</span>
           <span><span class="kbd">S</span> stickers (click or drag one in)</span><span>Round handle: turn a sticker (<span class="kbd">Shift</span>: 15° steps)</span>
@@ -2502,6 +2534,11 @@
   .fname {
     height: 28px;
     width: 180px;
+  }
+  .fsize {
+    height: 28px;
+    width: 62px;
+    margin-left: 4px;
   }
   .step {
     font-size: 12px;

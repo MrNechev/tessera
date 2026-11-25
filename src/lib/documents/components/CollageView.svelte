@@ -125,7 +125,7 @@
   });
 </script>
 
-<div class="collage-view" class:fill bind:this={box} style:aspect-ratio={fill ? undefined : aspect}>
+<div class="collage-view" class:fill bind:this={box} style:aspect-ratio={fill ? undefined : aspect} style:max-width={fill ? undefined : `calc(var(--media-h, 100000px) * ${aspect})`}>
   {#if missing}
     <div class="missing">
       <Icon name="collage" size={22} />
@@ -144,6 +144,7 @@
     position: relative;
     width: 100%;
     min-width: 0;
+    margin-inline: auto;
   }
   .collage-view.fill {
     height: 100%;

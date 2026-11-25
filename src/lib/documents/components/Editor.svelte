@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { middleClickPaste } from '../../platform/middleclick';
   import Sortable from 'sortablejs';
   import { onMount, tick } from 'svelte';
   import { DocState } from '../lib/docstate.svelte';
@@ -23,7 +24,7 @@
   import VideoDialog from '../../components/VideoDialog.svelte';
   import Icon from './Icon.svelte';
   import LibraryPanel from './LibraryPanel.svelte';
-  import Outline from './Outline.svelte';
+  import StoryPanel from './StoryPanel.svelte';
   import SectionView from './SectionView.svelte';
 
   let { id }: { id: string } = $props();
@@ -46,6 +47,10 @@
 
   let showLibrary = $state(pref('library', '1') === '1');
   let showOutline = $state(pref('outline', '1') === '1');
+  let sideTab = $state<'photo' | 'outline'>(pref('sideTab', 'photo') === 'outline' ? 'outline' : 'photo');
+  $effect(() => setPref('sideTab', sideTab));
+  /** how tall media may get in the story, in % of the window height (100 = no limit) */
+  let mediaH = $state(Number(pref('mediaH', '100')) || 100);
   let showCanvasPanel = $state(pref('cpanel', '1') === '1');
   let libWidth = $state(Number(pref('libWidth', '380')));
   let relink = $state<{ sectionId: string; index: number } | null>(null);
@@ -157,6 +162,7 @@
   async function onPaste(e: ClipboardEvent) {
     const t = e.target as HTMLElement | null;
     if (t?.closest?.('input, textarea, [contenteditable="true"], .ProseMirror')) return;
+    if (middleClickPaste()) return;
     const text = e.clipboardData?.getData('text/plain');
     if (!text) return;
     if (view === 'doc' && ds.doc) {
@@ -543,7 +549,12 @@
     {#if view === 'canvas'}
       <button class="icon-btn" class:on={showCanvasPanel} title="Frames and cards" onclick={() => { showCanvasPanel = !showCanvasPanel; setPref('cpanel', showCanvasPanel ? '1' : '0'); }}><Icon name="outline" /></button>
     {:else}
-      <button class="icon-btn" class:on={showOutline} title="Outline" onclick={() => { showOutline = !showOutline; setPref('outline', showOutline ? '1' : '0'); }}><Icon name="outline" /></button>
+      <label class="msize" title="Media size: how tall photos and videos get in the story ({mediaH >= 100 ? 'no limit' : mediaH + '% of the window'})">
+        <Icon name="image" size={13} />
+        <input type="range" min="20" max="100" step="5" bind:value={mediaH} onchange={() => setPref('mediaH', String(mediaH))} />
+        <Icon name="image" size={17} />
+      </label>
+      <button class="icon-btn" class:on={showOutline} title="Side panel: photo options and the outline" onclick={() => { showOutline = !showOutline; setPref('outline', showOutline ? '1' : '0'); }}><Icon name="panel-right" /></button>
     {/if}
     <button
       class="btn primary"
@@ -616,7 +627,7 @@
         </div>
       {:else}
         {#key ds.revision}
-          <div class="sections" bind:this={sectionsEl}>
+          <div class="sections" bind:this={sectionsEl} style={mediaH < 100 ? `--media-h:${mediaH}vh` : undefined}>
             {#each ds.doc.sections as s, i (s.id)}
               <div class="sec-wrap" class:chapter-hidden={inCollapsedChapter[i]}>
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -639,6 +650,7 @@
                     {ds}
                     onrelink={(sid, mi) => { relink = { sectionId: sid, index: mi }; if (!showLibrary) showLibrary = true; }}
                     onpresent={(idx) => present(idx)}
+                    onmedia={() => { showOutline = true; setPref('outline', '1'); sideTab = 'photo'; }}
                   />
                 </div>
               </div>
@@ -666,7 +678,14 @@
     {/if}
 
     {#if showOutline && ds.doc && view === 'doc'}
-      <aside class="outline"><Outline {ds} onjump={(sid) => scrollToSection(sid)} /></aside>
+      <aside class="outline">
+        <StoryPanel
+          {ds}
+          bind:tab={sideTab}
+          onjump={(sid) => scrollToSection(sid)}
+          onrelink={(sid, mi) => { relink = { sectionId: sid, index: mi }; if (!showLibrary) showLibrary = true; }}
+        />
+      </aside>
     {/if}
   </div>
 </div>
@@ -861,7 +880,18 @@
     grid-template-columns: var(--lib-w) minmax(0, 1fr);
   }
   .main.with-outline {
-    grid-template-columns: var(--lib-w) minmax(0, 1fr) 240px;
+    grid-template-columns: var(--lib-w) minmax(0, 1fr) 320px;
+  }
+  .msize {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-3);
+    margin-right: 2px;
+  }
+  .msize input {
+    width: 90px;
+    accent-color: var(--accent);
   }
   .lib {
     position: relative;

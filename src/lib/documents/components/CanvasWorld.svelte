@@ -2,7 +2,7 @@
   // The canvas contents in world coordinates under one CSS transform (pan/zoom).
   // Only what intersects `renderRect` is in the DOM; media is mounted inside `mountRect`
   // and plays inside `playRect` (both updated when the view settles, not on every frame).
-  import { arrowPath as arrowGeom, intersects, ink, isBox, paper, pathPoints, smoothPath, targets, type View } from '../lib/canvas';
+  import { arrowPath as arrowGeom, intersects, ink, isBox, paper, pathPoints, smoothPath, targets, zOf, type View } from '../lib/canvas';
   import { resolver } from '../lib/resolver.svelte';
   import type { ArrowItem, BoxItem, Doc, PathItem, Rect, ShapeItem, StickerItem } from '../lib/types';
   import { stickers } from '../../stores/stickers.svelte';
@@ -94,7 +94,7 @@
 <div class="world" class:moving class:present class:outline={outlineFrames} style="transform:translate({view.tx}px,{view.ty}px) scale({view.z});--iz:{iz}">
   {#each frames as f (f.id)}
     {#if intersects(f, renderRect)}
-      <div class="frame" class:sel={selected.has(f.id)} class:concealed={concealed.has(f.id)} data-cid={f.id} data-kind="frame" style="left:{f.x}px;top:{f.y}px;width:{f.w}px;height:{f.h}px">
+      <div class="frame" class:sel={selected.has(f.id)} class:concealed={concealed.has(f.id)} data-cid={f.id} data-kind="frame" style="z-index:{zOf(f, 'frame')};left:{f.x}px;top:{f.y}px;width:{f.w}px;height:{f.h}px">
         <div class="ftitle" data-cid={f.id} data-kind="frame">{outlineFrames ? `${frames.indexOf(f) + 1}. ` : ''}{f.title || 'Frame'}</div>
       </div>
     {/if}
@@ -108,7 +108,7 @@
         class:concealed={concealed.has(b.id)}
         data-cid={b.id}
         data-kind="shape"
-        style="left:{b.x}px;top:{b.y}px;width:{b.w}px;height:{b.h}px;--c:{ink(b.color)};font-size:{b.size || 24}px"
+        style="z-index:{zOf(b, b.type)};left:{b.x}px;top:{b.y}px;width:{b.w}px;height:{b.h}px;--c:{ink(b.color)};font-size:{b.size || 24}px"
       >
         {#if b.text && editing !== b.id}<div class="stext">{b.text}</div>{/if}
         {#if editor && (b.reveal || b.locked)}<span class="flag">{#if b.locked}🔒{/if}{#if b.reveal}{b.reveal}{/if}</span>{/if}
@@ -122,6 +122,7 @@
     <CanvasCard
       section={s}
       index={i}
+      z={zOf(s.canvas!, 'card')}
       {lod}
       {still}
       {present}
@@ -146,7 +147,7 @@
         class:concealed={concealed.has(n.id)}
         data-cid={n.id}
         data-kind="note"
-        style="left:{n.x}px;top:{n.y}px;width:{n.w}px;height:{n.h}px;background:{paper(n.color)};font-size:{n.size}px;text-align:{n.align || 'left'};{lookCss(n.look, { pill })}"
+        style="z-index:{zOf(n, 'note')};left:{n.x}px;top:{n.y}px;width:{n.w}px;height:{n.h}px;background:{paper(n.color)};font-size:{n.size}px;text-align:{n.align || 'left'};{lookCss(n.look, { pill })}"
       >
         {#if editing !== n.id}{n.text}{/if}
         {#if !n.text && editing !== n.id}<span class="ph">{n.color === 'none' ? 'Text' : 'Note'}</span>{/if}
@@ -163,11 +164,24 @@
         class:concealed={concealed.has(st.id)}
         data-cid={st.id}
         data-kind="sticker"
-        style="left:{st.x}px;top:{st.y}px;width:{st.w}px;height:{st.h}px;{stickerTransform(st)}"
+        style="z-index:{zOf(st, 'sticker')};left:{st.x}px;top:{st.y}px;width:{st.w}px;height:{st.h}px;{stickerTransform(st)}"
       >
         {#if stickerUrl(st.sticker)}<img src={stickerUrl(st.sticker)} alt="" draggable="false" />{/if}
         {#if editor && (st.reveal || st.locked)}<span class="flag">{#if st.locked}🔒{/if}{#if st.reveal}{st.reveal}{/if}</span>{/if}
       </div>
+    {/if}
+  {/each}
+
+  <!-- each drawing in its own svg, so it can be stacked between cards and notes -->
+  {#each paths as p (p.id)}
+    {#if intersects(p, renderRect)}
+      {@const d = smoothPath(pathPoints(p))}
+      <svg class="inks" width="1" height="1" style="z-index:{zOf(p, 'path')}">
+        <g class="path" class:sel={selected.has(p.id)} class:hl={p.highlighter} class:concealed={concealed.has(p.id)}>
+          <path class="hit" {d} data-cid={p.id} data-kind="path" style="stroke-width:max({p.width + 10}px, calc(14px * var(--iz)))" />
+          <path class="stroke" {d} stroke={ink(p.color)} stroke-width={p.width} />
+        </g>
+      </svg>
     {/if}
   {/each}
 
@@ -179,15 +193,6 @@
         </marker>
       {/each}
     </defs>
-    {#each paths as p (p.id)}
-      {#if intersects(p, renderRect)}
-        {@const d = smoothPath(pathPoints(p))}
-        <g class="path" class:sel={selected.has(p.id)} class:hl={p.highlighter} class:concealed={concealed.has(p.id)}>
-          <path class="hit" {d} data-cid={p.id} data-kind="path" style="stroke-width:max({p.width + 10}px, calc(14px * var(--iz)))" />
-          <path class="stroke" {d} stroke={ink(p.color)} stroke-width={p.width} />
-        </g>
-      {/if}
-    {/each}
     {#each arrows as a (a.id)}
       {@const p = arrowPath(a)}
       <g class="arrow" class:sel={selected.has(a.id)} class:concealed={concealed.has(a.id)}>
@@ -315,12 +320,16 @@
     pointer-events: none;
     user-select: none;
   }
-  .arrows {
+  .arrows,
+  .inks {
     position: absolute;
     left: 0;
     top: 0;
     overflow: visible;
     pointer-events: none;
+  }
+  .arrows {
+    z-index: 1000000;
   }
   .arrow .line {
     fill: none;

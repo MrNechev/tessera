@@ -106,11 +106,12 @@
   }
 </script>
 
-<div class="lt library-view">
-  <LibraryPanel bind:this={panel} onpick={(items) => (picked = items)} onselect={(items) => (picked = items)} hint="Click or Ctrl/Shift+click to select · then make a collage, photo book or calendar, or convert · double-click: preview" />
+<div class="lt library-view" class:picking={picked.length > 0}>
+  <LibraryPanel bind:this={panel} onpick={(items) => (picked = items)} onselect={(items) => (picked = items)} hint="Click a photo to select it · tick ✓ more (or Ctrl+click), Shift+click for a range · then make a collage, book, video… · double-click: preview" />
   {#if picked.length}
-    <div class="use card">
-      <span class="count">{picked.length} selected{images.length < picked.length ? ` (${images.length} photos)` : ''}</span>
+    <div class="use" role="toolbar" aria-label="Use the selected files">
+      <span class="count"><b>{picked.length}</b> selected{images.length < picked.length ? ` · ${images.length} photo${images.length === 1 ? '' : 's'}` : ''}</span>
+      <span class="div"></span>
       <button class="btn primary" disabled={busy || !images.length} onclick={() => void use('collage')}><LayoutDashboard size={15} /> Collage</button>
       {#if images.length === 1}
         <button class="btn" disabled={busy} onclick={() => (editing = images[0])} title="Crop, turn, filters, hide areas — saved as a new file in Outputs"><SlidersHorizontal size={15} /> Edit a copy</button>
@@ -123,7 +124,8 @@
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('compress')}><Minimize2 size={15} /> Compress</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('batch')}><Wand size={15} /> Batch</button>
       {#if images.length === 1}<button class="btn" title="Remove the background (on this device); saved as a transparent PNG in Outputs › Cut-outs" disabled={busy} onclick={cutOut}><Scissors size={15} /> Cut out background</button>{/if}
-      <button class="icon-btn" title="Clear" onclick={clear}><X size={16} /></button>
+      <span class="div"></span>
+      <button class="btn ghost clear" title="Clear the selection (Esc)" onclick={clear}><X size={16} /> Clear</button>
     </div>
   {/if}
 </div>
@@ -148,24 +150,62 @@
     flex: 1;
     min-height: 0;
   }
+  /* leave room under the last row for the action bar */
+  .library-view.picking :global(.grid) {
+    padding-bottom: 96px;
+  }
   .use {
     position: absolute;
     left: 50%;
-    bottom: 18px;
+    bottom: 22px;
     transform: translateX(-50%);
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
-    border-radius: 12px;
-    background: var(--panel-2);
-    border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow);
+    width: max-content;
+    max-width: calc(100% - 32px);
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: var(--panel);
+    border: 2px solid var(--accent);
+    box-shadow:
+      0 18px 50px rgba(0, 0, 0, 0.45),
+      0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
     z-index: 20;
+    animation: rise 0.16s ease-out;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 12px);
+    }
+  }
+  .use :global(.btn) {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 13.5px;
   }
   .count {
-    padding: 0 6px;
-    color: var(--text-2);
+    padding: 0 4px 0 6px;
+    color: var(--text);
     white-space: nowrap;
+    font-size: 14px;
+  }
+  .count b {
+    display: inline-block;
+    min-width: 26px;
+    padding: 2px 8px;
+    margin-right: 4px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    text-align: center;
+  }
+  .div {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border-strong);
   }
 </style>

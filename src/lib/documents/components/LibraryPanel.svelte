@@ -19,7 +19,7 @@
     oncancelrelink,
     paletteTarget = true,
     onselect,
-    hint = 'Click to insert · drag into the story · Alt+click: new section · Ctrl/Shift+click: select · double-click: preview',
+    hint = 'Click: insert · drag into the story · Alt+click: new section · tick ✓ (or Ctrl+click) to pick several, Shift+click for a range · double-click: preview',
   }: {
     onpick: (items: FileItem[], newSection: boolean) => void;
     relinking?: boolean;
@@ -60,6 +60,15 @@
   let search = $state('');
   let q = $state('');
   let showTree = $state(stored('tree', '1') === '1');
+  /** folders, search and filters folded away: more room for the photos */
+  let collapsed = $state(stored('collapsed', '0') === '1');
+  function setCollapsed(v: boolean) {
+    collapsed = v;
+    store('collapsed', v ? '1' : '0');
+  }
+  /** wide (the Library page): folders on the left, photos on the right */
+  let panelW = $state(0);
+  const wide = $derived(panelW >= 820);
   // browse the folders, or the favourite / recently inserted files
   let source = $state<'browse' | 'fav' | 'recent'>((stored('source', 'browse') as 'browse') || 'browse');
   type Filters = { from: string; to: string; minShort: number; orientation: string; minDur: number; maxDur: number; minSizeMB: number; camera: string; gps: boolean; motion: boolean };
@@ -89,6 +98,10 @@
   let scrollTop = $state(0);
   const selected = new SvelteSet<string>();
   let lastClicked = -1;
+  /** "Select" pressed: a click ticks a tile instead of inserting/selecting just it */
+  let selectMode = $state(false);
+  const selecting = $derived(selectMode || selected.size > 0);
+  let clickTimer: ReturnType<typeof setTimeout> | undefined;
   let preview = $state<FileItem | null>(null);
   let scanning = $state(false);
 
@@ -321,30 +334,90 @@
     return f.libraryId + '\u0000' + f.path;
   }
 
-  function onTileClick(e: MouseEvent, i: number, f: FileItem) {
-    if (e.ctrlKey || e.metaKey) {
-      const k = itemKey(f);
-      if (selected.has(k)) selected.delete(k);
-      else selected.add(k);
-      lastClicked = i;
-      return;
-    }
-    if (e.shiftKey && lastClicked >= 0) {
-      const [a, b] = [Math.min(lastClicked, i), Math.max(lastClicked, i)];
-      for (let j = a; j <= b; j++) {
-        const it = itemAt(j);
-        if (it) selected.add(itemKey(it));
-      }
-      return;
+  function toggleTile(i: number, f: FileItem) {
+    const k = itemKey(f);
+    if (selected.has(k)) selected.delete(k);
+    else selected.add(k);
+    lastClicked = i;
+  }
+
+  function selectRange(i: number) {
+    const [a, b] = [Math.min(lastClicked, i), Math.max(lastClicked, i)];
+    for (let j = a; j <= b; j++) {
+      const it = itemAt(j);
+      if (it) selected.add(itemKey(it));
     }
     lastClicked = i;
+  }
+
+  /**
+   * Shift+click: a range. Ctrl+click, the tick, or any click while something
+   * is selected: add/remove one. Otherwise the Library page selects the one
+   * photo, and the story editor inserts it (a moment later, so a double-click
+   * previews instead of inserting twice).
+   */
+  function onTileClick(e: MouseEvent, i: number, f: FileItem) {
+    if (e.detail > 1) return; // the second click of a double-click
+    if (e.shiftKey && lastClicked >= 0) return selectRange(i);
+    if (e.ctrlKey || e.metaKey || e.shiftKey || selecting) return toggleTile(i, f);
+    lastClicked = i;
     if (onselect) {
-      // a host with its own actions (the Library view): a click selects
       selected.clear();
       selected.add(itemKey(f));
       return;
     }
-    onpick([f], e.altKey);
+    const alt = e.altKey;
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => onpick([f], alt), 240);
+  }
+
+  function onTileDblClick(f: FileItem) {
+    clearTimeout(clickTimer);
+    preview = f;
+  }
+
+  function onCheck(e: MouseEvent, i: number, f: FileItem) {
+    e.stopPropagation();
+    e.preventDefault();
+    clearTimeout(clickTimer);
+    if (e.shiftKey && lastClicked >= 0) selectRange(i);
+    else toggleTile(i, f);
+  }
+
+  let selectingAll = $state(false);
+  /** Tick everything in the current view (up to 5,000 files). */
+  async function selectAll() {
+    const n = Math.min(total, 5000);
+    selectingAll = true;
+    try {
+      const g = gen;
+      for (let p = 0; p * PAGE < n; p++) {
+        if (!pages.has(p)) {
+          while (loading.has(p)) await new Promise((r) => setTimeout(r, 50));
+          await loadPage(p, g);
+        }
+        if (g !== gen) return;
+      }
+      for (let i = 0; i < n; i++) {
+        const it = itemAt(i);
+        if (it) selected.add(itemKey(it));
+      }
+      if (total > n) toasts.show(`Selected the first ${n.toLocaleString()} of ${total.toLocaleString()}`, 'info');
+    } finally {
+      selectingAll = false;
+    }
+  }
+
+  function clearSel() {
+    selected.clear();
+    selectMode = false;
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !selecting) return;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    clearSel();
   }
 
   function selectedItems(): FileItem[] {
@@ -360,13 +433,13 @@
 
   /** Clear the Ctrl/Shift selection (from the host's action bar). */
   export function clearSelection() {
-    selected.clear();
+    clearSel();
   }
 
   function insertSelected() {
     const items = selectedItems();
     if (items.length) onpick(items, true);
-    selected.clear();
+    clearSel();
   }
 
   function onDragStart(e: DragEvent, f: FileItem) {
@@ -382,13 +455,11 @@
   const crumbs = $derived(dir ? dir.split('/') : []);
 </script>
 
-<div class="panel">
-  {#if relinking}
-    <div class="relink">
-      <Icon name="link" /> <span>Pick the file to relink to</span>
-      <button class="btn sm" onclick={oncancelrelink}>Cancel</button>
-    </div>
-  {/if}
+<svelte:window onkeydown={onKey} />
+
+<div class="panel" class:wide class:collapsed bind:clientWidth={panelW}>
+  {#if !collapsed}
+  <div class="pside">
   <div class="bar">
     {#if libraries.length > 1}
       <select class="input lib" bind:value={libId} onchange={() => (dir = '')}>
@@ -397,7 +468,7 @@
     {:else}
       <div class="libname" title={lib ? `${lib.counts.total} files · ${fmtBytes(lib.counts.bytes)}` : ''}>{lib?.name ?? 'Library'}</div>
     {/if}
-    <button class="icon-btn" class:on={showTree} title="Folders" onclick={() => { showTree = !showTree; store('tree', showTree ? '1' : '0'); }}><Icon name="folder" /></button>
+    <button class="icon-btn" class:on={showTree} title={showTree ? 'Hide the folder tree' : 'Show the folder tree'} onclick={() => { showTree = !showTree; store('tree', showTree ? '1' : '0'); }}><Icon name="folder" /></button>
     <button class="icon-btn" class:on={blur} title={blur ? 'Thumbnails are blurred (hover to peek) — click to unblur' : 'Blur thumbnails (for screen sharing)'} onclick={() => setBlur(!blur)}><Icon name={blur ? 'eye-off' : 'eye'} /></button>
     <div class="menuwrap">
       <button class="icon-btn" title="More" onclick={() => (menu = !menu)}><Icon name="more" /></button>
@@ -411,6 +482,7 @@
         </div>
       {/if}
     </div>
+    <button class="icon-btn" title={wide ? 'Hide the folders and filters (more room for photos)' : 'Fold away the folders and filters (more room for photos)'} onclick={() => setCollapsed(true)}><Icon name={wide ? 'panel-left' : 'chev-up'} /></button>
   </div>
   <div class="srcs">
     <button class:on={source === 'browse'} onclick={() => (source = 'browse')}><Icon name="folder" size={14} /> Browse</button>
@@ -469,6 +541,7 @@
       <button class="seg" class:on={kind === k} onclick={() => (kind = k)}>{label}</button>
     {/each}
     <div class="grow"></div>
+    <span class="sortbox">
     <select class="input mini" bind:value={sort} title="Sort">
       <option value="mtime">File date</option>
       <option value="taken">Date taken</option>
@@ -478,6 +551,7 @@
       <option value="path">Path</option>
     </select>
     <button class="icon-btn" title={desc ? 'Descending' : 'Ascending'} onclick={() => (desc = !desc)}><Icon name={desc ? 'arrow-down' : 'arrow-up'} size={15} /></button>
+    </span>
   </div>
 
   {#if source !== 'browse'}
@@ -500,25 +574,45 @@
     </div>
   {/if}
 
-  {#if source === 'browse'}
+  </div>
+  {/if}
+  <div class="pmain">
+  {#if relinking}
+    <div class="relink">
+      <Icon name="link" /> <span>Pick the file to relink to</span>
+      <button class="btn sm" onclick={oncancelrelink}>Cancel</button>
+    </div>
+  {/if}
+  {#if source === 'browse' || collapsed}
   <div class="crumbs">
-    <button onclick={() => selectDir('')}>{lib?.name ?? ''}</button>
-    {#each crumbs as c, i (i)}
-      <span class="sep">/</span><button onclick={() => selectDir(crumbs.slice(0, i + 1).join('/'))}>{c}</button>
-    {/each}
+    {#if collapsed}
+      <button class="expand" title="Show the folders, search and filters" onclick={() => setCollapsed(false)}><Icon name={wide ? 'panel-left' : 'chev-down'} size={15} /> Folders</button>
+    {/if}
+    {#if source === 'browse'}
+      <button onclick={() => selectDir('')}>{lib?.name ?? ''}</button>
+      {#each crumbs as c, i (i)}
+        <span class="sep">/</span><button onclick={() => selectDir(crumbs.slice(0, i + 1).join('/'))}>{c}</button>
+      {/each}
+    {:else}
+      <span>{source === 'fav' ? 'Favourites' : 'Recently inserted'}</span>
+    {/if}
+    {#if collapsed && q}<span class="qchip" title="Search">“{q}”</span>{/if}
     <div class="grow"></div>
-    <label class="sub" title="Include files in subfolders"><input type="checkbox" bind:checked={recursive} /> subfolders</label>
+    {#if source === 'browse'}<label class="sub" title="Include files in subfolders"><input type="checkbox" bind:checked={recursive} /> subfolders</label>{/if}
   </div>
   {/if}
 
   <div class="status">
     <span>{total.toLocaleString()} item{total === 1 ? '' : 's'}</span>
-    {#if selected.size}
+    {#if selecting}
+      <span class="selcount">{selected.size} selected</span>
       <span class="grow"></span>
-      {#if !onselect}<button class="btn sm primary" onclick={insertSelected}>Insert {selected.size}</button>{:else}<span>{selected.size} selected</span>{/if}
-      <button class="btn sm" onclick={() => selected.clear()}>Clear</button>
+      <button class="btn sm ghost" disabled={selectingAll || !total} onclick={() => void selectAll()} title="Select every file in this view">All</button>
+      <button class="btn sm ghost" onclick={clearSel} title="Clear the selection (Esc)">Clear</button>
+      {#if !onselect}<button class="btn sm primary" disabled={!selected.size} onclick={insertSelected}>Insert {selected.size || ''}</button>{/if}
     {:else}
       <span class="grow"></span>
+      <button class="btn sm ghost" onclick={() => (selectMode = true)} title="Pick several files: click tiles to tick them"><Icon name="check" size={14} /> Select</button>
       <input type="range" min="72" max="220" step="4" value={tileMin} oninput={(e) => (uiPrefs.tile = Number(e.currentTarget.value))} title="Thumbnail size" />
     {/if}
   </div>
@@ -526,6 +620,7 @@
   <div
     class="grid"
     class:blur
+    class:selecting
     bind:this={scroller}
     bind:clientWidth={width}
     bind:clientHeight={height}
@@ -546,7 +641,7 @@
             ondragstart={(e) => onDragStart(e, f)}
             ondragend={() => (dnd.dragging = false)}
             onclick={(e) => onTileClick(e, i, f)}
-            ondblclick={() => (preview = f)}
+            ondblclick={() => onTileDblClick(f)}
             onmouseenter={() => hoverStart(f)}
             onmouseleave={hoverEnd}
             onmousemove={(e) => hoverMove(e, f)}
@@ -568,6 +663,17 @@
               {/if}
             {/if}
             <span class="nm">{f.name}</span>
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <span
+              class="check"
+              class:on={selected.has(f.libraryId + '\u0000' + f.path)}
+              role="checkbox"
+              tabindex="-1"
+              aria-checked={selected.has(f.libraryId + '\u0000' + f.path)}
+              title="Select (Shift: a range)"
+              onclick={(e) => onCheck(e, i, f)}
+              ondblclick={(e) => e.stopPropagation()}><Icon name="check" size={13} /></span
+            >
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <span
               class="star"
@@ -597,6 +703,7 @@
     {/if}
   </div>
   <div class="hint muted">{hint}</div>
+  </div>
 </div>
 
 {#if folderMenu}
@@ -637,6 +744,92 @@
 {/if}
 
 <style>
+  /* wide: folders, search and filters in a column on the left */
+  .pside,
+  .pmain {
+    display: contents;
+  }
+  .panel.wide {
+    flex-direction: row;
+  }
+  .panel.wide .pside {
+    display: flex;
+    flex-direction: column;
+    width: 320px;
+    flex: none;
+    min-height: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    padding-bottom: 10px;
+  }
+  .panel.wide .pmain {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+  .panel.wide .tree {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 120px;
+  }
+  .expand {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    margin-right: 6px;
+    padding: 2px 8px !important;
+    border: 1px solid var(--line-strong) !important;
+    border-radius: 6px;
+    color: var(--text) !important;
+  }
+  .qchip {
+    margin-left: 6px;
+    color: var(--text-3);
+  }
+  .selcount {
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  .grid {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .check {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #0006;
+    color: transparent;
+    box-shadow: 0 1px 3px #0008;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 3;
+    cursor: pointer;
+  }
+  .tile:hover .check,
+  .grid.selecting .check {
+    opacity: 1;
+  }
+  .check.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    opacity: 1;
+  }
+  .grid.selecting .tile:not(.sel) img {
+    opacity: 0.85;
+  }
   .srcs {
     display: flex;
     gap: 2px;
@@ -822,8 +1015,8 @@
   }
   .star {
     position: absolute;
-    top: 4px;
-    left: 4px;
+    top: 5px;
+    left: 32px;
     width: 22px;
     height: 22px;
     display: grid;
@@ -918,6 +1111,7 @@
   }
   .filters {
     gap: 2px;
+    flex-wrap: wrap;
   }
   .seg {
     height: 26px;
@@ -940,6 +1134,13 @@
     height: 26px;
     font-size: 12px;
     padding: 0 4px;
+    width: 96px;
+  }
+  .sortbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
   }
   .grow {
     flex: 1;
@@ -1054,8 +1255,15 @@
     border-color: var(--accent);
   }
   .tile.sel {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+  }
+  .tile.sel img {
+    transform: scale(0.92);
+    border-radius: 6px;
+  }
+  .tile img {
+    transition: transform 0.12s;
   }
   .tile img {
     width: 100%;

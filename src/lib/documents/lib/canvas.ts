@@ -39,6 +39,16 @@ export function ink(key: string) {
   return byKey.get(key)?.ink ?? 'var(--text)';
 }
 
+/**
+ * Default stacking by kind (frames at the back, drawings on top); "Bring to
+ * front / Send to back" store an explicit `z` that overrides it. Arrows are
+ * always drawn above everything.
+ */
+const LAYER: Record<string, number> = { frame: 0, rect: 1, ellipse: 1, card: 2, note: 3, sticker: 4, path: 5 };
+export function zOf(x: { z?: number }, kind: string): number {
+  return x.z ?? LAYER[kind] ?? 3;
+}
+
 export const NOTE_SIZES = [
   { v: 16, label: 'S' },
   { v: 24, label: 'M' },

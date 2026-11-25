@@ -17,6 +17,7 @@
   let {
     section,
     index,
+    z = 2,
     lod,
     mounted,
     playing,
@@ -31,6 +32,8 @@
   }: {
     section: Section;
     index: number;
+    /** stacking order on the canvas */
+    z?: number;
     /** settled zoom (screen px per world px) */
     lod: number;
     mounted: boolean;
@@ -107,7 +110,7 @@
   class:chapter={section.chapter}
   data-cid={section.id}
   data-kind="card"
-  style="left:{c.x}px;top:{c.y}px;width:{c.w}px;height:{c.h}px"
+  style="z-index:{z};left:{c.x}px;top:{c.y}px;width:{c.w}px;height:{c.h}px"
 >
   {#if tiny}
     {#if firstThumb}<img class="tthumb" src={firstThumb} alt="" draggable="false" />{/if}

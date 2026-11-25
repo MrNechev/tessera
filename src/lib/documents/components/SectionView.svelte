@@ -10,19 +10,14 @@
   import { titleCss } from '../../text/styles';
   import MediaView from './MediaView.svelte';
   import RichText from './RichText.svelte';
-  import ClipTimeline from './ClipTimeline.svelte';
   import CompareView from './CompareView.svelte';
-  import PhotoDialog, { type PhotoEdit } from './PhotoDialog.svelte';
-  import { hasLook } from '../../look/looks.svelte';
   import { importLibraryRefs, newBlank } from '../../editor/session.svelte';
   import { editor } from '../../editor/editor.svelte';
   import { app } from '../../stores/app.svelte';
-  import { toasts } from '../lib/toast.svelte';
   import { applyChoice, collages, editCollage, type CollageChoice } from '../lib/collages.svelte';
   import CollageView from './CollageView.svelte';
   import CollagePicker from './CollagePicker.svelte';
   import { fmtDayShort } from '../lib/diary';
-  import { openCutout } from '../../cutout/open.svelte';
 
   let {
     section,
@@ -31,6 +26,7 @@
     ds,
     onrelink,
     onpresent,
+    onmedia,
   }: {
     section: Section;
     index: number;
@@ -38,6 +34,8 @@
     ds: DocState;
     onrelink: (sectionId: string, mediaIndex: number) => void;
     onpresent: (index: number) => void;
+    /** a photo's options were asked for (opens the side panel) */
+    onmedia?: () => void;
   } = $props();
 
   const LAYOUTS: { id: Layout; label: string; icon: string }[] = [
@@ -52,11 +50,9 @@
   ];
 
   let menu = $state(false);
-  let optsFor = $state<number | null>(null);
   let dropping = $state(false);
   let showNotes = $state(untrack(() => !!section.notes));
   let carousel = $state(0);
-  let cropFor = $state<number | null>(null);
   let picking = $state(false);
   const isCompare = $derived(section.layout === 'compare');
   const isCollage = $derived(section.layout === 'collage');
@@ -73,24 +69,6 @@
       if (f?.hasGps && f.lat !== undefined && f.lon !== undefined) return { lat: f.lat, lon: f.lon, label: f.place ?? '' };
     }
     return null;
-  }
-
-  function setCover(m: MediaRef) {
-    if (!ds.doc) return;
-    ds.doc.cover = { libraryId: m.libraryId, path: m.path };
-    optsFor = null;
-    touch();
-    toasts.show('Set as the story cover', 'ok');
-  }
-
-  function metaCaption(i: number) {
-    const f = resolver.cache.get(section.media[i].libraryId + '\u0000' + section.media[i].path)?.file;
-    if (!f) return;
-    const parts = [];
-    if (f.taken) parts.push(new Date(f.taken).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
-    if (f.place) parts.push(f.place);
-    if (!parts.length) return toasts.show('This file has no date taken or location', 'info');
-    setOpt(i, 'caption', parts.join(' · '));
   }
 
   function toggleChapter() {
@@ -141,19 +119,22 @@
 
   function removeMedia(i: number) {
     section.media.splice(i, 1);
-    optsFor = null;
+    if (ds.activeMedia?.sectionId === section.id) ds.activeMedia = null;
     if (carousel >= section.media.length) carousel = Math.max(0, section.media.length - 1);
     touch();
   }
 
-  function moveMedia(i: number, d: number) {
-    const j = i + d;
-    if (j < 0 || j >= section.media.length) return;
-    const [m] = section.media.splice(i, 1);
-    section.media.splice(j, 0, m);
-    optsFor = j;
-    touch();
+  /** Pick a photo: its options show in the side panel. */
+  function pickMedia(i: number, open = false) {
+    ds.activeSection = section.id;
+    ds.activeMedia = { sectionId: section.id, index: i };
+    if (open) onmedia?.();
   }
+
+  // media removed or moved from the side panel: keep the carousel on a real item
+  $effect(() => {
+    if (carousel >= section.media.length) carousel = Math.max(0, section.media.length - 1);
+  });
 
   function relinkTo(i: number, to: { libraryId: string; path: string }) {
     section.media[i].libraryId = to.libraryId;
@@ -180,11 +161,6 @@
     ds.addMedia(section.id, items.map((x) => ({ libraryId: x.libraryId, path: x.path })));
   }
 
-  function num(v: string) {
-    const n = parseFloat(v);
-    return isFinite(n) && n > 0 ? n : undefined;
-  }
-
   /** Start a quick collage with this section's photos (videos are skipped). */
   async function collageFromSection() {
     const ids = await importLibraryRefs(section.media.map((m) => ({ libraryId: m.libraryId, path: m.path, kind: resolver.cache.get(m.libraryId + '\u0000' + m.path)?.file?.kind })));
@@ -195,7 +171,6 @@
     app.view = 'editor';
   }
 
-  const EDIT_KEYS = ['crop', 'adjust', 'filter', 'flipX', 'flipY', 'rotate', 'straighten', 'hideAreas', 'mask', 'frame', 'frameColor', 'shadow', 'border'] as const;
 
   function pickCollage(c: CollageChoice) {
     picking = false;
@@ -212,36 +187,6 @@
   function editThisCollage() {
     if (!section.collage || !ds.doc) return;
     void editCollage(section.collage, { docId: ds.doc.id, sectionId: section.id, title: ds.doc.title });
-  }
-
-  function applyEdit(i: number, e: PhotoEdit) {
-    const m = section.media[i];
-    for (const k of EDIT_KEYS) {
-      if (e[k] === undefined) delete m[k];
-      else (m as any)[k] = e[k];
-    }
-    touch();
-  }
-
-  /** Remove the photo's background; the transparent PNG (in Outputs) replaces it or follows it. */
-  function cutOut(i: number, name: string) {
-    const m = section.media[i];
-    openCutout({
-      source: { libraryId: m.libraryId, path: m.path, name },
-      actions: [
-        { id: 'insert', label: 'Add after it' },
-        { id: 'replace', label: 'Replace with the cut-out' },
-      ],
-      onsaved: (r, action) => {
-        const at = section.media.indexOf(m);
-        if (at < 0) return;
-        const next: MediaRef = { ...r.ref, ...(m.caption ? { caption: m.caption } : {}), ...(m.fit ? { fit: m.fit } : {}) };
-        if (action === 'replace') section.media[at] = next;
-        else section.media.splice(at + 1, 0, next);
-        optsFor = null;
-        touch();
-      },
-    });
   }
 
   function setOpt<K extends keyof MediaRef>(i: number, k: K, v: MediaRef[K]) {
@@ -377,8 +322,9 @@
         >
           {#each section.media as m, i (i + '|' + m.libraryId + '|' + m.path)}
             {#if !isCarousel || i === carousel}
-              <figure class="item" class:multi={section.media.length > 1 && section.layout !== 'gallery'}>
-                <div class="mwrap">
+              <figure class="item" class:multi={section.media.length > 1 && section.layout !== 'gallery'} class:picked={ds.activeMedia?.sectionId === section.id && ds.activeMedia.index === i}>
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="mwrap" onpointerdown={(e) => { if (!(e.target as HTMLElement).closest('.mtools, .nav, video, button')) pickMedia(i); }}>
                   <MediaView
                     ref={m}
                     {sizes}
@@ -388,7 +334,7 @@
                     onremove={() => removeMedia(i)}
                   />
                   <div class="mtools">
-                    <button class="icon-btn" title="Media options" onclick={() => (optsFor = optsFor === i ? null : i)}><Icon name="settings" size={15} /></button>
+                    <button class="icon-btn" title="Edit: filters, crop, frame, caption… (side panel)" onclick={() => pickMedia(i, true)}><Icon name="sliders" size={15} /></button>
                     <button class="icon-btn" title="Remove" onclick={() => removeMedia(i)}><Icon name="x" size={15} /></button>
                   </div>
                   {#if isCarousel && section.media.length > 1}
@@ -396,48 +342,6 @@
                     <button class="nav next" onclick={() => (carousel = (carousel + 1) % section.media.length)} aria-label="Next"><Icon name="chev-right" /></button>
                   {/if}
                 </div>
-                {#if optsFor === i}
-                  {@const r = resolver.cache.get(m.libraryId + '\u0000' + m.path)}
-                  <div class="opts">
-                    <div class="path" title={m.path}>{m.libraryId}:{m.path}</div>
-                    {#if r?.file?.kind === 'video' && r.file.duration > 0 && (r.doc?.url || r.present?.url)}
-                      <ClipTimeline file={r.file} src={(r.doc?.url || r.present?.url)!} startAt={m.startAt} endAt={m.endAt} onchange={(a, b) => { setOpt(i, 'startAt', a); setOpt(i, 'endAt', b); }} />
-                    {/if}
-                    {#if r?.file?.kind === 'video'}
-                      <label>Start at (s) <input class="input" type="number" min="0" step="0.1" value={m.startAt ?? ''} onchange={(e) => setOpt(i, 'startAt', num(e.currentTarget.value))} /></label>
-                      <label>End at (s) <input class="input" type="number" min="0" step="0.1" value={m.endAt ?? ''} onchange={(e) => setOpt(i, 'endAt', num(e.currentTarget.value))} /></label>
-                      <label class="cb"><input type="checkbox" checked={!!m.muted} onchange={(e) => setOpt(i, 'muted', e.currentTarget.checked)} /> Muted</label>
-                      <label class="cb"><input type="checkbox" checked={!!m.loop} onchange={(e) => setOpt(i, 'loop', e.currentTarget.checked)} /> Loop</label>
-                      <label class="cb" title="In the story: plays muted while visible. In presentations videos always start automatically."><input type="checkbox" checked={!!m.autoplay} onchange={(e) => setOpt(i, 'autoplay', e.currentTarget.checked)} /> Autoplay in story</label>
-                    {/if}
-                    <label>Fit in slides
-                      <select class="input" value={m.fit ?? 'contain'} onchange={(e) => setOpt(i, 'fit', e.currentTarget.value === 'contain' ? undefined : (e.currentTarget.value as 'cover'))}>
-                        <option value="contain">Contain (whole image)</option>
-                        <option value="cover">Cover (fill, crop edges)</option>
-                      </select>
-                    </label>
-                    {#if r?.file && (r.file.taken || r.file.place || r.file.camera)}
-                      <div class="meta muted">
-                        {#if r.file.taken}<span><Icon name="calendar" size={12} /> {new Date(r.file.taken).toLocaleString()}</span>{/if}
-                        {#if r.file.place}<span><Icon name="pin" size={12} /> {r.file.place}</span>{/if}
-                        {#if r.file.camera}<span>{r.file.camera}</span>{/if}
-                      </div>
-                    {/if}
-                    <div class="row">
-                      {#if r?.file && r.file.kind !== 'audio'}<button class="btn sm" onclick={() => (cropFor = i)}><Icon name="sliders" size={14} /> {m.crop || hasLook(m) ? 'Edit photo…' : 'Crop, filters…'}</button>{/if}
-                      {#if m.crop || hasLook(m)}<button class="btn sm ghost" onclick={() => applyEdit(i, {})}>Undo edits</button>{/if}
-                      {#if r?.file?.kind === 'image'}<button class="btn sm" title="Remove the background (on this device)" onclick={() => cutOut(i, r.file!.name)}><Icon name="scissors" size={14} /> Cut out…</button>{/if}
-                      <button class="btn sm" onclick={() => setCover(m)}><Icon name="image" size={14} /> Set as cover</button>
-                      {#if r?.file?.taken || r?.file?.place}<button class="btn sm" onclick={() => metaCaption(i)}><Icon name="pin" size={14} /> Date/place caption</button>{/if}
-                    </div>
-                    <div class="row">
-                      <button class="btn sm" disabled={i === 0} onclick={() => moveMedia(i, -1)}><Icon name="chev-left" size={14} /> Move</button>
-                      <button class="btn sm" disabled={i === section.media.length - 1} onclick={() => moveMedia(i, 1)}>Move <Icon name="chev-right" size={14} /></button>
-                      <button class="btn sm" onclick={() => { onrelink(section.id, i); optsFor = null; }}><Icon name="link" size={14} /> Replace…</button>
-                      <button class="btn sm danger" onclick={() => removeMedia(i)}><Icon name="trash" size={14} /> Remove</button>
-                    </div>
-                  </div>
-                {/if}
                 <input
                   class="caption"
                   placeholder="Add a caption"
@@ -493,14 +397,6 @@
   />
 {/if}
 
-{#if cropFor !== null}
-  {@const m = section.media[cropFor]}
-  {@const r = m ? resolver.cache.get(m.libraryId + '\u0000' + m.path) : undefined}
-  {#if m && r?.file}
-    <PhotoDialog src="/d/{r.file.key}/t1280.webp" width={r.file.width} height={r.file.height} value={m} mode="story" kind={r.file.kind === 'image' ? 'image' : 'video'} onclose={() => (cropFor = null)} onsave={(e) => { applyEdit(cropFor!, e); cropFor = null; }} />
-  {/if}
-{/if}
-
 <style>
   .section.chapter {
     background: linear-gradient(var(--accent-soft), transparent 70%), var(--surface);
@@ -531,13 +427,6 @@
     display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 8px;
-  }
-  .opts .meta {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 12px;
   }
   .section {
     position: relative;
@@ -754,8 +643,13 @@
   .mwrap {
     position: relative;
   }
+  .item.picked .mwrap > :global(.media) {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
   .layout-gallery .mediazone:not(.carousel) :global(.media) {
     aspect-ratio: 1 !important;
+    max-width: min(100%, var(--media-h, 100000px)) !important;
   }
   .mtools {
     position: absolute;
@@ -833,45 +727,6 @@
   .item:hover .caption:placeholder-shown,
   .caption:focus {
     opacity: 1;
-  }
-  .opts {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px 12px;
-    padding: 12px;
-    margin-top: 8px;
-    background: var(--bg-2);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    font-size: 12.5px;
-  }
-  .opts label {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    color: var(--text-2);
-  }
-  .opts label.cb {
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-  }
-  .opts .input {
-    height: 28px;
-  }
-  .opts .path {
-    grid-column: 1 / -1;
-    font: 11.5px var(--mono);
-    color: var(--text-3);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .opts .row {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
   }
   .empty-media {
     display: flex;

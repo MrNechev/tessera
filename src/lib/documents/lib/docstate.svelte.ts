@@ -24,6 +24,8 @@ export class DocState {
   /** bumped whenever the whole document is replaced (editors re-mount) */
   revision = $state(0);
   activeSection = $state<string | null>(null);
+  /** the photo/video picked in the story; its options show in the side panel */
+  activeMedia = $state<{ sectionId: string; index: number } | null>(null);
   lastSavedAt = $state<string>('');
 
   /** edits kept in this browser that never reached the server (crash, closed tab, offline) */
