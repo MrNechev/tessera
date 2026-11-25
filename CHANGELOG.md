@@ -4,7 +4,9 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.1] — 2026-11-25
+
+A small release: polish and bug fixes for the Library, stories and the canvas.
 
 ### Changed — polish
 - **Library:** on a wide window the folders, search and filters sit in a column

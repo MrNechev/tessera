@@ -25,6 +25,7 @@ library. Released work is described in detail in [CHANGELOG.md](CHANGELOG.md).
 | ✅ | 0.1–0.5.1 | Collage studio, templates, stickers, RAW/colour management, convert/compress/batch, multi-page projects, photo books, calendars, printing |
 | ✅ | 0.6.0 | Letopis merged in: library, documents, canvas, presentations, exports; Tessera as a Docker web app; write guard; desktop library setup |
 | ✅ | 0.7.0 | One app: home, headers, Ctrl+K, library in the collage editor, settings; Stories (diary, calendar, on this day, story starter, live collages); one photo toolkit everywhere; cut-outs; memes; MP4 slideshows; `:edge` image |
+| ✅ | 0.7.1 | Polish: Library folders on the left and easier multi-select, a photo side panel and media size slider in stories, canvas stacking order, typed text sizes, middle-click paste fix |
 
 ---
 
