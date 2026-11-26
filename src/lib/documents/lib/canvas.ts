@@ -5,7 +5,9 @@
 // screen = world * z + (tx, ty); it is applied as one CSS transform on the world layer.
 import { newId } from './api';
 import { resolver } from './resolver.svelte';
-import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Doc, DocCanvas, PathItem, Rect, Section, StickerItem } from './types';
+import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Doc, DocCanvas, PathItem, Rect, Section, Side, StickerItem } from './types';
+import { outlineExit, outlineKind, type OutlineKind } from './diagram/shapes';
+import { autoSide, curveControls, pointAt, roundedPath, routeElbow, sampleCubic, SIDE_DIR, SIDES, type Pt } from './diagram/connectors';
 
 export interface View {
   tx: number;
@@ -31,11 +33,14 @@ export const PALETTE: { key: string; label: string; paper: string; ink: string }
 ];
 const byKey = new Map(PALETTE.map((p) => [p.key, p]));
 
+/** background tone of a palette key ('#rrggbb' is used as is; anything else = none) */
 export function paper(key: string) {
+  if (key?.startsWith('#')) return key;
   return byKey.get(key)?.paper ?? 'transparent';
 }
-/** 'ink' = the theme's text colour */
+/** line colour of a palette key; 'ink' = the theme's text colour; '#rrggbb' as is */
 export function ink(key: string) {
+  if (key?.startsWith('#')) return key;
   return byKey.get(key)?.ink ?? 'var(--text)';
 }
 
@@ -44,7 +49,7 @@ export function ink(key: string) {
  * front / Send to back" store an explicit `z` that overrides it. Arrows are
  * always drawn above everything.
  */
-const LAYER: Record<string, number> = { frame: 0, rect: 1, ellipse: 1, card: 2, note: 3, sticker: 4, path: 5 };
+const LAYER: Record<string, number> = { frame: 0, rect: 1, ellipse: 1, card: 2, note: 3, icon: 3, sticker: 4, path: 5 };
 export function zOf(x: { z?: number }, kind: string): number {
   return x.z ?? LAYER[kind] ?? 3;
 }
@@ -166,13 +171,24 @@ export function ensureCanvas(doc: Doc): DocCanvas {
   return doc.canvas;
 }
 
-/** Rect + shape of everything an arrow can attach to (visible cards and box items). */
-export type Target = { rect: Rect; round: boolean };
+/**
+ * Rect + shape of everything an arrow can attach to (visible cards and box items).
+ * `kind` is the outline of diagram shapes (arrows meet the drawn outline), `frame` marks
+ * frames (elbow routes don't avoid them: they hold the diagram).
+ */
+export type Target = { rect: Rect; round: boolean; kind?: OutlineKind; frame?: boolean };
 
 export function targets(doc: Doc): Map<string, Target> {
   const m = new Map<string, Target>();
   for (const s of doc.sections) if (s.canvas && !s.canvas.hidden) m.set(s.id, { rect: s.canvas, round: false });
-  for (const it of doc.canvas?.items ?? []) if (isBox(it) && it.type !== 'path') m.set(it.id, { rect: it, round: it.type === 'ellipse' });
+  for (const it of doc.canvas?.items ?? [])
+    if (isBox(it) && it.type !== 'path')
+      m.set(it.id, {
+        rect: it,
+        round: it.type === 'ellipse',
+        kind: (it.type === 'rect' || it.type === 'ellipse') && it.shape ? outlineKind(it) : undefined,
+        frame: it.type === 'frame' || undefined,
+      });
   return m;
 }
 
@@ -233,6 +249,11 @@ export function boundaryPoint(t: Target, px: number, py: number, gap = 8) {
   const dx = px - c.x,
     dy = py - c.y;
   if (!dx && !dy) return c;
+  if (t.kind) {
+    const len = Math.hypot(dx, dy);
+    const q = outlineExit(t.kind, t.rect, dx / len, dy / len);
+    return { x: q.x + (dx / len) * gap, y: q.y + (dy / len) * gap };
+  }
   const hw = t.rect.w / 2,
     hh = t.rect.h / 2;
   let k: number;
@@ -243,11 +264,93 @@ export function boundaryPoint(t: Target, px: number, py: number, gap = 8) {
   return { x: c.x + dx * Math.min(kk, 1e6), y: c.y + dy * Math.min(kk, 1e6) };
 }
 
+/** the connection point in the middle of a side of a target (on its outline) */
+export function portPoint(t: Target, side: Side): Pt {
+  const d = SIDE_DIR[side];
+  return outlineExit(t.kind ?? (t.round ? 'ellipse' : 'rect'), t.rect, d.x, d.y);
+}
+
+export function ports(t: Target): Record<Side, Pt> {
+  return Object.fromEntries(SIDES.map((s) => [s, portPoint(t, s)])) as Record<Side, Pt>;
+}
+
+/** routed connectors: an elbow or auto-curved route, or ends fixed to sides */
+export function isConnector(a: ArrowItem) {
+  return (!!a.route && a.route !== 'straight') || !!a.from.side || !!a.to.side;
+}
+
+const GAP = 8;
+const routeCache = new Map<string, Pt[]>();
+
+/**
+ * Geometry of a routed connector: its polyline (curves sampled), SVG path and ends.
+ * Elbow routes avoid both end shapes and the other boxes near the route.
+ */
+function connectorGeom(a: ArrowItem, tg: Map<string, Target>) {
+  const ft = a.from.id ? tg.get(a.from.id) : undefined;
+  const tt = a.to.id ? tg.get(a.to.id) : undefined;
+  const route = a.route ?? 'straight';
+  const fRef = ft ? center(ft.rect) : a.from;
+  const tRef = tt ? center(tt.rect) : a.to;
+  const end = (t: Target | undefined, e: ArrowEnd, other: Pt): { p: Pt; dir: Pt | null } => {
+    if (!t) return { p: { x: e.x, y: e.y }, dir: null };
+    const side = e.side ?? (route === 'elbow' ? autoSide(t.rect, other) : undefined);
+    if (side) {
+      const d = SIDE_DIR[side];
+      const q = portPoint(t, side);
+      return { p: { x: q.x + d.x * GAP, y: q.y + d.y * GAP }, dir: d };
+    }
+    const c = center(t.rect);
+    const p = boundaryPoint(t, other.x, other.y, GAP);
+    const l = Math.hypot(p.x - c.x, p.y - c.y) || 1;
+    return { p, dir: { x: (p.x - c.x) / l, y: (p.y - c.y) / l } };
+  };
+  // ends aim at the other end's side port when it has one, else at its centre
+  const e1 = end(ft, a.from, tt && a.to.side ? portPoint(tt, a.to.side) : tRef);
+  const e2 = end(tt, a.to, ft && a.from.side ? portPoint(ft, a.from.side) : fRef);
+  let poly: Pt[];
+  let d: string;
+  if (route === 'elbow') {
+    const obstacles: Rect[] = [];
+    if (ft) obstacles.push(ft.rect);
+    if (tt) obstacles.push(tt.rect);
+    // other boxes near the route (cheap: only those overlapping the span of both ends)
+    const span = expand(union([ft?.rect ?? { x: e1.p.x, y: e1.p.y, w: 0, h: 0 }, tt?.rect ?? { x: e2.p.x, y: e2.p.y, w: 0, h: 0 }])!, 0.15);
+    for (const [id, t] of tg) {
+      if (obstacles.length >= 14) break;
+      if (t.frame || id === a.from.id || id === a.to.id) continue;
+      if (intersects(t.rect, span) && !containsPoint(t.rect, e1.p.x, e1.p.y) && !containsPoint(t.rect, e2.p.x, e2.p.y)) obstacles.push(t.rect);
+    }
+    const key = JSON.stringify([e1, e2, obstacles.map((o) => [o.x, o.y, o.w, o.h])]);
+    let pts = routeCache.get(key);
+    if (!pts) {
+      pts = routeElbow(e1.p, e1.dir, e2.p, e2.dir, obstacles);
+      if (routeCache.size > 3000) routeCache.clear();
+      routeCache.set(key, pts);
+    }
+    poly = pts;
+    d = roundedPath(pts, 12);
+  } else if (route === 'curved') {
+    const [c1, c2] = curveControls(e1.p, e1.dir, e2.p, e2.dir);
+    poly = sampleCubic(e1.p, c1, c2, e2.p);
+    d = `M${e1.p.x},${e1.p.y}C${c1.x},${c1.y} ${c2.x},${c2.y} ${e2.p.x},${e2.p.y}`;
+  } else {
+    poly = [e1.p, e2.p];
+    d = `M${e1.p.x},${e1.p.y}L${e2.p.x},${e2.p.y}`;
+  }
+  return { p1: e1.p, p2: e2.p, poly, d };
+}
+
 /**
  * Resolved arrow geometry (attached ends follow their targets). Curved arrows bend
  * through a control point offset perpendicular to the line between the two ends.
  */
 export function arrowPoints(a: ArrowItem, tg: Map<string, Target>) {
+  if (isConnector(a)) {
+    const g = connectorGeom(a, tg);
+    const mid = pointAt(g.poly, 0.5);
+    return { p1: g.p1, p2: g.p2, c: mid, curved: false, normal: { x: 0, y: 0 }, mid };
+  }
   const ft = a.from.id ? tg.get(a.from.id) : undefined;
   const tt = a.to.id ? tg.get(a.to.id) : undefined;
   const fRef = ft ? center(ft.rect) : a.from;
@@ -267,17 +370,40 @@ export function arrowPoints(a: ArrowItem, tg: Map<string, Target>) {
   return { p1, p2, c, curved: !!curve, normal: { x: nx, y: ny }, mid: { x: mx, y: my } };
 }
 
-/** SVG path + label position for an arrow */
+/**
+ * SVG path + label position for an arrow, and its polyline (`poly`, curves sampled) for
+ * bounds and positions along the line.
+ */
 export function arrowPath(a: ArrowItem, tg: Map<string, Target>) {
+  if (isConnector(a)) {
+    const g = connectorGeom(a, tg);
+    const mid = pointAt(g.poly, 0.5);
+    const label = pointAt(g.poly, a.labelAt ?? 0.5);
+    return { p1: g.p1, p2: g.p2, c: mid, curved: false, normal: { x: 0, y: 0 }, mid, d: g.d, label, poly: g.poly };
+  }
   const g = arrowPoints(a, tg);
   const d = g.curved ? `M${g.p1.x},${g.p1.y}Q${g.c.x},${g.c.y} ${g.p2.x},${g.p2.y}` : `M${g.p1.x},${g.p1.y}L${g.p2.x},${g.p2.y}`;
-  const label = g.curved
-    ? { x: 0.25 * g.p1.x + 0.5 * g.c.x + 0.25 * g.p2.x, y: 0.25 * g.p1.y + 0.5 * g.c.y + 0.25 * g.p2.y }
-    : { x: (g.p1.x + g.p2.x) / 2, y: (g.p1.y + g.p2.y) / 2 };
-  return { ...g, d, label };
+  const poly: Pt[] = g.curved
+    ? Array.from({ length: 17 }, (_, i) => {
+        const t = i / 16,
+          u = 1 - t;
+        return { x: u * u * g.p1.x + 2 * u * t * g.c.x + t * t * g.p2.x, y: u * u * g.p1.y + 2 * u * t * g.c.y + t * t * g.p2.y };
+      })
+    : [g.p1, g.p2];
+  const label =
+    a.labelAt !== undefined
+      ? pointAt(poly, a.labelAt)
+      : g.curved
+        ? { x: 0.25 * g.p1.x + 0.5 * g.c.x + 0.25 * g.p2.x, y: 0.25 * g.p1.y + 0.5 * g.c.y + 0.25 * g.p2.y }
+        : { x: (g.p1.x + g.p2.x) / 2, y: (g.p1.y + g.p2.y) / 2 };
+  return { ...g, d, label, poly };
 }
 
 export function arrowRect(a: ArrowItem, tg: Map<string, Target>): Rect {
+  if (isConnector(a)) {
+    const g = connectorGeom(a, tg);
+    return union(g.poly.map((p) => ({ x: p.x, y: p.y, w: 0, h: 0 })))!;
+  }
   const g = arrowPoints(a, tg);
   const r = normRect(g.p1.x, g.p1.y, g.p2.x, g.p2.y);
   if (!g.curved) return r;

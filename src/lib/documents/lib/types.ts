@@ -95,9 +95,30 @@ export interface ArrowEnd {
   x: number;
   y: number;
   id?: string;
+  /** attached at the middle of this side (a connection point) instead of aiming at the centre */
+  side?: Side;
 }
 
-export interface NoteItem extends Rect, BoxFlags {
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+/** line style of shapes, arrows and drawings */
+export type Dash = 'solid' | 'dashed' | 'dotted';
+/** arrowhead at one end of an arrow / connector */
+export type Head = 'none' | 'arrow' | 'open' | 'dot' | 'diamond' | 'bar';
+/** how a connector runs between its ends */
+export type Route = 'straight' | 'curved' | 'elbow';
+/**
+ * Outline of a diagram shape (ShapeItem.shape). Plain rectangles and ellipses keep
+ * `type: 'rect' | 'ellipse'` without a `shape`, as before.
+ */
+export type DiagramShape = 'diamond' | 'triangle' | 'parallelogram' | 'hexagon' | 'cylinder' | 'document' | 'cloud' | 'callout' | 'star';
+
+/** look shared by shapes, arrows, drawings, icons and notes (all optional: old items keep their look) */
+export interface StyleProps {
+  /** 0–1 (unset = opaque) */
+  opacity?: number;
+}
+
+export interface NoteItem extends Rect, BoxFlags, StyleProps {
   id: string;
   type: 'note';
   /** free text grows sideways while typing until resized by hand */
@@ -111,13 +132,28 @@ export interface NoteItem extends Rect, BoxFlags {
   look?: TextLook;
 }
 
-export interface ShapeItem extends Rect, BoxFlags {
+export interface ShapeItem extends Rect, BoxFlags, StyleProps {
   id: string;
   type: 'rect' | 'ellipse';
+  /** diagram outline (type is then 'rect'); unset = a plain rectangle / ellipse */
+  shape?: DiagramShape;
+  /** outline colour: palette key, 'ink' (the theme's text colour) or '#rrggbb' */
   color: string;
+  /** old style fill: a light tint of the outline colour */
   fill?: boolean;
+  /** fill colour (palette key = its light paper tone, '#rrggbb', or 'none'); wins over `fill` */
+  fillColor?: string;
+  /** outline width in world px (unset = 3) */
+  strokeWidth?: number;
+  dash?: Dash;
+  /** corner radius of rectangles in world px (unset = 6) */
+  radius?: number;
+  /** text inside the shape (wrapped and centred) */
   text?: string;
   size?: number;
+  align?: 'left' | 'center' | 'right';
+  /** Tessera text style of the text inside */
+  look?: TextLook;
 }
 
 export interface FrameItem extends Rect, BoxFlags {
@@ -127,15 +163,27 @@ export interface FrameItem extends Rect, BoxFlags {
   notes?: string;
 }
 
-export interface ArrowItem {
+export interface ArrowItem extends StyleProps {
   id: string;
   type: 'arrow';
   from: ArrowEnd;
   to: ArrowEnd;
   color: string;
+  /** old heads; `start` / `end` win when set */
   head?: 'end' | 'both' | 'none';
+  /** arrowhead at the start / end (unset = from `head`) */
+  start?: Head;
+  end?: Head;
+  /** old dashes; `dash` wins when set */
   dashed?: boolean;
+  dash?: Dash;
+  /** line width in world px (unset = 3) */
+  width?: number;
+  /** unset = straight (bent by `curve` if set) */
+  route?: Route;
   text?: string;
+  /** where the label sits along the line, 0–1 (unset = the middle) */
+  labelAt?: number;
   /** bend: offset of the curve's middle from the straight line (world px, signed) */
   curve?: number;
   group?: string;
@@ -144,7 +192,7 @@ export interface ArrowItem {
 }
 
 /** freehand pen / highlighter stroke; points are fractions of the box (so it scales) */
-export interface PathItem extends Rect, BoxFlags {
+export interface PathItem extends Rect, BoxFlags, StyleProps {
   id: string;
   type: 'path';
   points: [number, number][];
@@ -154,7 +202,7 @@ export interface PathItem extends Rect, BoxFlags {
 }
 
 /** a sticker from Tessera's catalogue (public/stickers); rotation in degrees around the centre */
-export interface StickerItem extends Rect, BoxFlags {
+export interface StickerItem extends Rect, BoxFlags, StyleProps {
   id: string;
   type: 'sticker';
   sticker: string;
@@ -163,7 +211,18 @@ export interface StickerItem extends Rect, BoxFlags {
   flipY?: boolean;
 }
 
-export type BoxItem = NoteItem | ShapeItem | FrameItem | PathItem | StickerItem;
+/** a diagram icon (outline icon from Tessera's set, see diagram/icons.ts), recolourable */
+export interface IconItem extends Rect, BoxFlags, StyleProps {
+  id: string;
+  type: 'icon';
+  icon: string;
+  /** palette key, 'ink' or '#rrggbb' */
+  color: string;
+  /** line width in icon units (24 per side; unset = 2) */
+  strokeWidth?: number;
+}
+
+export type BoxItem = NoteItem | ShapeItem | FrameItem | PathItem | StickerItem | IconItem;
 export type CanvasItem = BoxItem | ArrowItem;
 
 export interface DocCanvas {

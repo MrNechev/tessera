@@ -1,5 +1,6 @@
 /** Vector outlines for photo masks and shape elements, built in a local w × h box. */
 import type { Mask, MaskShape, ShapeKind } from '../model/types';
+import { replaySvg, SvgPath, type PathSink } from './pathsink';
 
 export const MASK_SHAPES: { id: MaskShape; name: string }[] = [
   { id: 'rect', name: 'Rectangle' },
@@ -28,7 +29,7 @@ const SVG_PATHS: Partial<Record<MaskShape, string>> = {
     'M52 3 C70 2 88 10 95 27 C101 43 96 58 90 71 C83 86 68 97 50 97 C31 98 14 89 6 73 C-1 58 2 40 9 26 C17 11 34 4 52 3 Z',
 };
 
-function roundRectPath(p: Path2D, x: number, y: number, w: number, h: number, r: number): void {
+function roundRectPath(p: PathSink, x: number, y: number, w: number, h: number, r: number): void {
   r = Math.max(0, Math.min(r, w / 2, h / 2));
   if (r <= 0.01) {
     p.rect(x, y, w, h);
@@ -46,7 +47,7 @@ function roundRectPath(p: Path2D, x: number, y: number, w: number, h: number, r:
   p.closePath();
 }
 
-function polygon(p: Path2D, pts: [number, number][], w: number, h: number, ox = 0, oy = 0): void {
+function polygon(p: PathSink, pts: [number, number][], w: number, h: number, ox = 0, oy = 0): void {
   pts.forEach(([x, y], i) => (i === 0 ? p.moveTo(ox + x * w, oy + y * h) : p.lineTo(ox + x * w, oy + y * h)));
   p.closePath();
 }
@@ -75,6 +76,19 @@ const STAR = starPoints(5, 0.5);
  */
 export function shapePath(shape: ShapeKind, w: number, h: number, radius = 0, x = 0, y = 0): Path2D {
   const p = new Path2D();
+  drawShape(p, shape, w, h, radius, x, y);
+  return p;
+}
+
+/** The same outline as SVG path data (plus a flattened polygon in `outline`). */
+export function shapeSvgPath(shape: ShapeKind, w: number, h: number, radius = 0, x = 0, y = 0): SvgPath {
+  const p = new SvgPath();
+  drawShape(p, shape, w, h, radius, x, y);
+  return p;
+}
+
+/** Build the outline of `shape` into any path sink (Path2D or SvgPath). */
+export function drawShape(p: PathSink, shape: ShapeKind, w: number, h: number, radius = 0, x = 0, y = 0): void {
   const m = Math.min(w, h);
   switch (shape) {
     case 'rect':
@@ -151,16 +165,12 @@ export function shapePath(shape: ShapeKind, w: number, h: number, radius = 0, x 
     }
     case 'heart':
     case 'cloud':
-    case 'blob': {
-      const src = new Path2D(SVG_PATHS[shape]);
-      const m2 = new DOMMatrix().translateSelf(x, y).scaleSelf(w / 100, h / 100);
-      p.addPath(src, m2);
+    case 'blob':
+      replaySvg(p, SVG_PATHS[shape]!, x, y, w / 100, h / 100);
       break;
-    }
     default:
       p.rect(x, y, w, h);
   }
-  return p;
 }
 
 export function maskPath(mask: Mask, w: number, h: number, x = 0, y = 0): Path2D {
