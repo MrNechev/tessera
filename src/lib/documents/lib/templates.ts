@@ -1,6 +1,7 @@
 // Starting points for new documents. Text uses TipTap JSON; media is left for the user.
 import { newId } from './api';
 import type { Doc, Section } from './types';
+import { DIAGRAM_TEMPLATES, diagramTemplate } from './diagram/templates';
 
 const p = (text: string) => ({ type: 'paragraph', content: text ? [{ type: 'text', text }] : undefined });
 const doc = (...content: any[]) => ({ type: 'doc', content });
@@ -91,6 +92,17 @@ export const TEMPLATES: Template[] = [
       };
     },
   },
+  // diagram boards: the canvas templates of the diagram menu, on a canvas of their own
+  ...DIAGRAM_TEMPLATES.filter((d) => d.id !== 'blank').map(
+    (d): Template => ({
+      id: 'diagram-' + d.id,
+      name: d.name,
+      icon: d.icon,
+      canvas: true,
+      description: d.description + ' A canvas of shapes and connectors.',
+      build: () => ({ title: d.name, sections: [], canvas: { items: diagramTemplate(d.id).items } }),
+    }),
+  ),
 ];
 
 export function fromTemplate(t: Template): Partial<Doc> {
