@@ -20,6 +20,7 @@ import {
   expand,
   fitView,
   gridLayout,
+  intersects,
   isBox,
   newBox,
   newSticker,
@@ -37,6 +38,7 @@ import {
   zoomAt,
   zOf,
   arrowPoints,
+  newArrow,
   type Align,
   type View,
 } from './canvas';
@@ -51,22 +53,38 @@ import { prefs } from './prefs.svelte';
 import { resolver } from './resolver.svelte';
 import { router } from './router.svelte';
 import { toasts } from './toast.svelte';
-import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, Layout, MediaRef, NoteItem, Rect, Section, ShapeItem, StickerItem } from './types';
+import type { ArrowEnd, ArrowItem, BoxItem, CanvasItem, IconItem, Layout, MediaRef, NoteItem, Rect, Route, Section, ShapeItem, Side, StickerItem } from './types';
+import { shapeFields, shapeInfo, type ShapeId } from './diagram/shapes';
+import { copyStyle as copyStyleOf, pasteStyle as pasteStyleOnto, type StyleClip } from './diagram/style';
+import { buildDiagram } from './diagram/build';
+import { layered } from './diagram/layout';
+import { parseMermaid } from './diagram/mermaid';
+import { parseDrawio } from './diagram/drawio';
+import { diagramTemplate, type DiagramTemplateId } from './diagram/templates';
+import { canvasSvg, downloadText } from './diagram/svgExport';
+import type { Direction } from './diagram/graph';
+import { safeName } from './exporters';
 
-export type Tool = 'select' | 'hand' | 'card' | 'note' | 'text' | 'rect' | 'ellipse' | 'arrow' | 'frame' | 'pen' | 'marker';
+/** 'shape' draws `CanvasEditor.shapeKind` (rectangle, ellipse or a diagram shape) */
+export type Tool = 'select' | 'hand' | 'card' | 'note' | 'text' | 'shape' | 'arrow' | 'line' | 'frame' | 'pen' | 'marker' | 'eraser';
 export const TOOLS: { id: Tool; icon: string; label: string; key: string }[] = [
   { id: 'select', icon: 'pointer', label: 'Select', key: 'V' },
   { id: 'hand', icon: 'hand', label: 'Pan (or hold Space / middle mouse)', key: 'H' },
   { id: 'card', icon: 'card', label: 'Section card', key: 'C' },
   { id: 'note', icon: 'sticky', label: 'Sticky note', key: 'N' },
   { id: 'text', icon: 'type', label: 'Text', key: 'T' },
-  { id: 'rect', icon: 'square', label: 'Rectangle', key: 'R' },
-  { id: 'ellipse', icon: 'circle', label: 'Ellipse', key: 'O' },
+  { id: 'shape', icon: 'square', label: 'Shapes', key: 'R' },
   { id: 'arrow', icon: 'arrow-ur', label: 'Arrow (drag from one item to another to connect them)', key: 'A' },
+  { id: 'line', icon: 'line', label: 'Line (connects like an arrow)', key: 'L' },
   { id: 'frame', icon: 'frame', label: 'Frame (presentation step)', key: 'F' },
   { id: 'pen', icon: 'pen', label: 'Pen (freehand)', key: 'P' },
   { id: 'marker', icon: 'marker', label: 'Highlighter', key: 'M' },
+  { id: 'eraser', icon: 'eraser', label: 'Eraser for pen strokes', key: 'E' },
 ];
+export type EraserMode = 'stroke' | 'split';
+
+/** pasted text that starts like a Mermaid flowchart (after comments / front matter) */
+export const MERMAID_START = /^\s*(?:(?:%%[^\n]*|---[\s\S]*?---)\s*)*(?:graph|flowchart)\b/;
 
 export function pref(k: string, d: string) {
   try {
@@ -89,8 +107,11 @@ export function typing(t: EventTarget | null) {
 
 export type Preview =
   | { kind: 'rect'; rect: Rect; shape: string }
-  | { kind: 'arrow'; p1: { x: number; y: number }; p2: { x: number; y: number }; target: string | null }
+  | { kind: 'arrow'; p1: { x: number; y: number }; p2: { x: number; y: number }; target: string | null; d?: string }
   | null;
+
+/** connection points shown on the item under the pointer while drawing a connector */
+export type PortHint = { id: string; ports: Record<Side, { x: number; y: number }>; active?: Side } | null;
 
 type Flags = { group?: string; locked?: boolean; reveal?: number };
 
@@ -148,6 +169,31 @@ export class CanvasEditor {
   panning = $state(false);
   /** something is being moved/resized (hides the context toolbar) */
   dragging = $state(false);
+
+  // ---------- diagrams ----------
+  /** what the shape tool draws (remembered) */
+  shapeKind = $state<ShapeId>(pref('shape', 'rect') as ShapeId);
+  /** the last shape picked in the shape picker (key D) */
+  lastPicked = $state<ShapeId>(pref('dshape', 'diamond') as ShapeId);
+  /** the shape picker popover is open */
+  shapePicker = $state(false);
+  /** route of new arrows and lines (remembered) */
+  route = $state<Route>(pref('route', 'straight') as Route);
+  eraserMode = $state<EraserMode>(pref('eraser', 'stroke') as EraserMode);
+  /** eraser position (world) while the eraser tool is over the canvas */
+  eraserAt = $state<{ x: number; y: number } | null>(null);
+  portHint = $state<PortHint>(null);
+  /** the diagram menu (templates, import) */
+  diagramMenu = $state(false);
+  /** Mermaid import dialog: the text being typed (null = closed) */
+  mermaidText = $state<string | null>(null);
+  /** right-side panel: line / fill style of the selection */
+  stylePanel = $state(false);
+  /** recent custom colours of the style panel */
+  recentColors = $state<string[]>(pref('recent', '').split(',').filter((c) => /^#[0-9a-f]{6}$/i.test(c)));
+  styleClip: StyleClip | null = null;
+  /** shapes added with Tab / Enter (mind-map flow): Enter / Tab in their text keep going */
+  quick = new Set<string>();
 
   // ---------- selection ----------
   selItems = $derived([...this.selected].map((id) => this.itemMap.get(id)).filter(Boolean) as CanvasItem[]);
@@ -530,6 +576,13 @@ export class CanvasEditor {
     if (text && this.pasteClip(text)) {
       e.preventDefault();
       e.stopImmediatePropagation();
+      return;
+    }
+    // Mermaid flowchart text becomes a diagram
+    if (text && MERMAID_START.test(text)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (this.importMermaid(text)) toasts.show('Made a diagram from the pasted Mermaid text', 'ok', 6000, { label: 'Undo', run: () => this.undo() });
     }
   }
 
@@ -547,12 +600,11 @@ export class CanvasEditor {
     const def: Record<string, [number, number]> = {
       note: [240, 170],
       text: [320, 60],
-      rect: [240, 160],
-      ellipse: [200, 200],
       frame: [1280, 720],
       card: [420, 220],
     };
-    const [dw, dh] = def[kind] ?? [200, 150];
+    const info = shapeInfo(this.shapeKind);
+    const [dw, dh] = kind === 'shape' ? [info.w, info.h] : (def[kind] ?? [200, 150]);
     const rect = r ?? { x: snap(x - dw / 2, this.gridOn), y: snap(y - dh / 2, this.gridOn), w: dw, h: dh };
     this.before();
     if (kind === 'card') {
@@ -569,6 +621,9 @@ export class CanvasEditor {
     else if (kind === 'frame') {
       const n = this.items.filter((i) => i.type === 'frame').length + 1;
       it = newBox('frame', rect, { title: `Frame ${n}` });
+    } else if (kind === 'shape') {
+      const f = shapeFields(this.shapeKind);
+      it = newBox(f.type, rect, f);
     } else it = newBox(kind as BoxItem['type'], rect);
     this.insertItem(it);
     this.select([it.id]);
@@ -658,7 +713,8 @@ export class CanvasEditor {
     const it = this.itemMap.get(id);
     if (it?.type === 'note' && !it.text.trim() && this.fresh === id) {
       const c = ensureCanvas(this.doc);
-      c.items = c.items.filter((x) => x.id !== id);
+      // (with the connector a Tab / Enter made for it)
+      c.items = c.items.filter((x) => x.id !== id && !(x.type === 'arrow' && (x.from.id === id || x.to.id === id)));
       this.select([]);
     }
     this.fresh = null;
@@ -720,6 +776,25 @@ export class CanvasEditor {
       e.preventDefault();
       e.stopPropagation();
       this.commitEdit();
+      return;
+    }
+    const id = this.editing;
+    if (!id) return;
+    // mind-map flow: Tab = commit and add a child; Enter in a box added that way = commit
+    // (another Enter then adds a sibling)
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.commitEdit();
+      if (this.itemMap.has(id)) {
+        this.select([id]);
+        this.addChild(id);
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey && this.quick.has(id)) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.commitEdit();
+      if (this.itemMap.has(id)) this.select([id]);
     }
   }
 
@@ -773,7 +848,7 @@ export class CanvasEditor {
     const selItems = this.selItems;
     for (const it of selItems) {
       if (it.type === 'arrow') continue;
-      const copy = cloneItem(it, dx, dy);
+      const copy = cloneItem($state.snapshot(it) as CanvasItem, dx, dy);
       idMap.set(it.id, copy.id);
       this.insertItem(copy);
       next.push(copy.id);
@@ -789,7 +864,7 @@ export class CanvasEditor {
     }
     for (const it of selItems) {
       if (it.type !== 'arrow') continue;
-      const copy = cloneItem(it, dx, dy);
+      const copy = cloneItem($state.snapshot(it) as ArrowItem, dx, dy);
       const { p1, p2 } = arrowPoints(it, this.tg);
       const end = (e: ArrowEnd, p: { x: number; y: number }): ArrowEnd =>
         e.id && idMap.has(e.id) ? { ...e, x: p.x + dx, y: p.y + dy, id: idMap.get(e.id) } : { x: p.x + dx, y: p.y + dy };
@@ -878,7 +953,7 @@ export class CanvasEditor {
     this.lookAt = now;
     const ids: string[] = [];
     for (const it of this.selItems) {
-      if (it.type !== 'note') continue;
+      if (it.type !== 'note' && it.type !== 'rect' && it.type !== 'ellipse') continue;
       if (look) it.look = $state.snapshot(look) as TextLook;
       else delete it.look;
       ids.push(it.id);
@@ -939,7 +1014,7 @@ export class CanvasEditor {
     this.zoomToRect(r, 0.08, 1.25);
   }
 
-  async doExport(what: 'all' | 'view' | 'sel') {
+  async doExport(what: 'all' | 'view' | 'sel', transparent = false) {
     this.exportMenu = false;
     const doc = this.doc;
     const r =
@@ -951,7 +1026,7 @@ export class CanvasEditor {
     if (!r) return toasts.show('Nothing to export', 'info');
     toasts.show('Rendering the PNG…', 'info', 2500);
     try {
-      await exportCanvasPNG(doc, r, `${doc.title || 'canvas'}${what === 'sel' ? ' (selection)' : ''}`);
+      await exportCanvasPNG(doc, r, `${doc.title || 'canvas'}${what === 'sel' ? ' (selection)' : ''}`, { transparent });
     } catch (e) {
       toasts.error('Export failed: ' + (e as Error).message);
     }
@@ -969,6 +1044,342 @@ export class CanvasEditor {
       /* not allowed: present in the window */
     }
     router.go(`/present/${doc.id}?canvas=1&s=${start}`);
+  }
+
+  // ---------- diagrams: shapes, connectors, style ----------
+
+  setShape(id: ShapeId) {
+    this.shapeKind = id;
+    setPref('shape', id);
+    this.tool = 'shape';
+    this.shapePicker = false;
+  }
+
+  /** turn the selected shapes into another shape (keeping their size, text and look) */
+  changeShape(id: ShapeId) {
+    this.restyle((it) => {
+      if (it.type !== 'rect' && it.type !== 'ellipse') return;
+      const f = shapeFields(id);
+      it.type = f.type;
+      if (f.shape) it.shape = f.shape;
+      else delete it.shape;
+      if (id === 'round') it.radius = f.radius;
+      else if (id === 'rect') delete it.radius;
+    });
+  }
+
+  /** a shape picked in the picker (D draws it again later) */
+  pickShape(id: ShapeId) {
+    this.lastPicked = id;
+    setPref('dshape', id);
+    this.setShape(id);
+  }
+
+  setEraser(m: EraserMode) {
+    this.eraserMode = m;
+    setPref('eraser', m);
+    this.tool = 'eraser';
+  }
+
+  /** a new arrow (or line: no heads) between two ends, with the remembered route */
+  addConnector(from: ArrowEnd, to: ArrowEnd, line = false): ArrowItem {
+    const a = newArrow(from, to);
+    if (line) a.head = 'none';
+    if (this.route !== 'straight') a.route = this.route;
+    ensureCanvas(this.doc).items.push(a);
+    return a;
+  }
+
+  /** connect two boxes (ids) with an arrow */
+  connect(fromId: string, toId: string, extra: Partial<ArrowItem> = {}): ArrowItem | null {
+    const a = this.rectOf(fromId),
+      b = this.rectOf(toId);
+    if (!a || !b) return null;
+    const c = (r: Rect, id: string): ArrowEnd => ({ x: r.x + r.w / 2, y: r.y + r.h / 2, id });
+    const arrow = this.addConnector(c(a, fromId), c(b, toId));
+    Object.assign(arrow, extra);
+    return arrow;
+  }
+
+  setRoute(r: Route) {
+    this.route = r;
+    setPref('route', r);
+  }
+
+  pushRecent(c: string) {
+    if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+    this.recentColors = [c.toLowerCase(), ...this.recentColors.filter((x) => x !== c.toLowerCase())].slice(0, 10);
+    setPref('recent', this.recentColors.join(','));
+  }
+
+  private styleAt = 0;
+  /** change the look of every selected item (changes within a moment are one undo step) */
+  restyle(fn: (it: CanvasItem) => void) {
+    const now = performance.now();
+    if (now - this.styleAt > 800) this.before();
+    this.styleAt = now;
+    for (const it of this.selItems) if (!(it as { locked?: boolean }).locked) fn(it);
+    this.change();
+  }
+
+  copyStyle() {
+    const it = this.selItems[0];
+    const s = it ? copyStyleOf(it) : null;
+    if (!s) return toasts.show('Select a shape, arrow, note or drawing to copy its style', 'info');
+    this.styleClip = structuredClone($state.snapshot(s)) as StyleClip;
+    toasts.show('Style copied — Ctrl+Alt+V pastes it onto the selection', 'ok');
+  }
+
+  pasteStyle() {
+    const s = this.styleClip;
+    if (!s) return toasts.show('Copy a style first (Ctrl+Alt+C)', 'info');
+    if (!this.selItems.length) return;
+    this.before();
+    for (const it of this.selItems) pasteStyleOnto(it, s);
+    this.change();
+    this.fitNotes(this.selItems.map((i) => i.id));
+  }
+
+  // ---------- diagrams: mind-map flow (Tab / Enter) ----------
+
+  /** the box an item hangs from: the start of an arrow that ends at it */
+  parentOf(id: string): string | null {
+    for (const it of this.items)
+      if (it.type === 'arrow' && it.to.id === id && it.from.id && it.from.id !== id) {
+        const p = this.itemMap.get(it.from.id);
+        if (p && (p.type === 'rect' || p.type === 'ellipse' || p.type === 'note')) return p.id;
+      }
+    return null;
+  }
+
+  private childrenOf(id: string): BoxItem[] {
+    const out: BoxItem[] = [];
+    for (const it of this.items)
+      if (it.type === 'arrow' && it.from.id === id && it.to.id) {
+        const c = this.itemMap.get(it.to.id);
+        if (c && isBox(c)) out.push(c);
+      }
+    return out;
+  }
+
+  /** Tab: a connected child to the right (or left, on the left side of a mind map) */
+  addChild(parentId = this.single) {
+    const p = parentId ? this.itemMap.get(parentId) : undefined;
+    if (!p || (p.type !== 'rect' && p.type !== 'ellipse' && p.type !== 'note')) return;
+    const gp = this.parentOf(p.id);
+    const gpr = gp ? this.rectOf(gp) : null;
+    const dir = gpr && gpr.x + gpr.w / 2 > p.x + p.w / 2 ? -1 : 1;
+    const kids = this.childrenOf(p.id).filter((k) => (dir > 0 ? k.x >= p.x + p.w : k.x + k.w <= p.x));
+    const w = kids[0]?.w ?? Math.max(160, Math.round(p.w * 0.85)),
+      h = kids[0]?.h ?? Math.max(56, Math.round(p.h * 0.75));
+    const x = kids.length ? kids[kids.length - 1].x : dir > 0 ? p.x + p.w + 100 : p.x - 100 - w;
+    const y = kids.length ? Math.max(...kids.map((k) => k.y + k.h)) + 24 : p.y + p.h / 2 - h / 2;
+    this.spawn(p, { x: snap(x), y: snap(y), w, h }, dir);
+  }
+
+  /** Enter on a child: a sibling below it, connected to the same parent */
+  addSibling(id = this.single): boolean {
+    const c = id ? this.itemMap.get(id) : undefined;
+    const pid = id ? this.parentOf(id) : null;
+    const p = pid ? this.itemMap.get(pid) : undefined;
+    if (!c || !isBox(c) || !p || (p.type !== 'rect' && p.type !== 'ellipse' && p.type !== 'note')) return false;
+    const below = this.childrenOf(p.id).filter((k) => Math.abs(k.x - c.x) < c.w / 2 && k.y > c.y);
+    const y = (below.length ? Math.max(...below.map((k) => k.y + k.h)) : c.y + c.h) + 24;
+    this.spawn(p, { x: c.x, y: snap(y), w: c.w, h: c.h }, c.x + c.w / 2 >= p.x + p.w / 2 ? 1 : -1);
+    return true;
+  }
+
+  /** a new box styled like `p` at `r`, connected from p, then straight into its text */
+  private spawn(p: ShapeItem | NoteItem, r: Rect, dir: number) {
+    this.before();
+    const s = $state.snapshot(p) as ShapeItem | NoteItem;
+    const it = { ...structuredClone(s), id: newId(), ...r } as ShapeItem | NoteItem;
+    it.text = '';
+    delete it.group;
+    delete it.locked;
+    delete it.reveal;
+    delete it.z;
+    if (it.type === 'note') delete it.autoW;
+    this.insertItem(it);
+    // the connector looks like the one into the parent (or a curve for a fresh map)
+    const into = this.items.find((a): a is ArrowItem => a.type === 'arrow' && a.to.id === p.id);
+    const extra: Partial<ArrowItem> = into
+      ? { color: into.color, width: into.width, route: into.route, dash: into.dash, head: into.head, start: into.start, end: into.end }
+      : { route: 'curved', head: 'none' };
+    const a = this.connect(p.id, it.id, extra);
+    if (a) {
+      a.from = { ...a.from, side: dir > 0 ? 'right' : 'left' };
+      a.to = { ...a.to, side: dir > 0 ? 'left' : 'right' };
+      for (const k of Object.keys(a) as (keyof ArrowItem)[]) if (a[k] === undefined) delete a[k];
+    }
+    this.select([it.id]);
+    this.quick.add(it.id);
+    this.change();
+    this.fresh = it.id;
+    void this.startEdit(it.id);
+  }
+
+  // ---------- diagrams: icons, templates, import ----------
+
+  addIcon(icon: string, at?: { x: number; y: number }) {
+    const z = this.view.z;
+    const p = at ?? this.viewCenter();
+    const s = Math.round(96 / z);
+    this.before();
+    const it: IconItem = { id: newId(), type: 'icon', icon, color: 'ink', x: snap(p.x - s / 2), y: snap(p.y - s / 2), w: s, h: s };
+    this.insertItem(it);
+    this.select([it.id]);
+    this.change();
+  }
+
+  /** put built items (top-left at 0, 0) in the middle of the view, as one undo step */
+  insertBuilt(built: { items: CanvasItem[]; bounds: Rect }, at?: { x: number; y: number }) {
+    if (!built.items.length) return toasts.show('Nothing to add', 'info');
+    const c = at ?? this.viewCenter();
+    let dx = snap(c.x - built.bounds.w / 2),
+      dy = snap(c.y - built.bounds.h / 2);
+    // don't drop it on top of what is there: next to everything else instead
+    const used = contentRect(this.doc);
+    if (!at && used && intersects(used, { x: dx, y: dy, w: built.bounds.w, h: built.bounds.h })) {
+      dx = snap(used.x + used.w + 160);
+      dy = snap(Math.max(used.y, Math.min(dy, used.y + used.h - built.bounds.h)));
+    }
+    this.before();
+    for (const it of built.items) {
+      if (it.type === 'arrow') {
+        it.from = { ...it.from, x: it.from.x + dx, y: it.from.y + dy };
+        it.to = { ...it.to, x: it.to.x + dx, y: it.to.y + dy };
+      } else {
+        it.x += dx;
+        it.y += dy;
+      }
+      this.insertItem(it);
+    }
+    this.select(built.items.map((i) => i.id));
+    this.change();
+    const r = { x: dx, y: dy, w: built.bounds.w, h: built.bounds.h };
+    if (!containsRect(visibleRect(this.view, this.vw, this.vh), r)) this.zoomToRect(r, 0.08, this.view.z);
+  }
+
+  insertTemplate(id: DiagramTemplateId) {
+    this.diagramMenu = false;
+    this.insertBuilt(diagramTemplate(id));
+  }
+
+  /** Mermaid flowchart text → shapes and connectors; false (and a message) if it can't be read */
+  importMermaid(text: string): boolean {
+    try {
+      const g = parseMermaid(text);
+      if (!g.nodes.length) throw new Error('The diagram has no boxes');
+      this.insertBuilt(buildDiagram(g, { stroke: 'purple', fill: 'purple' }));
+      return true;
+    } catch (e) {
+      toasts.error((e as Error).message);
+      return false;
+    }
+  }
+
+  async importDrawio(file: File) {
+    this.diagramMenu = false;
+    try {
+      const g = parseDrawio(await file.text());
+      if (!g.nodes.length && !g.edges.length) throw new Error('The diagram is empty');
+      this.insertBuilt(buildDiagram(g, { scale: 1.5, route: 'straight' }));
+      toasts.show(`Imported “${file.name}”`, 'ok');
+    } catch (e) {
+      toasts.error('Could not import the draw.io file: ' + (e as Error).message);
+    }
+  }
+
+  // ---------- diagrams: tidy up ----------
+
+  /** what "Tidy up" arranges: the selected boxes, or everything connected to the one selected */
+  private tidySet(): string[] {
+    const box = (id: string) => {
+      const it = this.itemMap.get(id);
+      if (this.isLocked(id)) return false;
+      if (this.secMap.has(id)) return !!this.secMap.get(id)!.canvas;
+      return !!it && isBox(it) && it.type !== 'frame' && it.type !== 'path';
+    };
+    const sel = [...this.selected].filter(box);
+    if (sel.length !== 1) return sel;
+    const seen = new Set(sel);
+    const queue = [...sel];
+    while (queue.length) {
+      const id = queue.pop()!;
+      for (const it of this.items) {
+        if (it.type !== 'arrow') continue;
+        const other = it.from.id === id ? it.to.id : it.to.id === id ? it.from.id : undefined;
+        if (other && !seen.has(other) && box(other)) {
+          seen.add(other);
+          queue.push(other);
+        }
+      }
+    }
+    return [...seen];
+  }
+
+  canTidy = $derived.by(() => {
+    if (this.selected.size !== 1) return this.selected.size > 1;
+    const id = [...this.selected][0];
+    return this.items.some((a) => a.type === 'arrow' && (a.from.id === id || a.to.id === id) && a.from.id && a.to.id);
+  });
+
+  private tidyAnim = 0;
+  /** layered layout of the selected / connected boxes (dagre), animated, one undo step */
+  tidy(dir: Direction) {
+    const ids = this.tidySet();
+    if (ids.length < 2) return toasts.show('Select connected shapes (or one of them) to tidy up', 'info');
+    const set = new Set(ids);
+    const rects = new Map(ids.map((id) => [id, this.rectOf(id)!]));
+    const edges = this.items
+      .filter((a): a is ArrowItem => a.type === 'arrow' && !!a.from.id && !!a.to.id && set.has(a.from.id) && set.has(a.to.id))
+      .map((a) => ({ from: a.from.id!, to: a.to.id!, labelW: a.text ? a.text.length * 9 + 16 : 0, labelH: a.text ? 26 : 0 }));
+    const res = layered(
+      ids.map((id) => ({ id, w: rects.get(id)!.w, h: rects.get(id)!.h })),
+      edges,
+      dir,
+      { nodesep: 60, ranksep: 90 },
+    );
+    const u = union([...rects.values()])!;
+    const ps = [...res.pos.values()];
+    const mx = Math.min(...ps.map((p) => p.x)),
+      my = Math.min(...ps.map((p) => p.y));
+    const moves = ids.map((id) => {
+      const r = rects.get(id)!;
+      const p = res.pos.get(id)!;
+      return { r, x0: r.x, y0: r.y, x1: snap(u.x + p.x - mx), y1: snap(u.y + p.y - my) };
+    });
+    this.before();
+    cancelAnimationFrame(this.tidyAnim);
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / 380);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      for (const m of moves) {
+        m.r.x = m.x0 + (m.x1 - m.x0) * e;
+        m.r.y = m.y0 + (m.y1 - m.y0) * e;
+      }
+      if (k < 1) this.tidyAnim = requestAnimationFrame(step);
+      else this.change();
+    };
+    this.tidyAnim = requestAnimationFrame(step);
+  }
+
+  // ---------- export ----------
+
+  async exportSvg(what: 'all' | 'sel', transparent = false) {
+    this.exportMenu = false;
+    const doc = this.doc;
+    const only = what === 'sel' ? new Set(this.selected) : undefined;
+    const r = what === 'sel' ? union([...this.selected].map((id) => this.rectOf(id)).filter(Boolean) as Rect[]) : contentRect(doc);
+    if (!r) return toasts.show('Nothing to export', 'info');
+    try {
+      const svg = await canvasSvg(doc, r, { only, transparent, themeEl: this.vp });
+      downloadText(svg, safeName(`${doc.title || 'canvas'}${what === 'sel' ? ' (selection)' : ''}`) + '.svg', 'image/svg+xml');
+    } catch (e) {
+      toasts.error('Export failed: ' + (e as Error).message);
+    }
   }
 
   zoomToSelection() {

@@ -1,9 +1,11 @@
 <script lang="ts">
   // Context toolbar of the canvas selection: per-kind options (card, frame, note, sticker,
   // shape, arrow, drawing), then align / group / lock / reveal / order / duplicate / delete.
-  import { ink, NOTE_SIZES, PALETTE, union } from '../lib/canvas';
+  import { ink, isConnector, NOTE_SIZES, PALETTE, union } from '../lib/canvas';
   import type { CanvasEditor } from '../lib/canvasEditor.svelte';
-  import type { ArrowItem, NoteItem, Rect, ShapeItem, StickerItem } from '../lib/types';
+  import { headsOf } from '../lib/diagram/connectors';
+  import { outlineExtra, outlineKind, outlinePath, shapeFields, shapeIdOf, SHAPES, type ShapeId } from '../lib/diagram/shapes';
+  import type { ArrowItem, Head, IconItem, NoteItem, Rect, Route, ShapeItem, StickerItem } from '../lib/types';
   import Icon from './Icon.svelte';
 
   let { ed, onpresentdoc }: { ed: CanvasEditor; onpresentdoc: (sectionIndex: number) => void } = $props();
@@ -19,6 +21,62 @@
   const firstShape = $derived(selItems.find((i) => i.type === 'rect' || i.type === 'ellipse') as ShapeItem | undefined);
   const firstArrow = $derived(selItems.find((i) => i.type === 'arrow') as ArrowItem | undefined);
   const firstSticker = $derived(selItems.find((i) => i.type === 'sticker') as StickerItem | undefined);
+  const firstIcon = $derived(selItems.find((i) => i.type === 'icon') as IconItem | undefined);
+  let shapeMenu = $state(false);
+
+  function heads(start: Head, end: Head) {
+    ed.restyle((i) => {
+      if (i.type !== 'arrow') return;
+      i.start = start;
+      i.end = end;
+      delete i.head;
+    });
+  }
+  function route(r: Route) {
+    ed.setRoute(r);
+    ed.restyle((i) => {
+      if (i.type !== 'arrow') return;
+      if (r === 'straight') delete i.route;
+      else {
+        i.route = r;
+        delete i.curve;
+      }
+    });
+  }
+  function toggleFill(sh: ShapeItem) {
+    const on = !!sh.fill || (!!sh.fillColor && sh.fillColor !== 'none');
+    ed.restyle((i) => {
+      if (i.type !== 'rect' && i.type !== 'ellipse') return;
+      delete i.fill;
+      if (on) delete i.fillColor;
+      else i.fillColor = i.color === 'ink' || i.color.startsWith('#') ? 'gray' : i.color;
+    });
+  }
+  function toggleDash(a: ArrowItem) {
+    const on = (a.dash ?? (a.dashed ? 'dashed' : 'solid')) !== 'solid';
+    ed.restyle((i) => {
+      if (i.type !== 'arrow') return;
+      delete i.dashed;
+      if (on) delete i.dash;
+      else i.dash = 'dashed';
+    });
+  }
+  function openStyle() {
+    ed.stylePanel = !ed.stylePanel;
+    ed.styleMenu = false;
+  }
+  function openText() {
+    ed.styleMenu = !ed.styleMenu;
+    ed.stylePanel = false;
+  }
+  function curveBtn(a: ArrowItem) {
+    if (isConnector(a) || a.from.id || a.to.id) route('curved');
+    else ed.setProp('curve', a.curve ? undefined : 120, ['arrow']);
+  }
+  function straightBtn() {
+    route('straight');
+    ed.setProp('curve', undefined, ['arrow']);
+  }
 
   const selBox = $derived.by(() => {
     const u = union([...ed.selected].map((id) => ed.rectOf(id)).filter(Boolean) as Rect[]);
@@ -34,6 +92,18 @@
     return { x, y };
   });
 </script>
+
+{#snippet mini(id: ShapeId, size: number)}
+  {@const f = shapeFields(id)}
+  {@const k = outlineKind({ type: f.type, shape: f.shape })}
+  {@const h = id === 'ellipse' || id === 'star' || id === 'triangle' ? size : Math.round(size * 0.72)}
+  <svg width={size} height={size} viewBox="0 0 {size} {size}" aria-hidden="true">
+    <g transform="translate(0 {(size - h) / 2})">
+      <path d={outlinePath(k, size, h, 1.8, id === 'round' ? h / 4 : 2)} fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      {#if outlineExtra(k, size, h, 1.8)}<path d={outlineExtra(k, size, h, 1.8)} fill="none" stroke="currentColor" stroke-width="1.8" />{/if}
+    </g>
+  </svg>
+{/snippet}
 
 {#if ctxPos && ed.selected.size}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -111,10 +181,17 @@
         <button class="sw" class:on={sh.color === p.key} title={p.label} style="background:{p.ink}" onclick={() => ed.setProp('color', p.key)} aria-label={p.label}></button>
       {/each}
       <span class="vsep"></span>
-      <button class="icon-btn" class:on={sh.fill} title="Fill" onclick={() => ed.setProp('fill', sh.fill ? undefined : true)}><Icon name="droplet" /></button>
-      <button class="icon-btn" class:on={sh.type === 'rect'} title="Rectangle" onclick={() => ed.setProp('type', 'rect', ['rect', 'ellipse'])}><Icon name="square" /></button>
-      <button class="icon-btn" class:on={sh.type === 'ellipse'} title="Ellipse" onclick={() => ed.setProp('type', 'ellipse', ['rect', 'ellipse'])}><Icon name="circle" /></button>
-      <button class="icon-btn" title="Label (double-click)" onclick={() => ed.startEdit(sh.id)}><Icon name="type" /></button>
+      <button class="icon-btn" class:on={!!sh.fill || (!!sh.fillColor && sh.fillColor !== 'none')} title="Fill (more colours in Style)" onclick={() => toggleFill(sh)}><Icon name="droplet" /></button>
+      <span class="shapemenu">
+        <button class="icon-btn" class:on={shapeMenu} title="Change the shape" onclick={() => (shapeMenu = !shapeMenu)}>{@render mini(shapeIdOf(sh), 18)}</button>
+      </span>
+      <button class="icon-btn" title="Write in the shape (double-click, F2)" onclick={() => ed.startEdit(sh.id)}><Icon name="shapetext" /></button>
+      {#if sh.text}
+        {#each NOTE_SIZES.slice(0, 4) as s (s.v)}
+          <button class="seg" class:on={(sh.size || 24) === s.v} onclick={() => ed.setProp('size', s.v, ['rect', 'ellipse'])}>{s.label}</button>
+        {/each}
+        <button class="btn sm ghost" class:on={ed.styleMenu} title="Text style: fonts, outline, shadow…" onclick={openText}><Icon name="type" size={14} /> Text</button>
+      {/if}
       <span class="vsep"></span>
     {/if}
     {#if firstArrow && only('arrow')}
@@ -123,14 +200,17 @@
       {#each PALETTE as p (p.key)}
         <button class="sw" class:on={a.color === p.key} title={p.label} style="background:{p.ink}" onclick={() => ed.setProp('color', p.key)} aria-label={p.label}></button>
       {/each}
+      {@const h = headsOf(a)}
+      {@const r = a.route ?? 'straight'}
       <span class="vsep"></span>
-      <button class="icon-btn" class:on={a.head === 'none'} title="Line" onclick={() => ed.setProp('head', 'none', ['arrow'])}><Icon name="line" /></button>
-      <button class="icon-btn" class:on={!a.head || a.head === 'end'} title="Arrow" onclick={() => ed.setProp('head', 'end', ['arrow'])}><Icon name="arrow-ur" /></button>
-      <button class="icon-btn" class:on={a.head === 'both'} title="Arrows at both ends" onclick={() => ed.setProp('head', 'both', ['arrow'])}><Icon name="arrow-both" /></button>
-      <button class="icon-btn" class:on={a.dashed} title="Dashed" onclick={() => ed.setProp('dashed', a.dashed ? undefined : true, ['arrow'])}><Icon name="dash" /></button>
-      <button class="icon-btn" class:on={!!a.curve} title={a.curve ? 'Straighten' : 'Curve (or drag the middle handle)'} onclick={() => ed.setProp('curve', a.curve ? undefined : 120, ['arrow'])}
-        ><Icon name="curve" /></button
-      >
+      <button class="icon-btn" class:on={h.start === 'none' && h.end === 'none'} title="Line" onclick={() => heads('none', 'none')}><Icon name="line" /></button>
+      <button class="icon-btn" class:on={h.start === 'none' && h.end !== 'none'} title="Arrow" onclick={() => heads('none', 'arrow')}><Icon name="arrow-ur" /></button>
+      <button class="icon-btn" class:on={h.start !== 'none' && h.end !== 'none'} title="Arrows at both ends" onclick={() => heads('arrow', 'arrow')}><Icon name="arrow-both" /></button>
+      <button class="icon-btn" class:on={(a.dash ?? (a.dashed ? 'dashed' : 'solid')) !== 'solid'} title="Dashed" onclick={() => toggleDash(a)}><Icon name="dash" /></button>
+      <span class="vsep"></span>
+      <button class="icon-btn" class:on={r === 'straight' && !a.curve} title="Straight" onclick={straightBtn}><Icon name="line" /></button>
+      <button class="icon-btn" class:on={r === 'curved' || (r === 'straight' && !!a.curve)} title="Curved (a free arrow: drag the middle handle)" onclick={() => curveBtn(a)}><Icon name="curve" /></button>
+      <button class="icon-btn" class:on={r === 'elbow'} title="Elbow: right angles, around the shapes" onclick={() => route('elbow')}><Icon name="elbow" /></button>
       {#if selItems.length === 1}
         <input
           class="input fname"
@@ -146,12 +226,27 @@
       {/if}
       <span class="vsep"></span>
     {/if}
+    {#if firstIcon && only('icon')}
+      <button class="sw ink" class:on={firstIcon.color === 'ink'} title="Default" style="background:var(--text)" onclick={() => ed.setProp('color', 'ink')} aria-label="Default colour"></button>
+      {#each PALETTE as p (p.key)}
+        <button class="sw" class:on={firstIcon.color === p.key} title={p.label} style="background:{p.ink}" onclick={() => ed.setProp('color', p.key)} aria-label={p.label}></button>
+      {/each}
+      <span class="vsep"></span>
+    {/if}
     {#if selItems.some((i) => i.type === 'path') && only('path')}
       {#each ['red', 'yellow', 'green', 'blue', 'purple', 'ink'] as c (c)}
         <button class="sw" style="background:{ink(c)}" title="Colour" aria-label="Colour" onclick={() => ed.setProp('color', c, ['path'])}></button>
       {/each}
       <span class="vsep"></span>
     {/if}
+    {#if selItems.length}
+      <button class="icon-btn" class:on={ed.stylePanel} title="Style: colours, line, fill, opacity, arrowheads" onclick={openStyle}><Icon name="palette" /></button>
+    {/if}
+    {#if ed.canTidy}
+      <button class="icon-btn" title="Tidy up top-down (the selected or connected shapes)" onclick={() => ed.tidy('TB')}><Icon name="tidy-tb" /></button>
+      <button class="icon-btn" title="Tidy up left to right" onclick={() => ed.tidy('LR')}><Icon name="tidy-lr" /></button>
+    {/if}
+    {#if selItems.length || ed.canTidy}<span class="vsep"></span>{/if}
     {#if selBoxesCount >= 2}
       <button class="icon-btn" title="Align left" onclick={() => ed.align('left')}><Icon name="align-l" /></button>
       <button class="icon-btn" title="Align centres" onclick={() => ed.align('center')}><Icon name="align-c" /></button>
@@ -186,9 +281,55 @@
       <Icon name={selCards.length && !selItems.length ? 'eye-off' : 'trash'} />
     </button>
   </div>
+  {#if shapeMenu && firstShape}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="shapepop" style="left:{ctxPos.x}px;top:{ctxPos.y + 46}px" onpointerdown={(e) => e.stopPropagation()}>
+      {#each SHAPES as s (s.id)}
+        <button
+          class="cell"
+          class:on={shapeIdOf(firstShape) === s.id}
+          title={s.label}
+          onclick={() => {
+            ed.changeShape(s.id);
+            shapeMenu = false;
+          }}>{@render mini(s.id, 24)}</button
+        >
+      {/each}
+    </div>
+  {/if}
 {/if}
 
 <style>
+  .shapepop {
+    position: absolute;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: repeat(6, 38px);
+    gap: 3px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 11px;
+    box-shadow: var(--shadow);
+    z-index: 7;
+  }
+  .shapepop .cell {
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .shapepop .cell.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .shapemenu .icon-btn {
+    color: var(--text);
+  }
   .ctx {
     position: absolute;
     transform: translateX(-50%);

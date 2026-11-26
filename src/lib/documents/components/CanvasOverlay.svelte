@@ -1,8 +1,9 @@
 <script lang="ts">
   // Screen-space layer over the canvas: selection boxes and handles, alignment guides,
   // the pen preview and the previews of what is being drawn.
-  import { arrowPath as arrowGeom, arrowPoints, ink, smoothPath } from '../lib/canvas';
+  import { arrowPath as arrowGeom, arrowPoints, ink, isConnector, smoothPath } from '../lib/canvas';
   import type { CanvasEditor } from '../lib/canvasEditor.svelte';
+  import { outlinePath, shapeFields, SHAPES, outlineKind, type ShapeId } from '../lib/diagram/shapes';
   import type { Rect } from '../lib/types';
 
   let { ed }: { ed: CanvasEditor } = $props();
@@ -27,6 +28,13 @@
     const dy = h === 'rotate' ? -r.h / 2 - 26 : h.includes('n') ? -r.h / 2 : h.includes('s') ? r.h / 2 : 0;
     const a = (rot * Math.PI) / 180;
     return { x: r.x + r.w / 2 + dx * Math.cos(a) - dy * Math.sin(a), y: r.y + r.h / 2 + dx * Math.sin(a) + dy * Math.cos(a) };
+  }
+
+  /** outline of a diagram shape being drawn (rectangles and ellipses use the box preview) */
+  function previewPath(shape: string, r: Rect) {
+    if (!SHAPES.some((s) => s.id === shape) || shape === 'rect' || shape === 'ellipse') return '';
+    const f = shapeFields(shape as ShapeId);
+    return outlinePath(outlineKind({ type: f.type, shape: f.shape }), Math.max(2, r.w), Math.max(2, r.h), 1.5, f.radius ?? 2);
   }
 
   const arrowEnds = $derived.by(() => {
@@ -70,9 +78,24 @@
       ><path d={smoothPath(ed.inkPath.map(([x, y]) => [x * view.z + view.tx, y * view.z + view.ty]))} class="inkpv" class:hl={ed.tool === 'marker'} stroke={ink(ed.inkColor)} /></svg
     >
   {/if}
-  {#if ed.singleArrow && arrowEnds}
-    {@const g = arrowGeom(ed.singleArrow, ed.tg)}
-    <div class="handle bend" data-handle="curve" title="Drag to bend" style="left:{g.label.x * view.z + view.tx}px;top:{g.label.y * view.z + view.ty}px"></div>
+  {#if ed.singleArrow && arrowEnds && !ed.singleArrow.locked}
+    {@const a = ed.singleArrow}
+    {@const g = arrowGeom(a, ed.tg)}
+    {@const routed = isConnector(a) || a.labelAt !== undefined}
+    {#if a.text}
+      <!-- drag the label along the line -->
+      {@const lw = Math.max(30, a.text.length * 10.5 + 12) * view.z}
+      <div
+        class="handle label"
+        data-handle="label"
+        title="Drag to move the label along the line"
+        style="left:{g.label.x * view.z + view.tx}px;top:{(routed ? g.label.y : g.label.y - 16) * view.z + view.ty}px;width:{lw}px;height:{28 * view.z}px;margin:{-14 * view.z}px 0 0 {-lw / 2}px"
+      ></div>
+    {/if}
+    {#if !isConnector(a)}
+      {@const m = a.labelAt !== undefined ? g.mid : g.label}
+      <div class="handle bend" data-handle="curve" title="Drag to bend" style="left:{m.x * view.z + view.tx}px;top:{m.y * view.z + view.ty}px"></div>
+    {/if}
   {/if}
   {#if arrowEnds}
     <div class="handle end" data-handle="from" style="left:{arrowEnds.p1.x}px;top:{arrowEnds.p1.y}px"></div>
@@ -80,15 +103,24 @@
   {/if}
   {#if ed.preview?.kind === 'rect'}
     {@const r = ed.toScreen(ed.preview.rect)}
-    <div class="pv {ed.preview.shape}" style="left:{r.x}px;top:{r.y}px;width:{r.w}px;height:{r.h}px"></div>
+    {@const d = previewPath(ed.preview.shape, r)}
+    {#if d}
+      <svg class="pvline"><path class="pvshape" transform="translate({r.x} {r.y})" {d} /></svg>
+    {:else}
+      <div class="pv {ed.preview.shape}" class:round={ed.preview.shape === 'round'} style="left:{r.x}px;top:{r.y}px;width:{r.w}px;height:{r.h}px"></div>
+    {/if}
   {:else if ed.preview?.kind === 'arrow'}
     <svg class="pvline">
-      <line
-        x1={ed.preview.p1.x * view.z + view.tx}
-        y1={ed.preview.p1.y * view.z + view.ty}
-        x2={ed.preview.p2.x * view.z + view.tx}
-        y2={ed.preview.p2.y * view.z + view.ty}
-      />
+      {#if ed.preview.d}
+        <g transform="translate({view.tx} {view.ty}) scale({view.z})"><path class="pvconn" d={ed.preview.d} /></g>
+      {:else}
+        <line
+          x1={ed.preview.p1.x * view.z + view.tx}
+          y1={ed.preview.p1.y * view.z + view.ty}
+          x2={ed.preview.p2.x * view.z + view.tx}
+          y2={ed.preview.p2.y * view.z + view.ty}
+        />
+      {/if}
     </svg>
     {#if ed.preview.target}
       {@const tr = ed.rectOf(ed.preview.target)}
@@ -97,6 +129,16 @@
         <div class="pv target" style="left:{r.x}px;top:{r.y}px;width:{r.w}px;height:{r.h}px"></div>
       {/if}
     {/if}
+  {/if}
+  {#if ed.portHint}
+    {#each Object.entries(ed.portHint.ports) as [side, p] (side)}
+      {@const q = ed.toScreenPt(p)}
+      <div class="port" class:on={ed.portHint.active === side} style="left:{q.x}px;top:{q.y}px"></div>
+    {/each}
+  {/if}
+  {#if ed.tool === 'eraser' && ed.eraserAt}
+    {@const q = ed.toScreenPt(ed.eraserAt)}
+    <div class="eraser" class:split={ed.eraserMode === 'split'} style="left:{q.x}px;top:{q.y}px"></div>
   {/if}
 </div>
 
@@ -157,6 +199,55 @@
   }
   .pv.ellipse {
     border-radius: 50%;
+  }
+  .pv.round {
+    border-radius: 14px;
+  }
+  .pvshape {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 4;
+  }
+  .pvconn {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-dasharray: 6 5;
+    vector-effect: non-scaling-stroke;
+  }
+  .port {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--blue);
+  }
+  .port.on {
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    background: var(--blue);
+  }
+  .eraser {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-2);
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+  }
+  .eraser.split {
+    border-style: dashed;
+  }
+  .handle.label {
+    border: 1.5px dashed var(--accent);
+    background: transparent;
+    border-radius: 6px;
+    cursor: grab;
   }
   .pv.target {
     border: 2px solid var(--blue);

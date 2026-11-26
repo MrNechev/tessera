@@ -43,6 +43,11 @@
         <button onclick={() => ed.doExport('all')}><Icon name="image2" size={14} /> PNG of the whole canvas</button>
         <button onclick={() => ed.doExport('view')}><Icon name="image2" size={14} /> PNG of the current view</button>
         <button disabled={!ed.selected.size} onclick={() => ed.doExport('sel')}><Icon name="image2" size={14} /> PNG of the selection</button>
+        <button onclick={() => ed.doExport(ed.selected.size ? 'sel' : 'all', true)}
+          ><Icon name="image2" size={14} /> PNG with a see-through background{ed.selected.size ? ' (selection)' : ''}</button
+        >
+        <button onclick={() => ed.exportSvg('all')}><Icon name="code2" size={14} /> SVG of the whole canvas</button>
+        <button disabled={!ed.selected.size} onclick={() => ed.exportSvg('sel')}><Icon name="code2" size={14} /> SVG of the selection</button>
         <button
           onclick={() => {
             ed.exportMenu = false;
@@ -55,7 +60,7 @@
   <button
     class="icon-btn"
     class:on={ed.gridOn}
-    title="Snap to grid (hold Alt to move freely)"
+    title="Snap to grid (hold Ctrl to move freely)"
     onclick={() => {
       ed.gridOn = !ed.gridOn;
       setPref('grid', ed.gridOn ? '1' : '0');

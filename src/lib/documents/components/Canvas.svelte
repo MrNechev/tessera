@@ -8,6 +8,8 @@
   // selection overlay are their own components.
   import { onMount, untrack } from 'svelte';
   import { paper } from '../lib/canvas';
+  import { outlineKind, textBox } from '../lib/diagram/shapes';
+  import { shapeTextColor } from '../lib/diagram/style';
   import { CanvasEditor } from '../lib/canvasEditor.svelte';
   import { canvasKeyDown, canvasKeyUp } from '../lib/canvasKeys';
   import { CanvasPointer } from '../lib/canvasPointer';
@@ -17,7 +19,10 @@
   import type { DocState } from '../lib/docstate.svelte';
   import { dnd } from '../lib/dnd.svelte';
   import { router } from '../lib/router.svelte';
-  import type { MediaRef, NoteItem } from '../lib/types';
+  import type { MediaRef, NoteItem, ShapeItem } from '../lib/types';
+  import CanvasStyle from './CanvasStyle.svelte';
+  import CanvasIcons from './CanvasIcons.svelte';
+  import CanvasMermaid from './CanvasMermaid.svelte';
   import CanvasPanel from './CanvasPanel.svelte';
   import CanvasWorld from './CanvasWorld.svelte';
   import CanvasMinimap from './CanvasMinimap.svelte';
@@ -101,8 +106,18 @@
   }
 
   const editItem = $derived(ed.editItem);
-  const firstNote = $derived(ed.selItems.find((i) => i.type === 'note') as NoteItem | undefined);
-  const onlyNotes = $derived(ed.selCards.length === 0 && ed.selItems.length > 0 && ed.selItems.every((i) => i.type === 'note'));
+  // text style: notes and shapes (their text)
+  const firstText = $derived(ed.selItems.find((i) => i.type === 'note' || i.type === 'rect' || i.type === 'ellipse') as NoteItem | ShapeItem | undefined);
+  const onlyText = $derived(ed.selCards.length === 0 && ed.selItems.length > 0 && ed.selItems.every((i) => i.type === 'note' || i.type === 'rect' || i.type === 'ellipse'));
+  let pickerTab = $state<'stickers' | 'icons'>('stickers');
+
+  /** the edit box of a shape covers the area its text uses */
+  const editBox = $derived.by(() => {
+    const it = editItem;
+    if (!it || it.type === 'note') return null;
+    const tb = textBox(outlineKind(it), it.w, it.h);
+    return { x: it.x + tb.x, y: it.y + tb.y, w: tb.w, h: tb.h };
+  });
 
   const bgSize = $derived.by(() => {
     let s = 24 * view.z;
@@ -131,6 +146,10 @@
       onpointerdown={(e) => ptr.down(e)}
       onpointermove={(e) => ptr.move(e)}
       onpointerup={(e) => ptr.up(e)}
+      onpointerleave={() => {
+        ed.eraserAt = null;
+        if (!ed.dragging) ed.portHint = null;
+      }}
       onpointercancel={(e) => ptr.up(e)}
       ondblclick={(e) => ptr.dblclick(e)}
       ondragover={(e) => ptr.dragOver(e)}
@@ -174,9 +193,9 @@
             onblur={() => ed.commitEdit()}
             spellcheck="true"
             placeholder={editItem.type === 'note' ? (editItem.color === 'none' ? 'Text' : 'Note') : 'Label'}
-            style="left:{editItem.x}px;top:{editItem.y}px;width:{editItem.w}px;height:{editItem.h}px;font-size:{editItem.size || 24}px;{editItem.type === 'note'
-              ? `background:${paper(editItem.color)};text-align:${editItem.align || 'left'};${lookCss(editItem.look, { pill: editItem.color === 'none' })}`
-              : ''}"
+            style={editItem.type === 'note'
+              ? `left:${editItem.x}px;top:${editItem.y}px;width:${editItem.w}px;height:${editItem.h}px;font-size:${editItem.size || 24}px;background:${paper(editItem.color)};text-align:${editItem.align || 'left'};${lookCss(editItem.look, { pill: editItem.color === 'none' })}`
+              : `left:${editBox!.x}px;top:${editBox!.y}px;width:${editBox!.w}px;height:${editBox!.h}px;font-size:${editItem.size || 24}px;color:${shapeTextColor(editItem)};text-align:${editItem.align ?? 'center'};${lookCss(editItem.look)}`}
           ></textarea>
         </div>
       {/if}
@@ -206,18 +225,34 @@
     {#if ed.stickerPicker}
       <div class="sidepop stickers">
         <header>
-          <b>Stickers</b>
+          <span class="tabs">
+            <button class:on={pickerTab === 'stickers'} onclick={() => (pickerTab = 'stickers')}>Stickers</button>
+            <button class:on={pickerTab === 'icons'} onclick={() => (pickerTab = 'icons')}>Icons</button>
+          </span>
           <span class="muted">click, or drag onto the canvas</span>
           <button class="icon-btn" title="Close (Esc)" onclick={() => (ed.stickerPicker = false)}><Icon name="x" /></button>
         </header>
-        <StickerGrid onpick={(s) => ed.addSticker(s)} draggable autofocus />
+        {#if pickerTab === 'stickers'}
+          <StickerGrid onpick={(s) => ed.addSticker(s)} draggable autofocus />
+        {:else}
+          <CanvasIcons onpick={(id) => ed.addIcon(id)} />
+        {/if}
       </div>
     {/if}
 
-    {#if ed.styleMenu && firstNote && onlyNotes}
+    {#if ed.styleMenu && firstText && onlyText}
       <div class="sidepop textstyle">
-        <CanvasTextStyle look={firstNote.look} onchange={(l) => ed.setLook(l)} onclose={() => (ed.styleMenu = false)} />
+        <CanvasTextStyle look={firstText.look} onchange={(l) => ed.setLook(l)} onclose={() => (ed.styleMenu = false)} />
       </div>
+    {:else if ed.stylePanel && ed.selItems.length}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="sidepop textstyle" onpointerdown={(e) => e.stopPropagation()}>
+        <CanvasStyle {ed} onclose={() => (ed.stylePanel = false)} />
+      </div>
+    {/if}
+
+    {#if ed.mermaidText !== null}
+      <CanvasMermaid {ed} />
     {/if}
 
     {#if ed.help}
@@ -333,9 +368,9 @@
   .editbox.ellipse {
     color: var(--text);
     text-align: center;
-    padding: 8%;
+    padding: 0.2em;
     line-height: 1.25;
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    background: color-mix(in srgb, var(--bg) 35%, transparent);
   }
   /* side panels over the canvas: sticker picker (left, next to the tools) and text style (right) */
   .sidepop {
@@ -367,6 +402,27 @@
     flex: 1;
     margin-left: 8px;
     font-size: 12px;
+  }
+  .tabs {
+    display: inline-flex;
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .tabs button {
+    border: none;
+    background: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-2);
+  }
+  .tabs button.on {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 2px #0002;
   }
   .minimap {
     position: absolute;

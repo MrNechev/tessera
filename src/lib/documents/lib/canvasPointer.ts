@@ -3,14 +3,16 @@
 // empty space); moves and drops become commands on the CanvasEditor.
 import {
   arrowPath as arrowGeom,
-  arrowPoints,
+  containsPoint,
   containsRect,
   ensureCanvas,
   expand,
   intersects,
-  newArrow,
+  isBox,
   newPath,
   normRect,
+  pathPoints,
+  ports,
   simplify,
   snap,
   snapAngle,
@@ -20,11 +22,14 @@ import {
   zoomAt,
 } from './canvas';
 import type { CanvasEditor } from './canvasEditor.svelte';
-import { snapGuides } from './diagram/guides';
+import { guideLines, snapEdge, snapGuides } from './diagram/guides';
+import { nearestSide, nearestT } from './diagram/connectors';
+import { splitStroke, strokeHit } from './diagram/eraser';
 import { dnd, hasMedia, readDrop } from './dnd.svelte';
 import { stickers } from '../../stores/stickers.svelte';
 import { STICKER_MIME } from '../../components/StickerGrid.svelte';
-import type { ArrowEnd, ArrowItem, Rect, StickerItem } from './types';
+import { ICON_MIME } from '../components/CanvasIcons.svelte';
+import type { ArrowEnd, ArrowItem, PathItem, Rect, Side, StickerItem } from './types';
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; tx: number; ty: number }
@@ -38,17 +43,21 @@ type Drag =
       clicked: string;
       bbox: Rect | null;
       cands: Rect[];
+      /** Alt+drag: move a copy (connected to the original when it is one box) */
+      dup?: boolean;
     }
-  | { kind: 'resize'; id: string; handle: string; start: Rect; sx: number; sy: number; moved: boolean; minW: number; minH: number; keep?: boolean }
+  | { kind: 'resize'; id: string; handle: string; start: Rect; sx: number; sy: number; moved: boolean; minW: number; minH: number; keep?: boolean; lines?: { x: number[]; y: number[] } }
   // turned stickers scale around their centre (the pointer's distance from it), so any
   // corner works whatever the rotation
   | { kind: 'scale'; it: StickerItem; cx: number; cy: number; d0: number; w0: number; h0: number; moved: boolean }
   | { kind: 'rotate'; it: StickerItem; cx: number; cy: number; a0: number; r0: number; moved: boolean }
   | { kind: 'marquee'; x0: number; y0: number; base: Set<string> }
   | { kind: 'create'; x0: number; y0: number; sx: number; sy: number }
-  | { kind: 'arrow'; from: ArrowEnd; sx: number; sy: number }
+  | { kind: 'arrow'; from: ArrowEnd; sx: number; sy: number; line: boolean }
   | { kind: 'end'; a: ArrowItem; which: 'from' | 'to'; moved: boolean }
   | { kind: 'curve'; a: ArrowItem; moved: boolean }
+  | { kind: 'label'; a: ArrowItem; moved: boolean }
+  | { kind: 'erase'; moved: boolean }
   | { kind: 'ink' }
   | { kind: 'pinch' };
 
@@ -58,6 +67,75 @@ export class CanvasPointer {
   private pinch: { d: number; mx: number; my: number } | null = null;
 
   constructor(private ed: CanvasEditor) {}
+
+  /**
+   * The item a connector end would attach to at this point, and the side port within
+   * reach (ports show on the item; near a port the end sticks to that side).
+   */
+  private attachAt(clientX: number, clientY: number, w: { x: number; y: number }, skip?: string): { id: string; side?: Side } | null {
+    const ed = this.ed;
+    const reach = 16 / ed.view.z;
+    const hit = ed.hitAt(clientX, clientY, skip);
+    let id = hit && hit.kind !== 'arrow' && ed.tg.has(hit.id) ? hit.id : null;
+    if (!id) {
+      // just outside an item, next to one of its ports
+      for (const [tid, t] of ed.tg) {
+        if (tid === skip || t.frame) continue;
+        if (!containsPoint({ x: t.rect.x - reach, y: t.rect.y - reach, w: t.rect.w + 2 * reach, h: t.rect.h + 2 * reach }, w.x, w.y)) continue;
+        if (nearestSide(ports(t), w, reach)) {
+          id = tid;
+          break;
+        }
+      }
+    }
+    if (!id) {
+      ed.portHint = null;
+      return null;
+    }
+    const ps = ports(ed.tg.get(id)!);
+    const side = nearestSide(ps, w, reach);
+    ed.portHint = { id, ports: ps, active: side };
+    return { id, side };
+  }
+
+  /** a connector end at w: attached (with a side when on a port) or free */
+  private endAt(clientX: number, clientY: number, w: { x: number; y: number }, skip?: string): ArrowEnd {
+    const at = this.attachAt(clientX, clientY, w, skip);
+    if (!at) return { x: w.x, y: w.y };
+    return at.side ? { x: w.x, y: w.y, id: at.id, side: at.side } : { x: w.x, y: w.y, id: at.id };
+  }
+
+  /** eraser at w: whole strokes go (stroke mode) or the touched part is cut out (split mode) */
+  private erase(w: { x: number; y: number }, drag: { moved: boolean }) {
+    const ed = this.ed;
+    const r = 10 / ed.view.z;
+    const c = ensureCanvas(ed.doc);
+    for (let i = c.items.length - 1; i >= 0; i--) {
+      const it = c.items[i];
+      if (it.type !== 'path' || it.locked) continue;
+      if (w.x < it.x - r || w.y < it.y - r || w.x > it.x + it.w + r || w.y > it.y + it.h + r) continue;
+      const pts = pathPoints(it);
+      if (ed.eraserMode === 'stroke') {
+        if (!strokeHit(pts, it.width, w.x, w.y, r)) continue;
+        if (!drag.moved) ed.before();
+        drag.moved = true;
+        c.items.splice(i, 1);
+      } else {
+        const pieces = splitStroke(pts, it.width, w.x, w.y, r);
+        if (!pieces) continue;
+        if (!drag.moved) ed.before();
+        drag.moved = true;
+        const keep = { group: it.group, z: it.z, reveal: it.reveal, opacity: it.opacity };
+        const parts = pieces.map((pc) => {
+          const n = newPath(simplify(pc, 0.4), it.color, it.width, !!it.highlighter) as PathItem;
+          for (const [k, v] of Object.entries(keep)) if (v !== undefined) (n as unknown as Record<string, unknown>)[k] = v;
+          return n;
+        });
+        c.items.splice(i, 1, ...parts);
+      }
+      if (ed.selected.has(it.id)) ed.select([...ed.selected].filter((x) => x !== it.id));
+    }
+  }
 
   down(e: PointerEvent) {
     const ed = this.ed;
@@ -99,6 +177,10 @@ export class CanvasPointer {
         this.drag = { kind: 'curve', a: singleArrow, moved: false };
         return;
       }
+      if (h === 'label' && singleArrow) {
+        this.drag = { kind: 'label', a: singleArrow, moved: false };
+        return;
+      }
       if ((h === 'from' || h === 'to') && singleArrow) {
         this.drag = { kind: 'end', a: singleArrow, which: h, moved: false };
         return;
@@ -116,7 +198,19 @@ export class CanvasPointer {
       if (single) {
         const r = ed.rectOf(single)!;
         const card = ed.secMap.has(single);
-        this.drag = { kind: 'resize', id: single, handle: h, start: { ...r }, sx, sy, moved: false, minW: card ? 160 : 24, minH: card ? 90 : 24 };
+        const cands = this.nearby(new Set([single]));
+        this.drag = {
+          kind: 'resize',
+          id: single,
+          handle: h,
+          start: { ...r },
+          sx,
+          sy,
+          moved: false,
+          minW: card ? 160 : 24,
+          minH: card ? 90 : 24,
+          lines: { x: guideLines(cands, 'x'), y: guideLines(cands, 'y') },
+        };
       }
       return;
     }
@@ -127,16 +221,21 @@ export class CanvasPointer {
       ed.inkPath = [[w.x, w.y]];
       return;
     }
-    if (tool === 'arrow') {
-      const hit = ed.hitAt(e.clientX, e.clientY);
-      const from: ArrowEnd = hit && hit.kind !== 'arrow' ? { x: w.x, y: w.y, id: hit.id } : { x: w.x, y: w.y };
-      this.drag = { kind: 'arrow', from, sx, sy };
+    if (tool === 'eraser') {
+      const d = { kind: 'erase' as const, moved: false };
+      this.drag = d;
+      this.erase(w, d);
+      return;
+    }
+    if (tool === 'arrow' || tool === 'line') {
+      const from = this.endAt(e.clientX, e.clientY, w);
+      this.drag = { kind: 'arrow', from, sx, sy, line: tool === 'line' };
       ed.preview = { kind: 'arrow', p1: w, p2: w, target: null };
       return;
     }
     if (tool !== 'select') {
       this.drag = { kind: 'create', x0: w.x, y0: w.y, sx, sy };
-      ed.preview = { kind: 'rect', rect: { x: w.x, y: w.y, w: 0, h: 0 }, shape: tool };
+      ed.preview = { kind: 'rect', rect: { x: w.x, y: w.y, w: 0, h: 0 }, shape: tool === 'shape' ? ed.shapeKind : tool };
       return;
     }
 
@@ -156,14 +255,14 @@ export class CanvasPointer {
         else for (const m of members) s.add(m);
         ed.select(s);
       } else if (!ed.selected.has(id)) ed.select(e.altKey ? [id] : ed.withGroups([id]));
-      if (ed.selected.has(id) && !ed.isLocked(id)) this.startMove(sx, sy, id);
+      if (ed.selected.has(id) && !ed.isLocked(id)) this.startMove(sx, sy, id, e.altKey && !e.shiftKey);
       return;
     }
     if (!e.shiftKey) ed.select([]);
     this.drag = { kind: 'marquee', x0: w.x, y0: w.y, base: new Set(ed.selected) };
   }
 
-  private startMove(sx: number, sy: number, clicked: string) {
+  private startMove(sx: number, sy: number, clicked: string, dup = false) {
     const ed = this.ed;
     const ids = new Set(ed.selected);
     // frames carry what is inside them
@@ -189,22 +288,40 @@ export class CanvasPointer {
     }
     // alignment guides: edges and centres of nearby boxes that aren't moving
     const bbox = union(boxes.map((b) => ({ x: b.x, y: b.y, w: b.o.w, h: b.o.h })));
-    const cands: Rect[] = [];
-    if (bbox) {
-      const near = expand(visibleRect(ed.view, ed.vw, ed.vh), 0.2);
-      for (const id of ed.allIds()) {
-        if (ids.has(id)) continue;
-        const it = ed.itemMap.get(id);
-        if (it && (it.type === 'arrow' || it.type === 'path')) continue;
-        const r = ed.rectOf(id);
-        if (r && intersects(r, near)) cands.push({ ...r });
-        if (cands.length > 400) break;
-      }
-    }
-    this.drag = { kind: 'move', sx, sy, boxes, arrows, moved: false, clicked, bbox, cands };
+    const cands = bbox ? this.nearby(ids) : [];
+    this.drag = { kind: 'move', sx, sy, boxes, arrows, moved: false, clicked, bbox, cands, dup };
   }
 
-  move(e: PointerEvent) {
+  /** boxes in (and around) the view that guides can line up with, except `skip` */
+  private nearby(skip: Set<string>): Rect[] {
+    const ed = this.ed;
+    const cands: Rect[] = [];
+    const near = expand(visibleRect(ed.view, ed.vw, ed.vh), 0.2);
+    for (const id of ed.allIds()) {
+      if (skip.has(id)) continue;
+      const it = ed.itemMap.get(id);
+      if (it && (it.type === 'arrow' || it.type === 'path')) continue;
+      const r = ed.rectOf(id);
+      if (r && intersects(r, near)) cands.push({ ...r });
+      if (cands.length > 400) break;
+    }
+    return cands;
+  }
+
+  /** Alt+drag started: copy the selection in place and drag the copies instead */
+  private startDuplicate(drag: Extract<Drag, { kind: 'move' }>) {
+    const ed = this.ed;
+    const orig = [...ed.selected];
+    const one = orig.length === 1 ? ed.itemMap.get(orig[0]) : undefined;
+    const card = orig.length === 1 && ed.secMap.has(orig[0]);
+    const res = ed.duplicateSelection(0, 0, false);
+    if (!res || !res.ids.length) return;
+    if ((one && isBox(one) && one.type !== 'frame' && one.type !== 'path') || card) ed.connect(orig[0], res.idMap.get(orig[0])!);
+    this.startMove(drag.sx, drag.sy, res.ids[0]);
+    (this.drag as Extract<Drag, { kind: 'move' }>).moved = true;
+  }
+
+  move(e: PointerEvent): void {
     const ed = this.ed;
     if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) {
       this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -223,11 +340,20 @@ export class CanvasPointer {
       }
     }
     const drag = this.drag;
-    if (!drag) return;
+    if (!drag) {
+      // hover: connection points under the connector tools, the eraser circle
+      const tool = ed.tool;
+      if (tool === 'arrow' || tool === 'line') this.attachAt(e.clientX, e.clientY, ed.worldPt(e));
+      else if (ed.portHint) ed.portHint = null;
+      ed.eraserAt = tool === 'eraser' ? ed.worldPt(e) : null;
+      return;
+    }
     const view = ed.view;
     const { sx, sy } = ed.screenPt(e);
     const w = toWorld(view, sx, sy);
-    const snapOn = ed.gridOn && !e.altKey;
+    // Ctrl (or Alt, except when Alt+drag copies) moves freely: no grid, no guides
+    const free = e.ctrlKey || e.metaKey || (e.altKey && !(drag.kind === 'move' && drag.dup));
+    const snapOn = ed.gridOn && !free;
     switch (drag.kind) {
       case 'pan':
         ed.setView({ ...view, tx: drag.tx + sx - drag.sx, ty: drag.ty + sy - drag.sy });
@@ -238,6 +364,10 @@ export class CanvasPointer {
           drag.moved = true;
           ed.dragging = true;
           ed.before();
+          if (drag.dup) {
+            this.startDuplicate(drag);
+            if (this.drag !== drag) return this.move(e);
+          }
         }
         let dx = (sx - drag.sx) / view.z,
           dy = (sy - drag.sy) / view.z;
@@ -245,7 +375,7 @@ export class CanvasPointer {
         // smart guides first (edges/centres line up with other boxes), then the grid
         let gx = false,
           gy = false;
-        if (drag.bbox && !e.altKey) {
+        if (drag.bbox && !free) {
           const g = snapGuides(drag.bbox, dx, dy, drag.cands, 6 / view.z);
           dx = g.dx;
           dy = g.dy;
@@ -281,10 +411,25 @@ export class CanvasPointer {
           x1 = o.x + o.w,
           y1 = o.y + o.h;
         const h = drag.handle;
-        if (h.includes('w')) x0 = snap(o.x + dx, snapOn);
-        if (h.includes('e')) x1 = snap(o.x + o.w + dx, snapOn);
-        if (h.includes('n')) y0 = snap(o.y + dy, snapOn);
-        if (h.includes('s')) y1 = snap(o.y + o.h + dy, snapOn);
+        // moving edges line up with other boxes first (guides), then the grid
+        const thr = 6 / view.z;
+        const gx: number[] = [],
+          gy: number[] = [];
+        const edge = (v: number, axis: 'x' | 'y') => {
+          if (!free && drag.lines) {
+            const g = snapEdge(v, drag.lines[axis], thr);
+            if (g.guide !== null) {
+              (axis === 'x' ? gx : gy).push(g.guide);
+              return g.v;
+            }
+          }
+          return snap(v, snapOn);
+        };
+        if (h.includes('w')) x0 = edge(o.x + dx, 'x');
+        if (h.includes('e')) x1 = edge(o.x + o.w + dx, 'x');
+        if (h.includes('n')) y0 = edge(o.y + dy, 'y');
+        if (h.includes('s')) y1 = edge(o.y + o.h + dy, 'y');
+        ed.guides = { x: gx, y: gy };
         if (x1 - x0 < drag.minW) h.includes('w') ? (x0 = x1 - drag.minW) : (x1 = x0 + drag.minW);
         if (y1 - y0 < drag.minH) h.includes('n') ? (y0 = y1 - drag.minH) : (y1 = y0 + drag.minH);
         if ((e.shiftKey || drag.keep) && h.length === 2) {
@@ -361,13 +506,27 @@ export class CanvasPointer {
         break;
       }
       case 'arrow': {
-        const hit = ed.hitAt(e.clientX, e.clientY, drag.from.id);
-        const target = hit && hit.kind !== 'arrow' ? hit.id : null;
-        const a: ArrowItem = { id: '', type: 'arrow', from: drag.from, to: target ? { ...w, id: target } : w, color: 'ink' };
-        const { p1, p2 } = arrowPoints(a, ed.tg);
-        ed.preview = { kind: 'arrow', p1, p2, target };
+        const to = this.endAt(e.clientX, e.clientY, w, drag.from.id);
+        const a: ArrowItem = { id: '', type: 'arrow', from: drag.from, to, color: 'ink' };
+        if (ed.route !== 'straight') a.route = ed.route;
+        const g = arrowGeom(a, ed.tg);
+        ed.preview = { kind: 'arrow', p1: g.p1, p2: g.p2, target: to.id ?? null, d: g.d };
         break;
       }
+      case 'label': {
+        if (!drag.moved) {
+          drag.moved = true;
+          ed.dragging = true;
+          ed.before();
+        }
+        const g = arrowGeom(drag.a, ed.tg);
+        drag.a.labelAt = Math.round(nearestT(g.poly, w) * 1000) / 1000;
+        break;
+      }
+      case 'erase':
+        ed.eraserAt = w;
+        this.erase(w, drag);
+        break;
       case 'ink': {
         const ink = ed.inkPath;
         if (ink) {
@@ -395,10 +554,12 @@ export class CanvasPointer {
           ed.dragging = true;
           ed.before();
         }
-        const hit = ed.hitAt(e.clientX, e.clientY, drag.a.id);
         const other = drag.which === 'from' ? drag.a.to : drag.a.from;
-        const target = hit && hit.kind !== 'arrow' && hit.id !== other.id ? hit.id : undefined;
-        drag.a[drag.which] = target ? { x: w.x, y: w.y, id: target } : { x: w.x, y: w.y };
+        const end = this.endAt(e.clientX, e.clientY, w, drag.a.id);
+        if (end.id && end.id === other.id) {
+          ed.portHint = null;
+          drag.a[drag.which] = { x: w.x, y: w.y };
+        } else drag.a[drag.which] = end;
         break;
       }
     }
@@ -419,8 +580,13 @@ export class CanvasPointer {
     ed.panning = false;
     ed.dragging = false;
     ed.guides = { x: [], y: [] };
+    ed.portHint = null;
     if (!d) return;
     const view = ed.view;
+    if (d.kind === 'erase') {
+      if (d.moved) ed.change();
+      return;
+    }
     if (d.kind === 'ink') {
       const pts = ed.inkPath;
       ed.inkPath = null;
@@ -434,7 +600,7 @@ export class CanvasPointer {
       }
       return;
     }
-    if (d.kind === 'curve') {
+    if (d.kind === 'curve' || d.kind === 'label') {
       if (d.moved) ed.change();
       return;
     }
@@ -472,10 +638,10 @@ export class CanvasPointer {
         ed.preview = null;
         if (!p) break;
         if (!p.target && Math.hypot(sx - d.sx, sy - d.sy) < 12) break;
-        const to: ArrowEnd = p.target ? { x: w.x, y: w.y, id: p.target } : { x: w.x, y: w.y };
+        const to = this.endAt(e.clientX, e.clientY, w, d.from.id);
+        ed.portHint = null;
         ed.before();
-        const a = newArrow(d.from, to);
-        ensureCanvas(ed.doc).items.push(a);
+        const a = ed.addConnector(d.from, to.id && to.id === d.from.id ? { x: w.x, y: w.y } : to, d.line);
         ed.select([a.id]);
         ed.tool = 'select';
         ed.change();
@@ -533,7 +699,7 @@ export class CanvasPointer {
   }
 
   dragOver(e: DragEvent) {
-    if (e.dataTransfer?.types.includes(STICKER_MIME)) {
+    if (e.dataTransfer?.types.includes(STICKER_MIME) || e.dataTransfer?.types.includes(ICON_MIME)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       return;
@@ -547,6 +713,12 @@ export class CanvasPointer {
   drop(e: DragEvent) {
     const ed = this.ed;
     ed.dropHint = false;
+    const icon = e.dataTransfer?.getData(ICON_MIME);
+    if (icon) {
+      e.preventDefault();
+      ed.addIcon(icon, ed.worldPt(e));
+      return;
+    }
     const sid = e.dataTransfer?.getData(STICKER_MIME);
     if (sid) {
       e.preventDefault();
