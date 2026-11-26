@@ -6,6 +6,7 @@
   import { outlineExtra, outlinePath, shapeFields, SHAPES, outlineKind, type ShapeId } from '../lib/diagram/shapes';
   import { DIAGRAM_TEMPLATES } from '../lib/diagram/templates';
   import Icon from './Icon.svelte';
+  import { paintNew } from '../lib/paintLink.svelte';
 
   let { ed }: { ed: CanvasEditor } = $props();
   let fileEl = $state<HTMLInputElement>();
@@ -92,6 +93,16 @@
             <span><b>{t.name}</b><small>{t.description}</small></span>
           </button>
         {/each}
+        <div class="ph">Draw</div>
+        <button
+          onclick={() => {
+            ed.diagramMenu = false;
+            if (ed.ds.doc) void paintNew(ed.ds.doc.id, ed.ds.doc.title, ed.viewCenter());
+          }}
+        >
+          <Icon name="brush" size={15} />
+          <span><b>New drawing in Paint…</b><small>Paint with brushes and layers; export it and it lands here as a card.</small></span>
+        </button>
         <div class="ph">Import</div>
         <button
           onclick={() => {

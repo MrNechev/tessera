@@ -26,8 +26,18 @@ library. Released work is described in detail in [CHANGELOG.md](CHANGELOG.md).
 | ✅ | 0.6.0 | Letopis merged in: library, documents, canvas, presentations, exports; Tessera as a Docker web app; write guard; desktop library setup |
 | ✅ | 0.7.0 | One app: home, headers, Ctrl+K, library in the collage editor, settings; Stories (diary, calendar, on this day, story starter, live collages); one photo toolkit everywhere; cut-outs; memes; MP4 slideshows; `:edge` image |
 | ✅ | 0.7.1 | Polish: Library folders on the left and easier multi-select, a photo side panel and media size slider in stories, canvas stacking order, typed text sizes, middle-click paste fix |
+| ✅ | 0.8.0 | Drawing: a Paint editor with layers (.ora, export to Outputs › Drawings, memes, Select subject); diagrams on the canvas (12 shapes, styled connectors with ports and elbow routing, guides, mind-map keys, eraser, templates, icons, SVG export, dagre tidy-up, Mermaid and draw.io import); Paint on photos from the Library, stories, the canvas and collages |
 
 ---
+
+## 0.8.x — Finish drawing
+
+| | Item | Why / what | Size |
+|---|---|---|---|
+| 📋 | **Check Paint with a pen tablet** | Pressure was tested with the mouse fallback only. Check a Wacom/tablet in the desktop window (WebKitGTK) and in Chromium; tune the pressure curve. | S |
+| 📋 | **Layer groups and adjustment layers in Paint** | Groups from `.ora` files are flattened today; text layers turn into pixels after resize/rotate. | M |
+| 📋 | **More Mermaid and draw.io** | Mermaid sequence diagrams and edge ids; draw.io multi-page files, waypoints and hidden cells. | M |
+| 📋 | **Drawings as live items** | A drawing on the canvas or in a collage is an exported image; re-export from Paint updates it everywhere automatically. | S |
 
 ## 0.7.x — Finish what 0.7 started
 
@@ -58,7 +68,7 @@ Gaps found while building and testing 0.7.0.
 | 📋 | **One project store** | Collages get what stories have: version history, restore, conflict detection when the same project is open in two places (two browser tabs, two computers), trash, and backup in the same zip. | M |
 | 📋 | **Shared interaction layer** | Selection, handles, snapping guides, align/distribute, groups, lock, undo history and clipboard shared by the canvas and the collage editor (today each has its own). Copy elements between them. | L |
 
-## 0.8 — Tessera on a server
+## 0.9 — Tessera on a server
 
 For the Docker web app (the part used every day on slavlab).
 
@@ -75,7 +85,7 @@ For the Docker web app (the part used every day on slavlab).
 | 📋 | **Share the desktop app on the network** | A Settings switch (off by default; turns on password login) so phones can use the presentation remote with the desktop app too. | M |
 | 💡 | **User accounts** | Several people with their own stories and projects, shared libraries. Only if the single password stops being enough. | L |
 
-## 0.9 — A smarter library
+## 0.10 — A smarter library
 
 | | Item | Why / what | Size |
 |---|---|---|---|

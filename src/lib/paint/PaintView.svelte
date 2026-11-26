@@ -35,7 +35,8 @@
   import { addMemeText, applyCrop, copySelection, handleKey, onPaste, pasteShortcut, selectSubject, setTool, zoomBy, zoomTo } from './actions.svelte';
   import { blobCanvas, imageDataCanvas } from './io';
   import { drawings, type DrawingSummary } from './lib/store';
-  import { addImageLayer, closePaint, dropPaint, flushPaint, newPaintFromClipboard, openPaint, openPaintDoc, saveNow } from './session.svelte';
+  import { addImageLayer, closePaint, dropPaint, exportDrawing, flushPaint, newPaintFromClipboard, openPaint, openPaintDoc, saveNow } from './session.svelte';
+  import { backToStory, handedOver, storyJob } from '../documents/lib/paintLink.svelte';
   import { paint } from './state.svelte';
   import ColorsPanel from './components/ColorsPanel.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
@@ -210,6 +211,21 @@
     { label: 'Close drawing', run: () => void close() },
   ];
 
+  const job = $derived(paint.doc ? storyJob() : null);
+  const short = (t: string) => (t.length > 22 ? t.slice(0, 21) + '…' : t);
+  /** Export as PNG and go back to the story the drawing came from (it goes in there). */
+  async function putInStory() {
+    const r = await exportDrawing('png', 92);
+    if (!r) return;
+    paint.busy = 'Putting it in…';
+    try {
+      await handedOver();
+    } finally {
+      paint.busy = null;
+    }
+    backToStory();
+  }
+
   async function close() {
     await closePaint();
     await refresh();
@@ -346,7 +362,12 @@
       </div>
       <button class="icon-btn" title="Shortcuts (?)" aria-label="Shortcuts" onclick={() => (paint.dialog = 'help')}><HelpCircle size={17} /></button>
       <button class="btn" title="Save progress with layers (Ctrl+S)" onclick={() => void saveNow()}><Save size={15} /> Save</button>
-      <button class="btn primary" title="Export as PNG, JPEG or WebP into Outputs › Drawings (Ctrl+E)" onclick={() => (paint.dialog = 'export')}><ImageDown size={15} /> Export</button>
+      {#if job}
+        <button class="btn" title="Export as PNG, JPEG or WebP into Outputs › Drawings (Ctrl+E)" onclick={() => (paint.dialog = 'export')}><ImageDown size={15} /> Export</button>
+        <button class="btn primary" title="Export as PNG into Outputs › Drawings and put it in “{job.title}”" onclick={() => void putInStory()}><Undo2 size={15} /> Put in “{short(job.title)}”</button>
+      {:else}
+        <button class="btn primary" title="Export as PNG, JPEG or WebP into Outputs › Drawings (Ctrl+E)" onclick={() => (paint.dialog = 'export')}><ImageDown size={15} /> Export</button>
+      {/if}
       <button class="icon-btn" title="Close the drawing" aria-label="Close the drawing" onclick={() => void close()}><X size={17} /></button>
     </header>
     <ToolOptions />

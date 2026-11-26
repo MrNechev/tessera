@@ -139,7 +139,6 @@
     elbow: 'M4 4v8h16v8',
     'tidy-tb': 'M9 3h6v5H9zM3 16h6v5H3zM15 16h6v5h-6zM12 8v4M6 16v-4h12v4',
     'tidy-lr': 'M3 9h5v6H3zM16 3h5v6h-5zM16 15h5v6h-5zM8 12h4M16 6h-4v12h4',
-    brush: 'M9.1 14.9 3 21M14 4l6 6-8.5 8.5-6-6zM17 2l5 5',
     paste: 'M8 4h8v4H8zM16 6h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2',
     import: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     shapetext: 'M4 4h16v16H4zM9 9h6M12 9v7',

@@ -6022,7 +6022,7 @@ dependencies = [
 
 [[package]]
 name = "tessera"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "env_logger",
@@ -6043,7 +6043,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-core"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -6100,7 +6100,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-imaging"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "crc32fast",
  "fast_image_resize",
@@ -6128,7 +6128,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-server"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "rustls",

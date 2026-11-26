@@ -4,14 +4,15 @@
 
 # Tessera
 
-**A creative photo collage studio, an image Swiss Army knife, and a home for your photo and video library.**
+**A creative photo collage studio, a paint program and diagram board, an image Swiss Army knife, and a home for your photo and video library.**
 
 Quick automatic collages, hand-crafted designs and templates for every occasion;
 a converter and a smart compressor that keep the metadata you care about; and a
 media library with stories — diaries, trips, chronicles — a canvas and
-presentations made from the photos and videos already in your folders. One
-photo toolkit (filters, adjustments, crops, frames, cut-outs) works in every
-editor.
+presentations made from the photos and videos already in your folders; a
+**Paint** editor with layers for drawing, retouching and memes; and
+**diagrams** (flowcharts, mind maps, org charts) on the canvas. One photo
+toolkit (filters, adjustments, crops, frames, cut-outs) works in every editor.
 Install it as a **desktop app**, or run it on a server as a **web app in Docker**.
 Free and open source. No accounts, no watermarks, no paywall.
 
@@ -68,7 +69,7 @@ your computer and shows it in a window, the web app serves it to browsers.
   range (a chapter per day, the best photos, captions with date and place).
 - **Canvas** — the same story as an infinite whiteboard: cards, notes, text
   in Tessera's styles, stickers, shapes, arrows, frames, pen drawings, groups,
-  a minimap and auto-arrange.
+  a minimap and auto-arrange. It is also a **diagram tool** (see below).
 - **Presentations** — any story or canvas becomes a slideshow with
   transitions, an overview, a speaker-notes window, timed or looping playback,
   a laser pointer and drawing, background music, rehearsal timing and a phone
@@ -82,6 +83,36 @@ your computer and shows it in a window, the web app serves it to browsers.
   made on the GPU where possible (VAAPI). GIFs become small looping videos.
 - **System** page — indexing queues, cache, GPU status and a stress test;
   <kbd>Ctrl</kbd>+<kbd>K</kbd> opens a command palette everywhere.
+
+### Drawing and diagrams
+
+- **Paint** — a paint program with layers: a pressure-sensitive brush, pencil,
+  eraser, fill bucket, eyedropper, lines, arrows, rectangles and ellipses,
+  text in Tessera's styles, blur, smudge and clone. Select with a rectangle,
+  ellipse, lasso, magic wand, or *Select subject* (the cut-out model), then
+  move, copy, fill or crop. Crop, resize, rotate and flip; apply any photo look
+  to a layer; 16 blend modes; undo that remembers only what changed. Start from
+  a blank page, a Library photo, the clipboard or an `.ora` file; *Meme* adds
+  classic top and bottom text.
+- **Save progress, export images** — drawings save automatically, with their
+  layers, as OpenRaster (`.ora`, opens in GIMP and Krita) and wait under
+  *Drawings* on Home. *Export* makes a PNG, JPEG or WebP in Outputs › Drawings;
+  *Edit in Paint* on an exported image reopens its layers.
+- **Paint on any photo** — from the Library, a story's photo panel, a canvas
+  card or a collage photo. *Put in “…”* exports the drawing and puts it back
+  in place of the photo (the original file is never changed). *New drawing in
+  Paint* on the canvas adds the result as a card.
+- **Diagrams on the canvas** — twelve shapes (diamond, cylinder, document,
+  cloud, speech bubble, star…) with text inside, a style panel (fill, line,
+  width, dashes, corners, opacity, copy/paste style), connectors that stick to
+  a side and run straight, curved or around shapes at right angles, with six
+  arrowheads and draggable labels. Guides snap while you drag; <kbd>Tab</kbd>
+  adds a connected box and <kbd>Enter</kbd> a sibling, mind-map style;
+  <kbd>Alt</kbd>+drag copies and connects. An eraser for pen strokes, 205
+  icons, and templates (flowchart, mind map, org chart, timeline).
+- **Tidy up, import, export** — automatic layered layout (top-down or
+  left-right); type or paste **Mermaid** flowcharts; open **draw.io** files;
+  export SVG, a PNG with a see-through background, or a PDF.
 
 ### One photo toolkit, everywhere
 
@@ -333,18 +364,21 @@ The full plan, with sizes and reasons, is in **[ROADMAP.md](ROADMAP.md)**. In sh
    collage editor, a command palette for everything, Stories with diary
    features and live collages, one photo toolkit in every editor, cut-outs,
    memes, MP4 slideshows.
-4. **Finish 0.7** (0.7.x): sound from video clips in MP4 slideshows, cleaner
+4. ✅ **Drawing** (0.8.0): a Paint editor with layers, diagrams on the canvas
+   (shapes, connectors, templates, Mermaid and draw.io import, auto-layout),
+   painting on photos from every editor.
+5. **Finish 0.7** (0.7.x): sound from video clips in MP4 slideshows, cleaner
    cut-out edges, collages in the offline package, story covers from collage
    templates, a check of everything in the desktop window.
-5. **Still open from 0.6.x/0.7**: a better server file picker, upload
+6. **Still open from 0.6.x/0.7**: a better server file picker, upload
    progress, per-browser video support, ffmpeg in the Flatpak, web-app tests in
    CI, one image engine and cache, version history for collages, a shared
    interaction layer.
-6. **Tessera on a server** (0.8): install as an app, phones and tablets,
+7. **Tessera on a server** (0.9): install as an app, phones and tablets,
    read-only share links, built-in backups, update notices, real HTTPS certificates.
-7. **A smarter library** (0.9): more libraries (Immich), a places map, smart
+8. **A smarter library** (0.10): more libraries (Immich), a places map, smart
    collections, face and object search (an idea, local models only).
-8. **1.0**: stable formats, translations, Flathub, AppImage updates.
+9. **1.0**: stable formats, translations, Flathub, AppImage updates.
 
 Ideas and bug reports are very welcome — [open an issue](https://github.com/MrNechev/tessera/issues).
 

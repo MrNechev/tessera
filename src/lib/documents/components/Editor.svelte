@@ -2,6 +2,7 @@
   import { middleClickPaste } from '../../platform/middleclick';
   import Sortable from 'sortablejs';
   import { onMount, tick } from 'svelte';
+  import { applyPaintResult } from '../lib/paintLink.svelte';
   import { DocState } from '../lib/docstate.svelte';
   import { dnd, hasMedia, readDrop } from '../lib/dnd.svelte';
   import { describe as describeExternal, hasFiles, matchFiles, matchPaths, matchText, uploadToInbox, type ExternalResult } from '../lib/external';
@@ -235,6 +236,7 @@
     const offPaths = () => window.removeEventListener('tessera:paths-drop', onPathsDrop);
     ds.load(id).then(async () => {
       if (ds.doc) {
+        applyPaintResult(ds);
         document.title = `${ds.doc.title} · Tessera`;
         resolver.prefetch(ds.doc.sections.flatMap((s) => s.media));
         const jump = router.route.name === 'doc' ? router.route.section : undefined;

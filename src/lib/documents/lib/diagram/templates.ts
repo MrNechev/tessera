@@ -24,6 +24,32 @@ const FLOW = `flowchart TD
   check -->|No| fix[Fix it]
   fix --> work`;
 
+/** The Mermaid flowchart with tidy ports: the decision branches leave its sides and the
+ *  loop goes back into the side of the step, so no two lines share a point. */
+function flowchart() {
+  const d = buildDiagram(parseMermaid(FLOW), { stroke: 'blue', fill: 'blue', route: 'elbow' });
+  const byText = new Map<string, string>();
+  for (const it of d.items) if (it.type !== 'arrow' && 'text' in it && it.text) byText.set(it.text, it.id);
+  const work = byText.get('Do the work');
+  const check = byText.get('All good?');
+  const fix = byText.get('Fix it');
+  const done = byText.get('Done');
+  for (const a of d.items) {
+    if (a.type !== 'arrow') continue;
+    if (a.from.id === fix && a.to.id === work) {
+      a.from = { ...a.from, side: 'left' };
+      a.to = { ...a.to, side: 'left' };
+    } else if (a.from.id === check && a.to.id === fix) {
+      a.from = { ...a.from, side: 'left' };
+      a.to = { ...a.to, side: 'top' };
+    } else if (a.from.id === check && a.to.id === done) {
+      a.from = { ...a.from, side: 'bottom' };
+      a.to = { ...a.to, side: 'top' };
+    }
+  }
+  return d;
+}
+
 function orgGraph(): DiagramGraph {
   const n = (id: string, label: string, fill: string) => ({ id, label, shape: 'rect' as const, rounded: true, fill, stroke: fill });
   const nodes = [
@@ -108,7 +134,7 @@ function timeline(): CanvasItem[] {
 
 /** Items of a template with their top-left at (0, 0) and their bounds. */
 export function diagramTemplate(id: DiagramTemplateId): { items: CanvasItem[]; bounds: Rect } {
-  if (id === 'flowchart') return buildDiagram(parseMermaid(FLOW), { stroke: 'blue', fill: 'blue', route: 'elbow' });
+  if (id === 'flowchart') return flowchart();
   if (id === 'orgchart') return buildDiagram(orgGraph(), { route: 'elbow', ranksep: 80 });
   if (id === 'blank') return { items: [{ id: newId(), type: 'frame', x: 0, y: 0, w: 1600, h: 900, title: 'Diagram' }], bounds: { x: 0, y: 0, w: 1600, h: 900 } };
   const items = id === 'mindmap' ? mindmap() : timeline();

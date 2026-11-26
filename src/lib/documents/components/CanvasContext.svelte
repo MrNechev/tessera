@@ -7,6 +7,8 @@
   import { outlineExtra, outlineKind, outlinePath, shapeFields, shapeIdOf, SHAPES, type ShapeId } from '../lib/diagram/shapes';
   import type { ArrowItem, Head, IconItem, NoteItem, Rect, Route, ShapeItem, StickerItem } from '../lib/types';
   import Icon from './Icon.svelte';
+  import { paintPhoto } from '../lib/paintLink.svelte';
+  import { resolver } from '../lib/resolver.svelte';
 
   let { ed, onpresentdoc }: { ed: CanvasEditor; onpresentdoc: (sectionIndex: number) => void } = $props();
 
@@ -110,6 +112,8 @@
   <div class="ctx" bind:offsetWidth={ed.ctxW} style="left:{ctxPos.x}px;top:{ctxPos.y}px" onpointerdown={(e) => e.stopPropagation()}>
     {#if only('card') && selCards.length === 1}
       <button class="btn sm" onclick={() => ed.openDrawer(selCards[0].id)}><Icon name="pencil" size={14} /> Edit</button>
+      {@const img = selCards[0].media.find((x) => resolver.get(x)?.file?.kind === 'image')}
+      {#if img}<button class="btn sm" title="Draw on its photo in Paint. Export it there and it replaces the photo (the original file is not changed)" onclick={() => void paintPhoto(ed.ds.doc!.id, ed.ds.doc!.title, selCards[0].id, img)}><Icon name="brush" size={14} /> Paint</button>{/if}
       <button class="icon-btn" title="Fit height to the content" onclick={() => ed.fitCardHeight(selCards[0].id)}><Icon name="fit-h" /></button>
       <button class="icon-btn" title="Present the story from this section" onclick={() => onpresentdoc(ed.ds.sectionIndex(selCards[0].id))}><Icon name="present" /></button>
       <span class="vsep"></span>

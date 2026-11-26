@@ -4,6 +4,52 @@ All notable changes to Tessera are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-11-26
+
+Tessera learns to draw: a Paint editor with layers, and diagrams on the canvas.
+
+### Added — Paint
+- **Paint**, a new editor (rail, Home, <kbd>Ctrl</kbd>+<kbd>K</kbd>): layers
+  (add, duplicate, reorder, hide, lock, opacity, 16 blend modes, merge,
+  flatten), a pressure-sensitive brush, pencil, eraser, fill bucket with
+  tolerance, eyedropper, line/arrow/rectangle/ellipse, text in Tessera's styles,
+  blur, smudge and clone; rectangle, ellipse, lasso and magic-wand selection
+  plus *Select subject* (the cut-out model); crop, resize, canvas size, rotate,
+  flip; any photo look on a layer; undo that stores only changed tiles.
+- New image presets, *From clipboard*, *Paint on a photo*, *Make a meme*;
+  images over 16 MP offer to work at 16 MP.
+- Drawings save automatically as **OpenRaster** (`.ora`) in the app data and
+  are listed under *Drawings* on Home; `.ora` files can be opened.
+- **Export** to PNG, JPEG or WebP in Outputs › Drawings (or download only in the
+  web app). *Edit in Paint* on an exported image reopens its layered drawing.
+- **Paint on this** from the Library, a story's photo panel, a canvas card and
+  a collage photo. *Put in “…”* exports and puts the drawing back in place of
+  the photo; on the canvas, *New drawing in Paint* adds the result as a card.
+
+### Added — diagrams on the canvas
+- Shapes: rounded rectangle, diamond, triangle, parallelogram, hexagon,
+  cylinder, document, cloud, speech bubble and star (plus rectangle and
+  ellipse), with text inside any shape; a line tool.
+- A style panel for the whole selection: line and fill colour, width,
+  solid/dashed/dotted, corners, opacity; copy/paste style
+  (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>/<kbd>V</kbd>).
+- Connectors: side ports, straight/curved/elbow routes (elbows go around
+  shapes), six arrowheads per end, draggable labels, width and dashes.
+- Snapping guides while moving and resizing; <kbd>Tab</kbd> adds a connected
+  shape and <kbd>Enter</kbd> a sibling; <kbd>Alt</kbd>+drag copies and connects.
+- Eraser for pen strokes (whole strokes, or cut them apart).
+- Templates: flowchart, mind map, org chart, timeline, blank frame (also on
+  Home as new boards); 205 recolourable icons with search.
+- *Tidy up* (layered layout, top-down or left-right), **Mermaid** flowchart
+  import (dialog, or paste on the canvas), **draw.io** import.
+- Export the board or the selection as **SVG**, and PNG with a see-through
+  background.
+
+### Changed
+- Canvas: moving freely without snapping is now <kbd>Ctrl</kbd>+drag
+  (<kbd>Alt</kbd>+drag copies and connects).
+- The canvas editor was split into smaller modules (no change in behaviour).
+
 ## [0.7.1] — 2026-11-25
 
 A small release: polish and bug fixes for the Library, stories and the canvas.

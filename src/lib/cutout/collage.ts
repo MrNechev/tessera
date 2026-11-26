@@ -57,6 +57,22 @@ export async function replaceWithCutout(elId: string, ref: { libraryId: string; 
   editor.select([elId]);
 }
 
+/** Show another image (e.g. a Paint export of the same photo) in a photo element: same box,
+ *  crop, look and frame. False when the element or the image is gone. */
+export async function replacePhotoAsset(elId: string, ref: { libraryId: string; path: string }): Promise<boolean> {
+  const [id] = await importLibraryRefs([ref]);
+  if (!id || !library.assetRef(id)) return false;
+  let ok = false;
+  editor.update((d) => {
+    editor.ensureAsset(d, id);
+    const el = d.elements.find((e) => e.id === elId);
+    if (!el || el.kind !== 'photo') return;
+    el.asset = id;
+    ok = true;
+  });
+  return ok;
+}
+
 /** "Cut out…" on a photo of the collage (Inspector). */
 export function cutOutPhoto(el: PhotoElement): void {
   const a = el.asset ? editor.doc.assets[el.asset] : null;
