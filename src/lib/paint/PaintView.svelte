@@ -220,7 +220,7 @@
   onMount(() => {
     void refresh();
     // For automated tests and debugging: read pixels, check the state.
-    (window as unknown as { tesseraPaint?: unknown }).tesseraPaint = paint;
+    Object.assign(window, { tesseraPaint: paint, tesseraPaintApi: { openPaint, openPaintDoc } });
     const key = (e: KeyboardEvent) => {
       if (app.view !== 'paint') return;
       if (handleKey(e, fit)) e.preventDefault();
