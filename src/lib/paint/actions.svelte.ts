@@ -10,7 +10,7 @@ import { textHeight } from '../render/text';
 import { presetElement, textPreset } from '../text/styles';
 import { app } from '../stores/app.svelte';
 import { toasts } from '../stores/toasts.svelte';
-import { ctxOf, newCanvas, type PaintDoc } from './doc.svelte';
+import type { PaintDoc } from './doc.svelte';
 import { blobCanvas, canvasBlob } from './io';
 import { combine } from './lib/mask';
 import { zoomStep, zoomAt } from './lib/geom';
@@ -301,9 +301,14 @@ function typing(e: KeyboardEvent): boolean {
 /** Paint's keyboard shortcuts; returns true when the key was handled. */
 export function handleKey(e: KeyboardEvent, fit: () => void): boolean {
   const d = paint.doc;
-  if (!d || app.modals > 0 || paint.dialog || paint.ask) return false;
   const k = e.key.toLowerCase();
   const mod = e.ctrlKey || e.metaKey;
+  if (app.modals > 0 || paint.dialog || paint.ask) return false;
+  if (!d) {
+    // Ctrl+V on the start screen: a new drawing from the clipboard
+    if (mod && k === 'v' && !typing(e)) pasteShortcut();
+    return false;
+  }
   if (typing(e)) {
     if (e.key === 'Escape' && paint.textEdit) {
       finishTextEdit();
@@ -372,7 +377,6 @@ export function handleKey(e: KeyboardEvent, fit: () => void): boolean {
   if (k === 'x') paint.swap();
   else if (k === 'd') paint.resetColors();
   else if (k === 'r' && paint.tool === 'blur') setTool('smudge');
-  else if (k === 's' && paint.tool === 'clone') setTool('clone');
   else if (TOOL_KEYS[k]) {
     // U and M cycle through their variants, like most paint apps
     if (k === 'u' && paint.tool === 'shape') {
@@ -380,21 +384,7 @@ export function handleKey(e: KeyboardEvent, fit: () => void): boolean {
       paint.opts.shape = order[(order.indexOf(paint.opts.shape) + 1) % order.length];
     } else if (k === 'm' && paint.tool === 'select') paint.opts.selectShape = paint.opts.selectShape === 'rect' ? 'ellipse' : 'rect';
     else setTool(TOOL_KEYS[k]);
-  } else if (k === '?' ) paint.dialog = 'help';
+  } else if (k === '?') paint.dialog = 'help';
   else return false;
   return true;
-}
-
-/** An empty canvas the size of the drawing with `src` drawn centred (new layer from an image). */
-export function layerFrom(src: HTMLCanvasElement): HTMLCanvasElement | null {
-  const d = paint.doc;
-  if (!d) return null;
-  const c = newCanvas(d.width, d.height);
-  const s = Math.min(1, d.width / src.width, d.height / src.height);
-  const w = Math.round(src.width * s);
-  const h = Math.round(src.height * s);
-  const g = ctxOf(c);
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(src, Math.round((d.width - w) / 2), Math.round((d.height - h) / 2), w, h);
-  return c;
 }

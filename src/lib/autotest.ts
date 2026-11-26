@@ -284,6 +284,11 @@ async function run(step: Step): Promise<void> {
     case 'state':
       await log(`state view=${app.view} elements=${editor.doc.elements.length} engine=${editor.doc.layout.engine} library=${library.items.length}`);
       break;
+    case 'paintSmoke': {
+      const { paintSmoke } = await import('./paint/smoke');
+      await paintSmoke(log);
+      break;
+    }
     case 'quit':
       await getCurrentWindow().close();
       break;

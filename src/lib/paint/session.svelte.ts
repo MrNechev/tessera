@@ -107,7 +107,7 @@ export async function newPaintFromCanvas(src: HTMLCanvasElement, name: string, s
   const doc = new PaintDoc(c.width, c.height);
   doc.name = name;
   doc.source = source;
-  const base = doc.makeLayer('Image', c.width === src.width && c.height === src.height && c === src ? src : c);
+  const base = doc.makeLayer('Image', c);
   doc.initLayers([base]);
   await show(doc);
   return doc;
@@ -220,11 +220,17 @@ export function scheduleSave(): void {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
     timer = null;
-    void saveNow();
+    const doc = paint.doc;
+    if (doc) void saveNow_(doc, false);
   }, SAVE_DELAY);
 }
 
-function saveNow_(doc: PaintDoc): Promise<void> {
+function saveNow_(doc: PaintDoc, force = true): Promise<void> {
+  // Don't drop pixels that are being moved, or interrupt a stroke, just to autosave.
+  if (!force && (doc.floating || doc.overlay)) {
+    scheduleSave();
+    return chain;
+  }
   const rev = doc.editRev;
   const job = chain.then(async () => {
     if (paint.doc === doc) paint.saving = 'saving';
@@ -288,6 +294,18 @@ export interface ExportResult {
   ref: { libraryId: string; path: string };
   width: number;
   height: number;
+}
+
+type ExportListener = (r: ExportResult & { drawingId: string }) => void;
+const exportListeners = new Set<ExportListener>();
+
+/**
+ * Be told whenever a drawing is exported (e.g. to put the new image into a
+ * story or a canvas that sent it to Paint). Returns the unsubscribe function.
+ */
+export function onPaintExport(fn: ExportListener): () => void {
+  exportListeners.add(fn);
+  return () => exportListeners.delete(fn);
 }
 
 export function exportFileName(doc: PaintDoc, format: ExportFormat): string {
@@ -354,7 +372,15 @@ export async function exportDrawing(format: ExportFormat, quality: number, scale
     });
     if (download && !isTauri) downloadNow(saved.path);
     else if (!isTauri) deliver([saved.path]);
-    return { path: saved.path, name, ref, width: w, height: h };
+    const result = { path: saved.path, name, ref, width: w, height: h };
+    for (const l of exportListeners) {
+      try {
+        l({ ...result, drawingId: doc.id });
+      } catch (e) {
+        console.warn('paint export listener failed', e);
+      }
+    }
+    return result;
   } catch (e) {
     toasts.push({ kind: 'error', title: 'Export failed', message: String(e instanceof Error ? e.message : e) });
     return null;

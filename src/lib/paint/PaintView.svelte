@@ -8,6 +8,7 @@
     Brush,
     ClipboardPaste,
     FolderOpen,
+    Grid3x3,
     HelpCircle,
     ImageDown,
     ImagePlus,
@@ -23,17 +24,18 @@
     X,
   } from '@lucide/svelte';
   import { onMount } from 'svelte';
-  import { api, fileUrl, isTauri, pickImages } from '../api/backend';
+  import { api, fileUrl, getImportExtensions, isTauri } from '../api/backend';
+  import { platform } from '../platform';
   import { call } from '../api/http';
   import Modal from '../components/ui/Modal.svelte';
   import { palette } from '../documents/lib/palette.svelte';
   import type { FileItem } from '../documents/lib/types';
   import { app } from '../stores/app.svelte';
   import { toasts } from '../stores/toasts.svelte';
-  import { addMemeText, applyCrop, copySelection, handleKey, layerFrom, onPaste, pasteShortcut, selectSubject, setTool, zoomBy, zoomTo } from './actions.svelte';
+  import { addMemeText, applyCrop, copySelection, handleKey, onPaste, pasteShortcut, selectSubject, setTool, zoomBy, zoomTo } from './actions.svelte';
   import { blobCanvas, imageDataCanvas } from './io';
   import { drawings, type DrawingSummary } from './lib/store';
-  import { closePaint, dropPaint, flushPaint, newPaintFromClipboard, openPaint, openPaintDoc, saveNow } from './session.svelte';
+  import { addImageLayer, closePaint, dropPaint, flushPaint, newPaintFromClipboard, openPaint, openPaintDoc, saveNow } from './session.svelte';
   import { paint } from './state.svelte';
   import ColorsPanel from './components/ColorsPanel.svelte';
   import ExportDialog from './components/ExportDialog.svelte';
@@ -84,10 +86,7 @@
     }
   }
 
-  function addLayerCanvas(src: HTMLCanvasElement, name: string) {
-    const c = layerFrom(src);
-    if (c && paint.doc) paint.doc.addLayer(name.replace(/\.[^.]+$/, ''), c, 'Add image');
-  }
+  const addLayerCanvas = addImageLayer;
 
   /** Open from this computer: a file input in the browser, the native dialog on the desktop. */
   async function openFile(target: 'open' | 'layer') {
@@ -96,7 +95,15 @@
       fileInput?.click();
       return;
     }
-    const files = await pickImages(app.settings.recentImportDir, target === 'open' ? 'Open an image or drawing' : 'Add an image as a layer');
+    const files = await platform.pickFiles({
+      title: target === 'open' ? 'Open an image or drawing' : 'Add an image as a layer',
+      defaultPath: app.settings.recentImportDir ?? undefined,
+      multiple: false,
+      filters: [
+        { name: target === 'open' ? 'Images and drawings' : 'Images', extensions: [...getImportExtensions(), ...(target === 'open' ? ['ora'] : [])] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
     const path = files[0];
     if (!path) return;
     if (target === 'open') await openPaint({ path });
@@ -335,6 +342,7 @@
         <button class="zpct" title="100 % (Ctrl+1)" onclick={() => zoomTo(1)}>{zoomPct}%</button>
         <button class="icon-btn small" title="Zoom in (Ctrl +)" aria-label="Zoom in" onclick={() => zoomBy(1)}><Plus size={14} /></button>
         <button class="icon-btn small" title="Fit to window (Ctrl+0)" aria-label="Fit to window" onclick={fit}><Maximize size={14} /></button>
+        <button class="icon-btn small" class:active={paint.opts.grid} title="Pixel grid when zoomed in close" aria-label="Pixel grid" aria-pressed={paint.opts.grid} onclick={() => { paint.opts.grid = !paint.opts.grid; paint.persist(); }}><Grid3x3 size={14} /></button>
       </div>
       <button class="icon-btn" title="Shortcuts (?)" aria-label="Shortcuts" onclick={() => (paint.dialog = 'help')}><HelpCircle size={17} /></button>
       <button class="btn" title="Save progress with layers (Ctrl+S)" onclick={() => void saveNow()}><Save size={15} /> Save</button>

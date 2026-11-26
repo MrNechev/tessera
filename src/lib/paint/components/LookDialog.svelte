@@ -45,7 +45,7 @@
 
 <Modal title="Look: filters and adjustments" width={860} {onclose}>
   <div class="wrap">
-    <div class="pv checker">{#if preview}<img src={preview} alt="Preview" />{/if}</div>
+    <div class="pv">{#if preview}<img class="checker" src={preview} alt="Preview" />{/if}</div>
     <div class="side">
       <p class="hint">Applies to <b>{layer.name}</b>{d.selection ? ', inside the selection' : ''}.</p>
       <LookPanel {adjust} {filter} {thumb} onchange={(a, f) => { adjust = a; filter = f; }} />
@@ -68,6 +68,7 @@
     display: grid;
     place-items: center;
     border-radius: var(--radius);
+    background: var(--canvas-bg);
     overflow: hidden;
     min-width: 0;
   }

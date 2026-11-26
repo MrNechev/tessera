@@ -159,6 +159,28 @@ crossfade into the next chunk's first segment. The music is added in that last
 step. Results go to `Outputs/Videos` through the guard. The pure graph
 builder is unit-tested in `tools/video/graph.rs`.
 
+## Paint
+
+`src/lib/paint` is a layered raster editor. A document (`doc.svelte.ts`) is
+one canvas per layer plus a composite that is re-blended only inside dirty
+rectangles, once per frame; the view just scales the composite. Strokes and
+shapes are drawn into a scratch overlay and committed as one undo step;
+pixel edits record only the 128 px tiles they changed (`lib/history.ts`, with a
+memory budget), structural edits (resize, crop, rotate) record snapshots.
+Selections are byte masks (`lib/mask.ts`); "Select subject" reuses the
+cut-out model. Text layers keep their `TextElement` (Tessera's text styles,
+drawn by `render/text.ts`) until they are painted on.
+
+Drawings are OpenRaster files that GIMP and Krita open: the UI writes the zip
+(`lib/zip.ts`, `lib/ora.ts`, layer PNGs cached per revision) and posts it to
+`/api/t/save_drawing`; the engine (`tools/drawings.rs`) keeps them in
+`projects/drawings/<id>.ora` with a name/size sidecar, the thumbnail copied out
+of the file, and `exports.json`, which remembers which exported image came from
+which drawing. Exports go to `Outputs/Drawings` through the export job API.
+Other views send images to Paint with `openPaint({ libraryId, path })` /
+`openPaint({ path })`, reopen a drawing with `openPaintDoc(id)` and can follow
+exports with `onPaintExport` (`paint/session.svelte.ts`).
+
 ## Image engine
 
 `crates/tessera-imaging` has its own [README](../crates/tessera-imaging/README.md)

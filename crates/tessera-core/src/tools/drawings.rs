@@ -259,7 +259,7 @@ fn link_in(dir: &Path, id: &str, path: &str) -> CmdResult<()> {
     let mut map = read_exports(dir);
     // Forget exports of drawings that were deleted.
     map.retain(|_, v| dir.join(format!("{v}.ora")).is_file());
-    map.insert(path.to_string(), id.to_string());
+    map.insert(canonical(path), id.to_string());
     paths::write_atomic(&exports_file(dir), &serde_json::to_vec(&map).map_err(err)?).map_err(err)
 }
 
@@ -269,10 +269,18 @@ pub fn drawing_for_export(t: &Tools, path: &str) -> CmdResult<Option<String>> {
 }
 
 fn lookup_in(dir: &Path, path: &str) -> Option<String> {
-    read_exports(dir)
-        .get(path)
+    let map = read_exports(dir);
+    map.get(path)
+        .or_else(|| map.get(&canonical(path)))
         .filter(|id| valid_id(id) && dir.join(format!("{id}.ora")).is_file())
         .cloned()
+}
+
+/// The same file however it was reached (symlinked folders, `..`).
+fn canonical(path: &str) -> String {
+    fs::canonicalize(path)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| path.to_string())
 }
 
 #[cfg(test)]
