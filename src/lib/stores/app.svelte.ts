@@ -5,7 +5,7 @@ import type { AppInfo, ImportedImage, Settings, UpdateInfo } from '../api/types'
 import { stickers } from './stickers.svelte';
 import { toasts } from './toasts.svelte';
 
-export type View = 'home' | 'library' | 'documents' | 'editor' | 'convert' | 'compress' | 'batch' | 'settings' | 'system';
+export type View = 'home' | 'library' | 'documents' | 'editor' | 'paint' | 'convert' | 'compress' | 'batch' | 'settings' | 'system';
 
 export function defaultSettings(): Settings {
   return {

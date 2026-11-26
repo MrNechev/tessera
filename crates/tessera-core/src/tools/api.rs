@@ -27,8 +27,8 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
 use super::{
-    batch, batch_tools, export, images, paths, projects, settings, system, transfer, video,
-    CmdResult, Tools,
+    batch, batch_tools, drawings, export, images, paths, projects, settings, system, transfer,
+    video, CmdResult, Tools,
 };
 
 type Shared = Arc<Tools>;
@@ -45,6 +45,8 @@ pub fn routes(t: Shared) -> Router {
         .route("/api/t/zip", post(zip))
         .route("/api/t/upload", post(upload))
         .route("/api/t/browse", get(browse))
+        .route("/api/t/save_drawing", post(save_drawing))
+        .route("/api/t/drawing", get(drawing))
         .route("/api/t/{command}", post(command))
         // Export tiles (raw RGBA) and upload chunks are large.
         .layer(axum::extract::DefaultBodyLimit::max(512 * 1024 * 1024))
@@ -272,6 +274,27 @@ fn dispatch(t: &Shared, cmd: &str, a: &Value) -> CmdResult<Value> {
             to(projects::save_project_file(t, path, json)?)
         }
         "delete_project" => to(projects::delete_project(t, arg::<IdArg>(a)?.id)?),
+        "list_drawings" => to(drawings::list_drawings(t)?),
+        "delete_drawing" => to(drawings::delete_drawing(t, &arg::<IdArg>(a)?.id)?),
+        "rename_drawing" => {
+            #[derive(Deserialize)]
+            struct A {
+                id: String,
+                name: String,
+            }
+            let A { id, name } = arg(a)?;
+            to(drawings::rename_drawing(t, &id, &name)?)
+        }
+        "link_drawing_export" => {
+            #[derive(Deserialize)]
+            struct A {
+                id: String,
+                path: String,
+            }
+            let A { id, path } = arg(a)?;
+            to(drawings::link_export(t, &id, &path)?)
+        }
+        "drawing_for_export" => to(drawings::drawing_for_export(t, &arg::<PathArg>(a)?.path)?),
         "areas" => to(t.guard.areas()),
         "resolve" => {
             #[derive(Deserialize)]
@@ -320,6 +343,30 @@ async fn export_tile(State(t): State<Shared>, headers: HeaderMap, body: Bytes) -
         Err(e) => return error(StatusCode::BAD_REQUEST, e),
     };
     json_result(blocking(move || export::export_tile(&t, &job, &rect, &body)).await)
+}
+
+#[derive(Deserialize)]
+struct DrawingQuery {
+    id: String,
+    #[serde(default)]
+    name: String,
+}
+
+/// Save a Paint document: the body is the `.ora` file.
+async fn save_drawing(
+    State(t): State<Shared>,
+    Query(q): Query<DrawingQuery>,
+    body: Bytes,
+) -> Response {
+    json_result(blocking(move || drawings::save_drawing(&t, &q.id, &q.name, &body)).await)
+}
+
+/// A Paint document's `.ora` file.
+async fn drawing(State(t): State<Shared>, Query(q): Query<DrawingQuery>, req: Request) -> Response {
+    match drawings::drawing_path(&t, &q.id) {
+        Ok(p) => serve_path(&p, req, "no-store").await,
+        Err(e) => error(StatusCode::NOT_FOUND, e),
+    }
 }
 
 async fn save_temp_image(State(t): State<Shared>, body: Bytes) -> Response {

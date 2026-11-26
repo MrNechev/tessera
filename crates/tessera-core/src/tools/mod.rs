@@ -6,6 +6,7 @@
 pub mod api;
 pub mod batch;
 pub mod batch_tools;
+pub mod drawings;
 pub mod events;
 pub mod export;
 pub mod guard;

@@ -4,7 +4,7 @@
    * libraries, with search, filters, duplicates and previews. Picked items can
    * start a collage or go to the image tools.
    */
-  import { ArrowLeftRight, BookOpen, CalendarDays, Film, LayoutDashboard, Laugh, Minimize2, Scissors, SlidersHorizontal, Wand, X } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, Brush, CalendarDays, Film, LayoutDashboard, Laugh, Minimize2, Scissors, SlidersHorizontal, Wand, X } from '@lucide/svelte';
   import LibraryPanel from '../documents/components/LibraryPanel.svelte';
   import VideoDialog from '../components/VideoDialog.svelte';
   import type { FileItem } from '../documents/lib/types';
@@ -19,6 +19,7 @@
   import { toasts } from '../stores/toasts.svelte';
   import { palette } from '../documents/lib/palette.svelte';
   import { openCutout } from '../cutout/open.svelte';
+  import { openPaint } from '../paint/session.svelte';
 
   let picked = $state<FileItem[]>([]);
   let editing = $state<FileItem | null>(null);
@@ -60,7 +61,12 @@
         { id: 'lib:compress', group: 'Selection', icon: 'package', title: `Compress ${n}`, run: () => use('compress') },
         { id: 'lib:video', group: 'Selection', icon: 'video', title: `Make a video from ${n}`, run: () => void (videoFiles = [...visual]) },
         { id: 'lib:batch', group: 'Selection', icon: 'sliders', title: `Resize, watermark or rename ${n}`, run: () => use('batch') },
-        ...(images.length === 1 ? [{ id: 'lib:cutout', group: 'Selection', icon: 'image', title: 'Cut out the background', run: cutOut }] : []),
+        ...(images.length === 1
+          ? [
+              { id: 'lib:cutout', group: 'Selection', icon: 'image', title: 'Cut out the background', run: cutOut },
+              { id: 'lib:paint', group: 'Selection', icon: 'brush', title: 'Edit in Paint (draw, retouch, meme)', run: paintOn },
+            ]
+          : []),
       ];
     }),
   );
@@ -78,6 +84,12 @@
   function cutOut() {
     const f = images[0];
     if (f) openCutout({ source: { libraryId: f.libraryId, path: f.path, name: f.name }, actions: [{ id: 'save', label: 'Save to Outputs' }] });
+  }
+
+  /** Open the one selected photo in Paint (the library file itself is never changed). */
+  function paintOn() {
+    const f = images[0];
+    if (f) void openPaint({ libraryId: f.libraryId, path: f.path, name: f.name });
   }
 
   async function use(target: 'collage' | 'meme' | 'book' | 'calendar' | 'convert' | 'compress' | 'batch') {
@@ -116,6 +128,7 @@
       {#if images.length === 1}
         <button class="btn" disabled={busy} onclick={() => (editing = images[0])} title="Crop, turn, filters, hide areas — saved as a new file in Outputs"><SlidersHorizontal size={15} /> Edit a copy</button>
         <button class="btn" disabled={busy} onclick={() => void use('meme')}><Laugh size={15} /> Meme</button>
+        <button class="btn" disabled={busy} title="Draw, retouch or annotate it in Paint — results are saved as new files in Outputs › Drawings" onclick={paintOn}><Brush size={15} /> Edit in Paint</button>
       {/if}
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('book')}><BookOpen size={15} /> Photo book</button>
       <button class="btn" disabled={busy || !images.length} onclick={() => void use('calendar')}><CalendarDays size={15} /> Calendar</button>

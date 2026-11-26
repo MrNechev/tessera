@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeftRight, BookOpen, CalendarDays, FileText, FolderOpen, Hand, Images, LayoutDashboard, LayoutTemplate, Minimize2, PenTool, Presentation, Sparkles, Trash2, Wand } from '@lucide/svelte';
+  import { ArrowLeftRight, BookOpen, Brush, CalendarDays, FileText, FolderOpen, Hand, Images, LayoutDashboard, LayoutTemplate, Minimize2, PenTool, Presentation, Sparkles, Trash2, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { api, fileUrl } from '../api/backend';
   import type { ProjectSummary } from '../api/types';
@@ -21,16 +21,21 @@
   import type { DocMeta } from '../documents/lib/types';
   import DocIcon from '../documents/components/Icon.svelte';
   import OnThisDay from '../documents/components/OnThisDay.svelte';
+  import { drawings as drawingStore, type DrawingSummary } from '../paint/lib/store';
+  import { openPaintDoc } from '../paint/session.svelte';
+  import { paint } from '../paint/state.svelte';
 
   let projects = $state<ProjectSummary[]>([]);
   let docs = $state<DocMeta[]>([]);
-  let recentKind = $state<'all' | 'collage' | 'doc'>('all');
+  let drawings = $state<DrawingSummary[]>([]);
+  let recentKind = $state<'all' | 'collage' | 'doc' | 'drawing'>('all');
 
-  type Recent = { kind: 'collage'; at: number; p: ProjectSummary } | { kind: 'doc'; at: number; d: DocMeta };
+  type Recent = { kind: 'collage'; at: number; p: ProjectSummary } | { kind: 'doc'; at: number; d: DocMeta } | { kind: 'drawing'; at: number; g: DrawingSummary };
   const recent = $derived.by(() => {
     const all: Recent[] = [
       ...projects.map((p) => ({ kind: 'collage' as const, at: Date.parse(p.modified), p })),
       ...docs.map((d) => ({ kind: 'doc' as const, at: Date.parse(d.updatedAt), d })),
+      ...drawings.map((g) => ({ kind: 'drawing' as const, at: Date.parse(g.modified), g })),
     ];
     return all.filter((r) => recentKind === 'all' || r.kind === recentKind).sort((a, b) => b.at - a.at).slice(0, 18);
   });
@@ -79,6 +84,7 @@
     } catch (e) {
       toasts.push({ kind: 'error', title: 'Could not list projects', message: String(e) });
     }
+    drawings = await drawingStore.list().catch(() => []);
     try {
       docs = await docApi.docs();
       resolver.prefetch(docs.filter((d) => d.coverPath).map((d) => ({ libraryId: d.coverLibraryId!, path: d.coverPath! })));
@@ -149,6 +155,10 @@
       </button>
     </div>
     <div class="projects">
+      <button class="project" onclick={() => (app.view = 'paint')}>
+        <Brush size={20} />
+        <span><b>Paint</b><span class="hint">Draw, retouch and make memes, with layers. Export PNG or JPEG.</span></span>
+      </button>
       <button class="project" onclick={() => (app.newProject = 'book')}>
         <BookOpen size={20} />
         <span><b>Photo book</b><span class="hint">Cover, layouts, page numbers. Print it or save a PDF.</span></span>
@@ -184,6 +194,13 @@
       </button>
     </section>
   {/if}
+  {#if paint.doc}
+    <section>
+      <button class="continue card" onclick={() => (app.view = 'paint')}>
+        Continue painting <b>{paint.doc.name}</b> →
+      </button>
+    </section>
+  {/if}
 
   <section>
     <div class="sec-head">
@@ -192,13 +209,26 @@
         <button role="tab" aria-selected={recentKind === 'all'} class:on={recentKind === 'all'} onclick={() => (recentKind = 'all')}>All</button>
         <button role="tab" aria-selected={recentKind === 'collage'} class:on={recentKind === 'collage'} onclick={() => (recentKind = 'collage')}>Collages</button>
         <button role="tab" aria-selected={recentKind === 'doc'} class:on={recentKind === 'doc'} onclick={() => (recentKind = 'doc')}>Stories</button>
+        <button role="tab" aria-selected={recentKind === 'drawing'} class:on={recentKind === 'drawing'} onclick={() => (recentKind = 'drawing')}>Drawings</button>
       </div>
       <button class="btn ghost" onclick={() => { router.go('/'); app.view = 'documents'; }}>All stories →</button>
     </div>
     {#if recent.length}
       <div class="recent">
-        {#each recent as r (r.kind + (r.kind === 'collage' ? r.p.id : r.d.id))}
-          {#if r.kind === 'collage'}
+        {#each recent as r (r.kind + (r.kind === 'collage' ? r.p.id : r.kind === 'doc' ? r.d.id : r.g.id))}
+          {#if r.kind === 'drawing'}
+            {@const g = r.g}
+            <div class="proj card" role="button" tabindex="0" onclick={() => void openPaintDoc(g.id)} onkeydown={(e) => e.key === 'Enter' && void openPaintDoc(g.id)}>
+              <div class="pthumb">
+                {#if g.thumb}<img class="checker" src={fileUrl(g.thumb, g.modified)} alt="" loading="lazy" />{/if}
+                <span class="kind"><Brush size={12} /> Drawing</span>
+              </div>
+              <div class="pinfo">
+                <span class="truncate"><b>{g.name}</b></span>
+                <span class="hint">{ago(g.modified)} · {g.width}×{g.height}</span>
+              </div>
+            </div>
+          {:else if r.kind === 'collage'}
             {@const p = r.p}
             <div class="proj card" role="button" tabindex="0" onclick={() => void openProjectPath(p.path, false)} onkeydown={(e) => e.key === 'Enter' && void openProjectPath(p.path, false)}>
               <div class="pthumb">
@@ -229,7 +259,7 @@
         {/each}
       </div>
     {:else}
-      <p class="hint">Your collages and stories appear here automatically as you work on them.</p>
+      <p class="hint">Your collages, stories and drawings appear here automatically as you work on them.</p>
     {/if}
   </section>
 
@@ -372,6 +402,9 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
+  }
+  .projects {
+    grid-template-columns: repeat(5, 1fr);
   }
   .doc-tpls {
     margin-top: 18px;
