@@ -7,6 +7,7 @@
     AlignStartHorizontal,
     AlignStartVertical,
     Bold,
+    Brush,
     CaseUpper,
     Eye,
     EyeOff,
@@ -37,6 +38,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import Layers from './Layers.svelte';
   import { cutOutPhoto } from '../../cutout/collage';
+  import { openPaint } from '../../paint/session.svelte';
 
   let tab = $state<'props' | 'layers'>('props');
   const el = $derived(editor.single);
@@ -124,7 +126,10 @@
           <button class="icon-btn" title="Flip vertically" onclick={() => patch({ flipY: !p.flipY })}><FlipVertical size={16} /></button>
         </div>
         <p class="hint">{editor.doc.assets[p.asset]?.name ?? ''}</p>
-        {#if !p.cutout}<button class="btn small" title="Remove the background (on this device)" onclick={() => cutOutPhoto(p)}><Scissors size={13} /> Cut out…</button>{/if}
+        <div class="row">
+          {#if !p.cutout}<button class="btn small" title="Remove the background (on this device)" onclick={() => cutOutPhoto(p)}><Scissors size={13} /> Cut out…</button>{/if}
+          {#if editor.doc.assets[p.asset]}<button class="btn small" title="Draw on it, retouch it or make a meme in Paint (the original file is not changed)" onclick={() => { const a = editor.doc.assets[p.asset!]; void openPaint({ path: a.path, name: a.name }); }}><Brush size={13} /> Edit in Paint</button>{/if}
+        </div>
       {:else}
         <p class="hint">Empty frame — drag a photo from the Photos tab onto it, or double-click it.</p>
       {/if}

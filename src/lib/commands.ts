@@ -10,6 +10,8 @@ import { router } from './documents/lib/router.svelte';
 import { editor } from './editor/editor.svelte';
 import { newBlank, newQuickCollage, openProjectDialog } from './editor/session.svelte';
 import { app, type View } from './stores/app.svelte';
+import { newPaintFromClipboard } from './paint/session.svelte';
+import { paint } from './paint/state.svelte';
 
 export function themeCommand(): Command {
   const dark = document.documentElement.dataset.theme !== 'light';
@@ -29,6 +31,7 @@ export function registerAppCommands(go: (v: View) => void): () => void {
       ['home', 'Home', 'home', 'start recent'],
       ['library', 'Library', 'image', 'photos videos files media'],
       ['documents', 'Stories', 'notes', 'all stories documents diary list'],
+      ['paint', 'Paint', 'brush', 'draw paint brush pixels layers meme retouch drawings'],
       ['convert', 'Convert images', 'refresh', 'format jpeg png webp avif heic'],
       ['compress', 'Compress images', 'package', 'smaller size'],
       ['batch', 'Batch: resize, watermark, rename', 'sliders', 'resize watermark rename bulk'],
@@ -64,6 +67,18 @@ export function registerAppCommands(go: (v: View) => void): () => void {
           app.templateGallery = true;
         },
       },
+      {
+        id: 'new:paint',
+        group: 'New',
+        icon: 'brush',
+        title: 'Paint: new image…',
+        keywords: 'new draw paint canvas blank picture',
+        run: () => {
+          go('paint');
+          paint.dialog = 'new';
+        },
+      },
+      { id: 'new:paint-clip', group: 'New', icon: 'image', title: 'Paint: new from clipboard', keywords: 'paste screenshot draw annotate', run: () => void newPaintFromClipboard() },
       { id: 'new:book', group: 'New', icon: 'notes', title: 'Photo book…', keywords: 'new book pages album', run: () => void (app.newProject = 'book') },
       { id: 'new:calendar', group: 'New', icon: 'calendar', title: 'Photo calendar…', keywords: 'new calendar months year', run: () => void (app.newProject = 'calendar') },
       {

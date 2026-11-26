@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Activity, ArrowLeftRight, BookOpen, House, Images, LayoutDashboard, LogOut, Minimize2, Moon, Settings, Sun, Wand } from '@lucide/svelte';
+  import { Activity, ArrowLeftRight, BookOpen, Brush, House, Images, LayoutDashboard, LogOut, Minimize2, Moon, Settings, Sun, Wand } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { isTauri } from './lib/api/backend';
   import ServerPicker from './lib/components/ServerPicker.svelte';
@@ -22,6 +22,8 @@
   import LibraryView from './lib/views/LibraryView.svelte';
   import DocumentsView from './lib/views/DocumentsView.svelte';
   import SystemView from './lib/views/SystemView.svelte';
+  import PaintView from './lib/paint/PaintView.svelte';
+  import { flushPaint, paintDropFiles, paintDropPaths } from './lib/paint/session.svelte';
   import { api as docApi, setUnauthorizedHandler } from './lib/documents/lib/api';
   import { router } from './lib/documents/lib/router.svelte';
   import { palette } from './lib/documents/lib/palette.svelte';
@@ -54,6 +56,7 @@
     { id: 'library', label: 'Library', icon: Images },
     { id: 'documents', label: 'Stories', icon: BookOpen },
     { id: 'editor', label: 'Collage', icon: LayoutDashboard },
+    { id: 'paint', label: 'Paint', icon: Brush },
     { id: 'convert', label: 'Convert', icon: ArrowLeftRight },
     { id: 'compress', label: 'Compress', icon: Minimize2 },
     { id: 'batch', label: 'Batch', icon: Wand },
@@ -66,6 +69,9 @@
       return;
     }
     switch (app.view) {
+      case 'paint':
+        await paintDropPaths(paths);
+        break;
       case 'convert':
         await convertQueue.add(paths);
         break;
@@ -145,7 +151,7 @@
   /** Browser: files dropped from the user's computer are matched or uploaded first. */
   async function handleWebDrop(e: DragEvent) {
     // The documents and library views handle their own drops.
-    if (e.defaultPrevented || !['home', 'editor', 'convert', 'compress', 'batch'].includes(app.view)) {
+    if (e.defaultPrevented || !['home', 'editor', 'paint', 'convert', 'compress', 'batch'].includes(app.view)) {
       dropping = false;
       return;
     }
@@ -153,6 +159,11 @@
     dropping = false;
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (!files.length) return;
+    // Paint reads dropped images right here; nothing needs uploading.
+    if (app.view === 'paint') {
+      await paintDropFiles(files);
+      return;
+    }
     const x = e.clientX;
     const y = e.clientY;
     const id = toasts.push({ kind: 'info', title: `Sending ${files.length} file${files.length === 1 ? '' : 's'} to Tessera…`, timeout: 0 });
@@ -181,7 +192,10 @@
     if (router.route.name !== 'remote') void checkSession();
     if (!isTauri) {
       // Browser: save pending edits when the tab closes.
-      const flush = () => void flushAutosave();
+      const flush = () => {
+        void flushAutosave();
+        void flushPaint();
+      };
       const dragover = (e: DragEvent) => {
         if (e.dataTransfer?.types.includes('Files')) {
           e.preventDefault();
@@ -211,7 +225,7 @@
     // debounced autosave: write them before the window goes away.
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       unlistenClose = await getCurrentWindow().onCloseRequested(async () => {
-        await Promise.race([flushAutosave(), new Promise((r) => setTimeout(r, 5000))]);
+        await Promise.race([Promise.all([flushAutosave(), flushPaint()]), new Promise((r) => setTimeout(r, 5000))]);
       });
     });
     void import('@tauri-apps/api/webview').then(async ({ getCurrentWebview }) => {
@@ -326,6 +340,7 @@
       {:else if app.view === 'library'}<LibraryView />
       {:else if app.view === 'documents'}<DocumentsView />
       {:else if app.view === 'system'}<SystemView />
+      {:else if app.view === 'paint'}<PaintView />
       {/if}
     {/if}
   </main>
@@ -333,7 +348,7 @@
   {#if dropping}
     <div class="dropzone">
       <div class="dz-inner">
-        Drop to {app.view === 'convert' ? 'convert' : app.view === 'compress' ? 'compress' : app.view === 'batch' ? 'process' : app.view === 'editor' ? 'add to your collage' : 'start a quick collage'}
+        Drop to {app.view === 'paint' ? 'open in Paint' : app.view === 'convert' ? 'convert' : app.view === 'compress' ? 'compress' : app.view === 'batch' ? 'process' : app.view === 'editor' ? 'add to your collage' : 'start a quick collage'}
       </div>
     </div>
   {/if}

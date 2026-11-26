@@ -13,6 +13,7 @@
   import { hasLook } from '../../look/looks.svelte';
   import LookPanel from '../../look/LookPanel.svelte';
   import { openCutout } from '../../cutout/open.svelte';
+  import { openPaint } from '../../paint/session.svelte';
   import ClipTimeline from './ClipTimeline.svelte';
   import PhotoDialog, { type PhotoEdit } from './PhotoDialog.svelte';
   import Outline from './Outline.svelte';
@@ -166,6 +167,7 @@
         <div class="row">
           <button class="btn sm primary" onclick={() => (editing = true)}><Icon name="crop" size={14} /> Crop, turn, frame…</button>
           {#if f.kind === 'image'}<button class="btn sm" title="Remove the background (on this device)" onclick={cutOut}><Icon name="scissors" size={14} /> Cut out</button>{/if}
+          {#if f.kind === 'image'}<button class="btn sm" title="Draw on it, retouch it or make a meme in Paint (saved as a new image in Outputs › Drawings)" onclick={() => void openPaint({ libraryId: m.libraryId, path: m.path, name: f.name })}><Icon name="brush" size={14} /> Paint</button>{/if}
           {#if m.crop || hasLook(m)}<button class="btn sm ghost" onclick={() => applyEdit({})}>Undo all edits</button>{/if}
         </div>
         <LookPanel adjust={m.adjust} filter={m.filter} thumb="/d/{f.key}/t320.webp" video={f.kind !== 'image'} onchange={(a, fl) => setLook(a, fl)} />
